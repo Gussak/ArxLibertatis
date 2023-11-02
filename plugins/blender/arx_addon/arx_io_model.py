@@ -320,6 +320,16 @@ class ArxObjectManager(object):
 
     # =============================================================
 
+    def toFtlDataAutoObj(self) -> FtlData:
+        objs = [o for o in bpy.data.objects if o.type == 'MESH' and not o.hide]
+
+        if not objs:
+            self.log.info("Nothing to export")
+
+        obj = objs[0]
+        
+        return self.toFtlData(obj)
+      
     def toFtlData(self, obj) -> FtlData:
 
         #objs = [o for o in bpy.data.objects if o.type == 'MESH' and not o.hide]
@@ -511,7 +521,10 @@ class ArxObjectManager(object):
 
     def saveFile(self, path):
 
-        data = self.toFtlData()
+        try:
+            data = self.toFtlData()
+        except ValueError:
+            data = self.toFtlDataAutoObj()
 
         binData = self.ftlSerializer.write(data)
 
