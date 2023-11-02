@@ -20,7 +20,9 @@
 #include "graphics/effects/BlobShadow.h"
 
 #include <array>
+#include <sstream>
 #include <vector>
+#include <iostream>
 
 #include <boost/range/adaptor/strided.hpp>
 
@@ -99,16 +101,37 @@ void ARXDRAW_DrawInterShadows() {
 			continue;
 		}
 		
+    //static int siMaxShadowBlobCount=-1;// = std::getenv("ARX_LIMIT_SHADOWBLOB") == NULL ? 99999 : -1;
+    static int siMaxShadowBlobCount=3;// = std::getenv("ARX_LIMIT_SHADOWBLOB") == NULL ? 99999 : -1;
+    if(siMaxShadowBlobCount==-1){ //this is not working yet...
+      char* pc=std::getenv(std::getenv("ARX_LIMIT_SHADOWBLOB"));
+      if(pc==NULL){
+        siMaxShadowBlobCount=99999; //just any absurd high value
+      }else{
+        std::stringstream ss;
+        ss << std::dec << pc;
+        ss >> siMaxShadowBlobCount;
+      }
+      std::cerr<<pc<<"="<<siMaxShadowBlobCount<<std::endl;
+    }
+    
+    int iMaxShadowBlobCount=siMaxShadowBlobCount;
+    int iSBCount=0;
 		if(entity.obj->grouplist.size() > 1) {
 			for(const VertexGroup & group : entity.obj->grouplist) {
+        iMaxShadowBlobCount--;if(iMaxShadowBlobCount<0)break;
 				addShadowBlob(entity, entity.obj->vertexWorldPositions[group.origin].v, group.m_blobShadowSize, true);
+        iSBCount++;
 			}
+      std::cerr<<"grouplist.size()="<<grouplist.size()<<",iSBCount="<<iSBCount<<std::endl;
 		} else {
 			for(const EERIE_VERTEX & vertex : entity.obj->vertexWorldPositions | boost::adaptors::strided(9)) {
+        iMaxShadowBlobCount--;if(iMaxShadowBlobCount<0)break;
 				addShadowBlob(entity, vertex.v, entity.scale, false);
+        iSBCount++;
 			}
+      std::cerr<<"vertex,iSBCount="<<iSBCount<<std::endl;
 		}
-		
 	}
 	
 	if(!g_shadowBatch.empty()) {
