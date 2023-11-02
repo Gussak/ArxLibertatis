@@ -20,9 +20,9 @@
 #include "graphics/effects/BlobShadow.h"
 
 #include <array>
+#include <iostream>
 #include <sstream>
 #include <vector>
-#include <iostream>
 
 #include <boost/range/adaptor/strided.hpp>
 
@@ -31,6 +31,7 @@
 #include "graphics/GlobalFog.h"
 #include "graphics/Renderer.h"
 #include "graphics/particle/ParticleTextures.h"
+#include "io/log/Logger.h"
 #include "platform/profiler/Profiler.h"
 #include "scene/Interactive.h"
 #include "scene/Tiles.h"
@@ -79,12 +80,52 @@ static void addShadowBlob(const Entity & entity, Vec3f pos, float scale, bool is
 	
 }
 
+#ifdef ARX_DEBUG_SHADOWBLOB
+ #define LogDebug2(...) std::cerr<<__VA_ARGS__<<std::endl //TODO until I find a way to let debug log show up (preferably with a SHADOWBLOB filter!!) on the terminal using the run parameters
+#else
+ #define LogDebug2(...) ARX_DISCARD(__VA_ARGS__)
+#endif
+static int iSBShowLogCountDown=1;
+static int siMaxShadowBlobCountForVertexes=-1;
+static int siMaxShadowBlobCountForVertGrps=-1;
+static void debugShadowBlob() {
+  iSBShowLogCountDown--;
+  if(iSBShowLogCountDown<0)iSBShowLogCountDown=60*10; //like every 10s if FPS is 60
+  
+  if(siMaxShadowBlobCountForVertexes==-1){
+    char* pc=std::getenv("ARX_LIMIT_SHADOWBLOB_FOR_VERTEXES"); //RECOMENDED is: export ARX_LIMIT_SHADOWBLOB_FOR_VERTEXES=9
+    if(pc==NULL){
+      siMaxShadowBlobCountForVertexes=99999; //just any absurd high value to mean no limit
+    }else{
+      std::stringstream ss;
+      ss << std::dec << pc;
+      ss >> siMaxShadowBlobCountForVertexes;
+    }
+    LogDebug2("ARX_LIMIT_SHADOWBLOB_FOR_VERTEXES="<<siMaxShadowBlobCountForVertexes);
+  }
+  if(siMaxShadowBlobCountForVertGrps==-1){
+    char* pc=std::getenv("ARX_LIMIT_SHADOWBLOB_FOR_VERTGRPS");
+    if(pc==NULL){
+      siMaxShadowBlobCountForVertGrps=99999; //just any absurd high value to mean no limit
+    }else{
+      std::stringstream ss;
+      ss << std::dec << pc;
+      ss >> siMaxShadowBlobCountForVertGrps;
+    }
+    LogDebug2("ARX_LIMIT_SHADOWBLOB_FOR_VERTGRPS="<<siMaxShadowBlobCountForVertGrps);
+  }
+}
+
 void ARXDRAW_DrawInterShadows() {
 	
 	ARX_PROFILE_FUNC();
 	
 	g_shadowBatch.clear();
 	
+#ifdef ARX_DEBUG_SHADOWBLOB
+  debugShadowBlob();
+  if(iSBShowLogCountDown==0)LogDebug2(">>>>>>>>>>>>>>>>>>>> treatio.size()="<<treatio.size()<<" <<<<<<<<<<<<<<<<<<");
+#endif
 	for(const auto & entry : treatio) {
 		
 		if(entry.show != SHOW_FLAG_IN_SCENE || !entry.io) {
@@ -101,36 +142,31 @@ void ARXDRAW_DrawInterShadows() {
 			continue;
 		}
 		
-    //static int siMaxShadowBlobCount=-1;// = std::getenv("ARX_LIMIT_SHADOWBLOB") == NULL ? 99999 : -1;
-    static int siMaxShadowBlobCount=3;// = std::getenv("ARX_LIMIT_SHADOWBLOB") == NULL ? 99999 : -1;
-    if(siMaxShadowBlobCount==-1){ //this is not working yet...
-      char* pc=std::getenv(std::getenv("ARX_LIMIT_SHADOWBLOB"));
-      if(pc==NULL){
-        siMaxShadowBlobCount=99999; //just any absurd high value
-      }else{
-        std::stringstream ss;
-        ss << std::dec << pc;
-        ss >> siMaxShadowBlobCount;
-      }
-      std::cerr<<pc<<"="<<siMaxShadowBlobCount<<std::endl;
-    }
-    
-    int iMaxShadowBlobCount=siMaxShadowBlobCount;
+#ifdef ARX_DEBUG_SHADOWBLOB
+    int iMaxShadowBlobCountForVertexes=siMaxShadowBlobCountForVertexes;
+    int iMaxShadowBlobCountForVertGrps=siMaxShadowBlobCountForVertGrps;
     int iSBCount=0;
+#endif
 		if(entity.obj->grouplist.size() > 1) {
 			for(const VertexGroup & group : entity.obj->grouplist) {
-        iMaxShadowBlobCount--;if(iMaxShadowBlobCount<0)break;
-				addShadowBlob(entity, entity.obj->vertexWorldPositions[group.origin].v, group.m_blobShadowSize, true);
+#ifdef ARX_DEBUG_SHADOWBLOB
+        iMaxShadowBlobCountForVertGrps--;if(iMaxShadowBlobCountForVertGrps<0)break;
         iSBCount++;
+#endif
+				addShadowBlob(entity, entity.obj->vertexWorldPositions[group.origin].v, group.m_blobShadowSize, true);
 			}
-      std::cerr<<"grouplist.size()="<<grouplist.size()<<",iSBCount="<<iSBCount<<std::endl;
+      if(iSBShowLogCountDown==0)LogDebug2("ShadowBlob("<<entity.idString()<<"):grouplist.size()="<<entity.obj->grouplist.size()<<",iSBCount="<<iSBCount);
 		} else {
 			for(const EERIE_VERTEX & vertex : entity.obj->vertexWorldPositions | boost::adaptors::strided(9)) {
-        iMaxShadowBlobCount--;if(iMaxShadowBlobCount<0)break;
-				addShadowBlob(entity, vertex.v, entity.scale, false);
+#ifdef ARX_DEBUG_SHADOWBLOB
+        iMaxShadowBlobCountForVertexes--;if(iMaxShadowBlobCountForVertexes<0)break;
         iSBCount++;
+#endif
+				addShadowBlob(entity, vertex.v, entity.scale, false);
 			}
-      std::cerr<<"vertex,iSBCount="<<iSBCount<<std::endl;
+#ifdef ARX_DEBUG_SHADOWBLOB
+      if(iSBShowLogCountDown==0)LogDebug2("ShadowBlob("<<entity.idString()<<"):vertexWorldPositions.size()="<<entity.obj->vertexWorldPositions.size()<<"(WouldRequest:"<<(entity.obj->vertexWorldPositions | boost::adaptors::strided(9)).size()<<"),iSBCount="<<iSBCount);
+#endif
 		}
 	}
 	
