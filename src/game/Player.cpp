@@ -382,7 +382,8 @@ static PlayerMisc getMiscStats(const PlayerAttribute & attribute, const PlayerSk
 	stats.resistMagic  = std::floor(attribute.mind * 2.f * (1.f + skill.casting * 0.005f)); // TODO why *?
 	stats.resistPoison = std::floor(attribute.constitution * 2.f + skill.defense * 0.25f);
 	stats.criticalHit  = attribute.dexterity * 2.f + skill.closeCombat * 0.2f - 18.f;
-	stats.damages      = std::max(1.f, attribute.strength * 0.5f - 5.f);
+	if (ARX_EQUIPMENT_GetPlayerWeaponType() != WEAPON_BOW)
+		stats.damages  = std::max(1.f, attribute.strength * 0.5f - 5.f);
 	
 	return stats;
 }
@@ -402,6 +403,8 @@ static void ARX_PLAYER_ComputePlayerStats() {
  *        and any other effect altering them.
  */
 void ARX_PLAYER_ComputePlayerFullStats() {
+	
+	WeaponType weapontype = ARX_EQUIPMENT_GetPlayerWeaponType();
 	
 	ARX_PLAYER_ComputePlayerStats();
 	
@@ -471,7 +474,8 @@ void ARX_PLAYER_ComputePlayerFullStats() {
 		miscMod.resistMagic = 100;
 		miscMod.resistPoison = 100;
 		miscMod.criticalHit = 5;
-		miscMod.damages = 2;
+		if (weapontype != WEAPON_BOW)
+			miscMod.damages = 2;
 		miscMod.armorClass = 100;
 		player.m_miscMod.add(miscMod);
 		
@@ -501,7 +505,8 @@ void ARX_PLAYER_ComputePlayerFullStats() {
 		miscMod.resistMagic = 10;
 		miscMod.resistPoison = 10;
 		miscMod.criticalHit = 50;
-		miscMod.damages = 10;
+		if (weapontype != WEAPON_BOW)
+			miscMod.damages = 10;
 		miscMod.armorClass = 20;
 		player.m_miscMod.add(miscMod);
 		
@@ -531,7 +536,8 @@ void ARX_PLAYER_ComputePlayerFullStats() {
 		miscMod.resistMagic = float(Random::get(0, 20));
 		miscMod.resistPoison = float(Random::get(0, 20));
 		miscMod.criticalHit = float(Random::get(0, 20));
-		miscMod.damages = float(Random::get(0, 20));
+		if (weapontype != WEAPON_BOW)
+			miscMod.damages = float(Random::get(0, 20));
 		miscMod.armorClass = float(Random::get(0, 20));
 		player.m_miscMod.add(miscMod);
 	}
@@ -549,7 +555,8 @@ void ARX_PLAYER_ComputePlayerFullStats() {
 		PlayerMisc miscMod;
 		miscMod.resistMagic = 20;
 		miscMod.resistPoison = 20;
-		miscMod.damages = 1;
+		if (weapontype != WEAPON_BOW)
+			miscMod.damages = 1;
 		miscMod.armorClass = 5;
 		player.m_miscMod.add(miscMod);
 	}
@@ -649,18 +656,25 @@ void ARX_PLAYER_ComputePlayerFullStats() {
 	player.m_miscMod.criticalHit += getEquipmentModifier(
 		IO_EQUIPITEM_ELEMENT_Critical_Hit, miscBase.criticalHit
 	);
-	player.m_miscMod.damages += getEquipmentModifier(
-		IO_EQUIPITEM_ELEMENT_Damages, miscBase.damages
-	);
-	
+	if (weapontype != WEAPON_BOW) {
+		player.m_miscMod.damages += getEquipmentModifier(
+			IO_EQUIPITEM_ELEMENT_Damages, miscBase.damages
+		);
+	}
+
+
 	// Calculate full stats
 	player.m_miscFull.armorClass = std::max(0.f, miscBase.armorClass + player.m_miscMod.armorClass);
 	player.m_miscFull.resistMagic = std::max(0.f, miscBase.resistMagic + player.m_miscMod.resistMagic);
 	player.m_miscFull.resistPoison = std::max(0.f, miscBase.resistPoison + player.m_miscMod.resistPoison);
 	player.m_miscFull.criticalHit = std::max(0.f, miscBase.criticalHit + player.m_miscMod.criticalHit);
-	player.m_miscFull.damages = std::max(1.f, miscBase.damages + player.m_miscMod.damages
+	if (weapontype != WEAPON_BOW) {
+		player.m_miscFull.damages = std::max(1.f, miscBase.damages + player.m_miscMod.damages
 	                                          + player.m_skillFull.closeCombat * 0.1f);
-	
+	} else {
+		float wd = getEquipmentBaseModifier(IO_EQUIPITEM_ELEMENT_Damages);
+		player.m_miscFull.damages = wd * (1.f + (player.m_skillFull.projectile + player.m_attributeFull.dexterity) * 0.02f);
+	}
 	
 	/////////////////////////////////////////////////////////////////////////////////////
 	

@@ -915,20 +915,15 @@ void ManageCombatModeAnimations() {
 				// Apply downwards gravity if not fully charged
 				float gravity = 0.0002f * glm::clamp(1.f - aimratio, 0.f, 1.f);
 				
-				float wd = getEquipmentBaseModifier(IO_EQUIPITEM_ELEMENT_Damages);
-				// TODO Why ignore relative modifiers? Why not just use player.Full_damages?
-				
-				float damages = wd * (1.f + (player.m_skillFull.projectile + player.m_attributeFull.dexterity) * 0.02f);
-				
 				ARX_THROWN_OBJECT_Throw(EntityHandle_Player, pos, vect, gravity, arrowobj.get(), attach, quat,
-				                        damages, poisonous);
+				                        player.m_miscFull.damages, poisonous);
 				
 				if(cur_mx == CHEAT_ENABLED) {
 					for(int i = -2; i <= 2; i++) {
 						if(i != 0) {
 							Vec3f vect2 = VRotateY(vect, 4.f * float(i));
 							ARX_THROWN_OBJECT_Throw(EntityHandle_Player, pos, vect2, gravity, arrowobj.get(), attach, quat,
-							                        damages, poisonous);
+							                        player.m_miscFull.damages, poisonous);
 						}
 					}
 				}
