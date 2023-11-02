@@ -20,6 +20,8 @@
 #include <assert.h>
 #include <stdarg.h>
 
+//#include <iostream>
+
 namespace stbi {
 
 #ifndef _MSC_VER
@@ -191,6 +193,7 @@ const char *stbi_failure_reason(void)
 
 static int stbi_error(const char *str)
 {
+//   std::cerr << "ERROR:STBI:" << str << std::endl;
    failure_reason = str;
    return 0;
 }
@@ -1328,7 +1331,7 @@ static int decode_jpeg_header(jpeg *z, int scan)
    if (scan == SCAN_type) return 1;
    m = get_marker(z);
    while (!STBI_SOF(m)) {
-      if(!process_marker(z, m)) return 0;
+      if(!process_marker(z, m)) return stbi_error("process_marker","decode_jpeg_header() process_marker fail");
       m = get_marker(z);
       while (m == STBI_MARKER_none) {
          // some files have extra padding after their blocks, so ok, we'll scan
@@ -1336,7 +1339,7 @@ static int decode_jpeg_header(jpeg *z, int scan)
          m = get_marker(z);
       }
    }
-   if (!process_frame_header(z, scan)) return 0;
+   if (!process_frame_header(z, scan)) return stbi_error("process_frame_header","decode_jpeg_header() process_frame_header fail");
    return 1;
 }
 
@@ -1348,8 +1351,8 @@ static int decode_jpeg_image(jpeg *j)
    m = get_marker(j);
    while (!STBI_EOI(m)) {
       if (STBI_SOS(m)) {
-         if (!process_scan_header(j)) return 0;
-         if (!parse_entropy_coded_data(j)) return 0;
+         if (!process_scan_header(j)) return stbi_error("process_scan_header","decode_jpeg_image() process_scan_header fail");
+         if (!parse_entropy_coded_data(j)) return stbi_error("parse_entropy_coded_data","decode_jpeg_image() parse_entropy_coded_data fail");
          if (j->marker == STBI_MARKER_none ) {
             // handle 0s at the end of image data from IP Kamera 9060
             while (!at_eof(j->s)) {
@@ -1358,7 +1361,7 @@ static int decode_jpeg_image(jpeg *j)
                   j->marker = get8u(j->s);
                   break;
                } else if (x != 0) {
-                  return 0;
+                  return stbi_error("STBI_MARKER_none/Fail","decode_jpeg_image() STBI_MARKER_none && x!=255 && x!=0");
                }
             }
             // if we reach eof without hitting a marker, get_marker() below will fail and we'll eventually return 0
@@ -2563,7 +2566,7 @@ static unsigned char *do_png(png *p, int *x, int *y, int *n, int req_comp)
       if (req_comp && req_comp != p->s->img_out_n) {
          result = convert_format(result, p->s->img_out_n, req_comp, p->s->img_x, p->s->img_y);
          p->s->img_out_n = req_comp;
-         if (result == nullptr) return result;
+         if (result == nullptr) { stbi_error("result==nullptr","do_png() result==nullptr");return result;}
       }
       *x = p->s->img_x;
       *y = p->s->img_y;
