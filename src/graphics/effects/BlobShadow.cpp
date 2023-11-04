@@ -126,6 +126,7 @@ void ARXDRAW_DrawInterShadows() {
   debugShadowBlob();
   if(iSBShowLogCountDown==0)LogDebug2(">>>>>>>>>>>>>>>>>>>> treatio.size()="<<treatio.size()<<" <<<<<<<<<<<<<<<<<<");
 #endif
+  if(false){
 	for(const auto & entry : treatio) {
 		
 		if(entry.show != SHOW_FLAG_IN_SCENE || !entry.io) {
@@ -169,7 +170,38 @@ void ARXDRAW_DrawInterShadows() {
 #endif
 		}
 	}
-	
+  }else{
+	for(const auto & entry : treatio) {
+		
+		if(entry.show != SHOW_FLAG_IN_SCENE || !entry.io) {
+			continue;
+		}
+		
+		const Entity & entity = *entry.io;
+		if(!entity.obj || (entity.ioflags & IO_JUST_COLLIDE) || (entity.ioflags & IO_NOSHADOW)
+		   || (entity.ioflags & IO_GOLD) || entity.show != SHOW_FLAG_IN_SCENE) {
+			continue;
+		}
+		
+		if(!g_tiles->isInActiveTile(entity.pos)) {
+			continue;
+		}
+		
+		if(entity.obj->grouplist.size() > 1) {
+			for(const VertexGroup & group : entity.obj->grouplist) {
+				addShadowBlob(entity, entity.obj->vertexWorldPositions[group.origin].v, group.m_blobShadowSize, true);
+			}
+		} else {
+      int iSBLimit = entity.obj->vertexWorldPositions.size() > 100 ? 9 : INT_MAX; //high poly item's models would create a very dark dense shadow otherwise. INT_MAX just means no limit.
+			for(const EERIE_VERTEX & vertex : entity.obj->vertexWorldPositions | boost::adaptors::strided(9)) {
+        iSBLimit--;
+        if(iSBLimit<0)break;
+				addShadowBlob(entity, vertex.v, entity.scale, false);
+			}
+		}
+	}
+  }
+  	
 	if(!g_shadowBatch.empty()) {
 		GRenderer->SetFogColor(Color());
 		UseRenderState state(render3D().depthWrite(false).blend(BlendZero, BlendInvSrcColor).depthOffset(1));
