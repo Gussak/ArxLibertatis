@@ -911,6 +911,28 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_TEXT;
 			}
 			
+			if(boost::starts_with(name, "^location")) {
+				Entity * target = entities.getById(name.substr(11)); //see x y z below for 11
+				if(	target
+						&& (context.getEntity()->show == SHOW_FLAG_IN_SCENE
+								|| context.getEntity()->show == SHOW_FLAG_IN_INVENTORY)
+						&& (target->show == SHOW_FLAG_IN_SCENE
+								|| target->show == SHOW_FLAG_IN_INVENTORY)) {
+					if(boost::starts_with(name, "^locationx_")) { //^locationx_<entity>	number	absolute X position
+						*fcontent = GetItemWorldPosition(context.getEntity()).x;
+					}else
+					if(boost::starts_with(name, "^locationy_")) { //^locationy_<entity>	number	absolute Y position
+						*fcontent = GetItemWorldPosition(context.getEntity()).y;
+					}else
+					if(boost::starts_with(name, "^locationz_")) { //^locationz_<entity>	number	absolute Z position
+						*fcontent = GetItemWorldPosition(context.getEntity()).z;
+					}
+				} else {
+					*fcontent = 99999999999.f;
+				}
+				return TYPE_FLOAT;
+			}
+			
 			break;
 		}
 		
