@@ -919,13 +919,13 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 						&& (target->show == SHOW_FLAG_IN_SCENE
 								|| target->show == SHOW_FLAG_IN_INVENTORY)) {
 					if(boost::starts_with(name, "^locationx_")) { //^locationx_<entity>	number	absolute X position
-						*fcontent = GetItemWorldPosition(context.getEntity()).x;
+						*fcontent = GetItemWorldPosition(target).x;
 					}else
 					if(boost::starts_with(name, "^locationy_")) { //^locationy_<entity>	number	absolute Y position
-						*fcontent = GetItemWorldPosition(context.getEntity()).y;
+						*fcontent = GetItemWorldPosition(target).y;
 					}else
 					if(boost::starts_with(name, "^locationz_")) { //^locationz_<entity>	number	absolute Z position
-						*fcontent = GetItemWorldPosition(context.getEntity()).z;
+						*fcontent = GetItemWorldPosition(target).z;
 					}
 				} else {
 					*fcontent = 99999999999.f;
