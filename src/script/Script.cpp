@@ -912,20 +912,22 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			}
 			
 			if(boost::starts_with(name, "^location")) {
-				Entity * target = entities.getById(name.substr(11)); //see x y z below for 11
-				if(	target
-						&& (context.getEntity()->show == SHOW_FLAG_IN_SCENE
-								|| context.getEntity()->show == SHOW_FLAG_IN_INVENTORY)
-						&& (target->show == SHOW_FLAG_IN_SCENE
-								|| target->show == SHOW_FLAG_IN_INVENTORY)) {
-					if(boost::starts_with(name, "^locationx_")) { // ^locationx_<entity>	number	absolute X position
-						*fcontent = GetItemWorldPosition(target).x;
+				Entity * entWorkWith;
+				std::string_view entityId = name.substr(11); //see x y z below for 11
+				if(boost::equals(entityId, "self")) {
+					entWorkWith = context.getEntity();
+				}else{
+					entWorkWith = entities.getById(entityId); 
+				}
+				if(entWorkWith && (entWorkWith->show == SHOW_FLAG_IN_SCENE || entWorkWith->show == SHOW_FLAG_IN_INVENTORY)) {
+					if(boost::starts_with(name, "^locationx_")) { // ^locationx_<entity>	number	absolute X position, <entity> can be self
+						*fcontent = GetItemWorldPosition(entWorkWith).x;
 					}else
-					if(boost::starts_with(name, "^locationy_")) { // ^locationy_<entity>	number	absolute Y position
-						*fcontent = GetItemWorldPosition(target).y;
+					if(boost::starts_with(name, "^locationy_")) { // ^locationy_<entity>	number	absolute Y position, <entity> can be self
+						*fcontent = GetItemWorldPosition(entWorkWith).y;
 					}else
-					if(boost::starts_with(name, "^locationz_")) { // ^locationz_<entity>	number	absolute Z position
-						*fcontent = GetItemWorldPosition(target).z;
+					if(boost::starts_with(name, "^locationz_")) { // ^locationz_<entity>	number	absolute Z position, <entity> can be self
+						*fcontent = GetItemWorldPosition(entWorkWith).z;
 					}
 				} else {
 					*fcontent = 99999999999.f;
