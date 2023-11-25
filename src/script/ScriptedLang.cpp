@@ -784,11 +784,6 @@ public:
 	}
 	
 	/**
-	 * ex.:
-	 * 	if(and(
-					@test1 == 1.0 &&
-					or(£name != "dummy" || @test2 > 10.0)
-			){ ...
 	 * it is always 'if(and(...))' or 'if(or(...))' or the default 'if(SomeComparison)'
 	 * so all nested and() or or() or comparison must be inside a initial abrangent/top and() or or() 
 	 */
