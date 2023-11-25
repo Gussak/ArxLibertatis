@@ -125,6 +125,10 @@ std::string Context::getCommand(bool skipNewlines) {
 	return word;
 }
 
+void Context::seekToPosition(size_t pos) { 
+	m_pos=pos; 
+}
+
 std::string Context::getWord() {
 	
 	std::string_view esdat = m_script->data;
@@ -282,7 +286,7 @@ bool Context::getBool() {
 	
 	std::string word = getWord();
 	
-	return (word == "on" || word == "yes");
+	return (word == "on" || word == "yes" || word == "true" || word == "enable");
 }
 
 float Context::getFloatVar(std::string_view name) const {
