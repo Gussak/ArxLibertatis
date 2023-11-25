@@ -100,6 +100,7 @@ public:
 	std::string getFlags();
 	std::string getWord();
 	void skipWord();
+	std::string formatString(std::string_view format, auto var) const;
 	
 	std::string getCommand(bool skipNewlines = true);
 	
