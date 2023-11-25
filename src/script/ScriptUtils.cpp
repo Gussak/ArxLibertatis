@@ -56,10 +56,21 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_parameters(std::move(parameters))
 { }
 
-std::string Context::formatString(std::string_view format, auto var) const {
-	std::string strTmp(64, '\0');
-	//auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var);
-	auto written = std::snprintf(&strTmp[0], strTmp.size(), std::string(format).data(), var);
+/**
+ * ex.: "~%05.2f,^somefloatvar~"
+ */
+std::string Context::formatString(std::string format, auto var) const {
+	std::string strTmp(256, '\0');
+	//auto written = std::snprintf(&strTmp[0], strTmp.size(), std::string(format).data(), var);
+	
+	#pragma GCC diagnostic push
+	//TODO these look harmless (right?) couldnt just disable them at global project cfg? -Wno-format-nonliteral -Wno-double-promotion
+	//TODO something equivalent to windows, but how? #pragma warning( suppress : 4385 ) ?
+	#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+	#pragma GCC diagnostic ignored "-Wdouble-promotion"
+	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var);
+	#pragma GCC diagnostic pop
+	
 	strTmp.resize(size_t(written));
 	return strTmp;
 }
@@ -70,9 +81,9 @@ std::string Context::getStringVar(std::string_view name) const {
 	}
 	
 	std::string format;
-	if(name[0] == '%') { //printf formatting
+	if(name[0] == '%') { //printf format syntax
 		format = name.substr( 0, name.find(',',0) );
-		name   = name.substr( format.size() );
+		name   = name.substr( format.size()+1 ); //+1 skips the ','
 	}
 	
 	if(name[0] == '^') {
