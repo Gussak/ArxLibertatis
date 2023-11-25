@@ -516,6 +516,12 @@ class IfCommand : public Command {
 			return true;
 		}
 		
+		virtual bool boolean(const Context & context, bool left, bool right) {
+			ARX_UNUSED(left), ARX_UNUSED(right);
+			ScriptWarning << "operator " << m_name << " is not aplicable to booleans";
+			return true;
+		}
+		
 		virtual bool text(const Context & context, std::string_view left, std::string_view right) {
 			ARX_UNUSED(left), ARX_UNUSED(right);
 			ScriptWarning << "operator " << m_name << " is not aplicable to text";
@@ -743,20 +749,19 @@ public:
 		addOperator(new GreaterOperator);
 	}
 	
-	Result execute(Context & context) override {
-		
-		std::string left = context.getWord();
-		
-		std::string op = context.getWord();
-		
+	Result compare(Context & context, bool & condition, bool & comparisonDetected) {
+		std::string left  = context.getWord();
+		std::string op    = context.getWord();
 		std::string right = context.getWord();
-		
 		auto it = m_operators.find(op);
 		if(it == m_operators.end()) {
 			ScriptWarning << "unknown operator: " << op;
+			comparisonDetected = false;
 			return Failed;
+		}else{
+			comparisonDetected = true;
 		}
-		
+
 		float f1, f2;
 		std::string s1, s2;
 		ValueType t1 = getVar(context, left, s1, f1, it->second->getType());
@@ -764,17 +769,133 @@ public:
 		
 		if(t1 != t2) {
 			ScriptWarning << "incompatible types: \"" << left << "\" (" << (t1 == TYPE_TEXT ? "text" : "number") << ") and \"" << right << "\" (" << (t2 == TYPE_TEXT ? "text" : "number") << ')';
-			context.skipBlock();
 			return Failed;
 		}
 		
-		bool condition;
 		if(t1 == TYPE_TEXT) {
 			condition = it->second->text(context, s1, s2);
 			DebugScript(" \"" << left << "\" " << op << " \"" << right << "\"  ->  \"" << s1 << "\" " << op << " \"" << s2 << "\"  ->  " << (condition ? "true" : "false")); // TODO fix formatting in Logger and use std::boolalpha
 		} else {
 			condition = it->second->number(context, f1, f2);
 			DebugScript(" \"" << left << "\" " << op << " \"" << right << "\"  ->  " << f1 << " " << op << " " << f2 << "  ->  " << (condition ? "true" : "false"));
+		}
+		
+		return Success;
+	}
+	
+	/**
+	 * ex.:
+	 * 	if(and(
+					@test1 == 1.0 &&
+					or(£name != "dummy" || @test2 > 10.0)
+			){ ...
+	 * it is always 'if(and(...))' or 'if(or(...))' or the default 'if(SomeComparison)'
+	 * so all nested and() or or() or comparison must be inside a initial abrangent/top and() or or() 
+	 */
+	Result recursiveLogicOperation(Context & context, bool & condition, bool bLogicModeIsOr) {
+		Result res;
+		size_t posBkp;
+		std::string wordCheck;
+		while(true){
+			posBkp = context.getPosition();
+			wordCheck = context.getWord();
+			if(boost::equals(wordCheck, "and")) {
+				res = recursiveLogicOperation(context, condition, false);
+			} else
+			if(boost::equals(wordCheck, "!and")) {
+				res = recursiveLogicOperation(context, condition, false);
+				condition=!condition;
+			} else
+			if(boost::equals(wordCheck, "or")) {
+				res = recursiveLogicOperation(context, condition,  true);
+			} else
+			if(boost::equals(wordCheck, "!or")) {
+				res = recursiveLogicOperation(context, condition,  true);
+				condition=!condition;
+			} else
+			if(boost::equals(wordCheck, ",")) { // , || && are optional but make reading more clear
+				// says there is more logical results to process
+				continue;
+			} else
+			if( bLogicModeIsOr && boost::equals(wordCheck, "||")) {
+				// like ',' but if the script developer wants to make it more readable
+				continue;
+			} else
+			if(!bLogicModeIsOr && boost::equals(wordCheck, "&&")) {
+				// like ',' but if the script developer wants to make it more readable
+				continue;
+			} else
+			if(!bLogicModeIsOr && boost::equals(wordCheck, "{")) {
+				// block begin detected. ready to end the recursive logic 
+				break;
+			} else {
+				context.seekToPosition(posBkp); //not nesting, so undo the wordCheck position
+				// it needs to determine if the next thing is a comparison as the block begin char was not detected
+				bool comparisonDetected = false;
+				res = compare(context, condition, comparisonDetected);
+				if(comparisonDetected){
+					// it is a comparison, so the loop continues looking for more
+				}else{
+					// it is not a comparison, this is a command outside of a block, so restore position and end the loop
+					context.seekToPosition(posBkp);
+					break;
+				}
+			}
+			
+			if(res == Failed) return Failed; // errors found in the script
+			
+			if( condition &&  bLogicModeIsOr) break; //logic OR  is ready to let it process the block
+			if(!condition && !bLogicModeIsOr) break; //logic AND is ready to let it skip    the block 
+		}
+		
+		return Success;
+	}
+	//bool recursiveLogicOperationByWord(Context & context) {
+		//size_t posBkp = context.getPosition(); //this is used to undo the wordCkeck position
+		//std::string wordCheck = context.getWord();
+		//if(boost::equals(wordCheck, "and")) {
+			//res = recursiveLogicOperation(context, condition, false);
+		//} else
+		//if(boost::equals(wordCheck, "!and")) {
+			//res = recursiveLogicOperation(context, condition, false);
+			//condition=!condition;
+		//} else
+		//if(boost::equals(wordCheck, "or")) {
+			//res = recursiveLogicOperation(context, condition,  true);
+		//} else
+		//if(boost::equals(wordCheck, "!or")) {
+			//res = recursiveLogicOperation(context, condition,  true);
+			//condition=!condition;
+		//}
+	//}
+	Result execute(Context & context) override {
+		Result res; //this overrides processing condition result, in case of Failed
+		size_t posBkp = context.getPosition(); //this is used to undo the wordCkeck position
+		bool condition = false; //this will be set by the function calls
+		std::string wordCheck = context.getWord();
+		if(boost::equals(wordCheck, "and")) {
+			res = recursiveLogicOperation(context, condition, false);
+		} else
+		if(boost::equals(wordCheck, "!and")) {
+			res = recursiveLogicOperation(context, condition, false);
+			condition = !condition;
+		} else
+		if(boost::equals(wordCheck, "or")) {
+			res = recursiveLogicOperation(context, condition,  true);
+		} else
+		if(boost::equals(wordCheck, "!or")) {
+			res = recursiveLogicOperation(context, condition,  true);
+			condition = !condition;
+		} else {
+			context.seekToPosition(posBkp); //is a simple check, so restore the position
+			bool comparisonDetected = false; //dummy
+			res = compare(context, condition, comparisonDetected);
+		}
+		
+		if(res == Failed) { 
+			//not mixed with !condition to isolate what shall be done on script interpreting failure
+			context.skipBlock();
+			return Failed;
 		}
 		
 		if(!condition) {
