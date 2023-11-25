@@ -130,7 +130,7 @@ public:
 	const EERIE_SCRIPT * getScript() const { return m_script; }
 	
 	size_t getPosition() const { return m_pos; }
-	
+	void seekToPosition(size_t pos);
 	
 };
 
