@@ -921,13 +921,13 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				}
 				if(entWorkWith && (entWorkWith->show == SHOW_FLAG_IN_SCENE || entWorkWith->show == SHOW_FLAG_IN_INVENTORY)) {
 					if(boost::starts_with(name, "^locationx_")) { // ^locationx_<entity>	number	absolute X position, <entity> can be self
-						*fcontent = GetItemWorldPosition(entWorkWith).x;
+						*fcontent = entWorkWith == entities.player() ? player.pos.x : GetItemWorldPosition(entWorkWith).x;
 					}else
 					if(boost::starts_with(name, "^locationy_")) { // ^locationy_<entity>	number	absolute Y position, <entity> can be self
-						*fcontent = GetItemWorldPosition(entWorkWith).y;
+						*fcontent = entWorkWith == entities.player() ? player.pos.y : GetItemWorldPosition(entWorkWith).y;
 					}else
 					if(boost::starts_with(name, "^locationz_")) { // ^locationz_<entity>	number	absolute Z position, <entity> can be self
-						*fcontent = GetItemWorldPosition(entWorkWith).z;
+						*fcontent = entWorkWith == entities.player() ? player.pos.z : GetItemWorldPosition(entWorkWith).z;
 					}
 				} else {
 					*fcontent = 99999999999.f;
