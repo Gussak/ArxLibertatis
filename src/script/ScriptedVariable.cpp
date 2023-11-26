@@ -123,17 +123,19 @@ public:
 		Add,
 		Subtract,
 		Multiply,
-		Divide
+		Divide,
+		Remainder
 	};
 	
 private:
 	
 	float calculate(float left, float right) {
 		switch(op) {
-			case Add: return left + right;
-			case Subtract: return left - right;
-			case Multiply: return left * right;
-			case Divide: return (right == 0.f) ? 0.f : left / right;
+			case Add:       return left + right;
+			case Subtract:  return left - right;
+			case Multiply:  return left * right;
+			case Divide:    return (right == 0.f) ? 0.f : left / right;
+			case Remainder: return static_cast<int> (left) % static_cast<int> (right);
 		}
 		arx_assert_msg(false, "Invalid op used in ArithmeticCommand: %d", int(op));
 		return 0.f;
@@ -306,6 +308,7 @@ void setupScriptedVariable() {
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("dec", ArithmeticCommand::Subtract));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("mul", ArithmeticCommand::Multiply));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("div", ArithmeticCommand::Divide));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("mod", ArithmeticCommand::Remainder));
 	ScriptEvent::registerCommand(std::make_unique<UnsetCommand>());
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("++", 1));
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("--", -1));

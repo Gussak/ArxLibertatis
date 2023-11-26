@@ -104,7 +104,8 @@ void ARXDRAW_DrawInterShadows() {
 				addShadowBlob(entity, entity.obj->vertexWorldPositions[group.origin].v, group.m_blobShadowSize, true);
 			}
 		} else {
-			for(const EERIE_VERTEX & vertex : entity.obj->vertexWorldPositions | boost::adaptors::strided(9)) {
+			int iStride = entity.obj->vertexWorldPositions.size() < 100 ? 9 : entity.obj->vertexWorldPositions.size()/9;
+			for(const EERIE_VERTEX & vertex : entity.obj->vertexWorldPositions | boost::adaptors::strided(iStride)) {
 				addShadowBlob(entity, vertex.v, entity.scale, false);
 			}
 		}

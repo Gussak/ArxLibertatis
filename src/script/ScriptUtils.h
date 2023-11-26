@@ -100,6 +100,7 @@ public:
 	std::string getFlags();
 	std::string getWord();
 	void skipWord();
+	std::string formatString(std::string format, auto var) const;
 	
 	std::string getCommand(bool skipNewlines = true);
 	
@@ -130,7 +131,7 @@ public:
 	const EERIE_SCRIPT * getScript() const { return m_script; }
 	
 	size_t getPosition() const { return m_pos; }
-	
+	void seekToPosition(size_t pos);
 	
 };
 
