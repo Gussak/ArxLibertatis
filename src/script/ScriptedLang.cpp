@@ -783,6 +783,32 @@ public:
 		return Success;
 	}
 	
+	//enum LogicOp {
+		//Logic_OR,
+		//Logic_AND,
+		//Logic_NOT_OR,
+		//Logic_NOT_AND
+	//};
+	
+	bool recursiveLogicOperationByWord(Context & context, std::string & wordCheck, bool & condition, Result & res) {
+		if(boost::equals(wordCheck, "and")) {
+			res = recursiveLogicOperation(context, condition, false);
+		} else
+		if(boost::equals(wordCheck, "!and")) {
+			res = recursiveLogicOperation(context, condition, false);
+			condition=!condition;
+		} else
+		if(boost::equals(wordCheck, "or")) {
+			res = recursiveLogicOperation(context, condition,  true);
+		} else
+		if(boost::equals(wordCheck, "!or")) {
+			res = recursiveLogicOperation(context, condition,  true);
+			condition=!condition;
+		}else{
+			return false;
+		}
+		return true;
+	}
 	/**
 	 * it is always 'if(and(...))' or 'if(or(...))' or the default 'if(SomeComparison)'
 	 * so all nested and() or or() or comparison must be inside a initial abrangent/top and() or or() 
@@ -794,21 +820,23 @@ public:
 		while(true){
 			posBkp = context.getPosition();
 			wordCheck = context.getWord();
-			if(boost::equals(wordCheck, "and")) {
-				res = recursiveLogicOperation(context, condition, false);
+			//if(boost::equals(wordCheck, "and")) {
+				//res = recursiveLogicOperation(context, condition, false);
+			//} else
+			//if(boost::equals(wordCheck, "!and")) {
+				//res = recursiveLogicOperation(context, condition, false);
+				//condition=!condition;
+			//} else
+			//if(boost::equals(wordCheck, "or")) {
+				//res = recursiveLogicOperation(context, condition,  true);
+			//} else
+			//if(boost::equals(wordCheck, "!or")) {
+				//res = recursiveLogicOperation(context, condition,  true);
+				//condition=!condition;
+			if(recursiveLogicOperationByWord(context, wordCheck, condition, res)){
+				// all work already done at recursiveLogicOperationByWord(...)
 			} else
-			if(boost::equals(wordCheck, "!and")) {
-				res = recursiveLogicOperation(context, condition, false);
-				condition=!condition;
-			} else
-			if(boost::equals(wordCheck, "or")) {
-				res = recursiveLogicOperation(context, condition,  true);
-			} else
-			if(boost::equals(wordCheck, "!or")) {
-				res = recursiveLogicOperation(context, condition,  true);
-				condition=!condition;
-			} else
-			if(boost::equals(wordCheck, ",")) { // , || && are optional but make reading more clear
+			if(boost::equals(wordCheck, ",")) { //blanks: , || && are optional (within reason) and make reading more clear
 				// says there is more logical results to process
 				continue;
 			} else
@@ -822,9 +850,11 @@ public:
 			} else
 			if(!bLogicModeIsOr && boost::equals(wordCheck, "{")) {
 				// block begin detected. ready to end the recursive logic 
+				context.seekToPosition(posBkp); //grants '{' will be considered
 				break;
 			} else {
-				context.seekToPosition(posBkp); //not nesting, so undo the wordCheck position
+				//recursive logic operators or blanks were not detected. undo the wordCheck position
+				context.seekToPosition(posBkp);
 				// it needs to determine if the next thing is a comparison as the block begin char was not detected
 				bool comparisonDetected = false;
 				res = compare(context, condition, comparisonDetected);
@@ -845,45 +875,29 @@ public:
 		
 		return Success;
 	}
-	//bool recursiveLogicOperationByWord(Context & context) {
-		//size_t posBkp = context.getPosition(); //this is used to undo the wordCkeck position
-		//std::string wordCheck = context.getWord();
+	Result execute(Context & context) override {
+		Result res; //this overrides processing condition result, in case of Failed
+		size_t posBkp = context.getPosition(); //this is used to undo the wordCkeck position
+		bool condition = false; //this will be set by the function calls
+		std::string wordCheck = context.getWord();
 		//if(boost::equals(wordCheck, "and")) {
 			//res = recursiveLogicOperation(context, condition, false);
 		//} else
 		//if(boost::equals(wordCheck, "!and")) {
 			//res = recursiveLogicOperation(context, condition, false);
-			//condition=!condition;
+			//condition = !condition;
 		//} else
 		//if(boost::equals(wordCheck, "or")) {
 			//res = recursiveLogicOperation(context, condition,  true);
 		//} else
 		//if(boost::equals(wordCheck, "!or")) {
 			//res = recursiveLogicOperation(context, condition,  true);
-			//condition=!condition;
-		//}
-	//}
-	Result execute(Context & context) override {
-		Result res; //this overrides processing condition result, in case of Failed
-		size_t posBkp = context.getPosition(); //this is used to undo the wordCkeck position
-		bool condition = false; //this will be set by the function calls
-		std::string wordCheck = context.getWord();
-		if(boost::equals(wordCheck, "and")) {
-			res = recursiveLogicOperation(context, condition, false);
-		} else
-		if(boost::equals(wordCheck, "!and")) {
-			res = recursiveLogicOperation(context, condition, false);
-			condition = !condition;
-		} else
-		if(boost::equals(wordCheck, "or")) {
-			res = recursiveLogicOperation(context, condition,  true);
-		} else
-		if(boost::equals(wordCheck, "!or")) {
-			res = recursiveLogicOperation(context, condition,  true);
-			condition = !condition;
+			//condition = !condition;
+		if(recursiveLogicOperationByWord(context, wordCheck, condition, res)){
+			// all work already done at recursiveLogicOperationByWord(...)
 		} else {
 			context.seekToPosition(posBkp); //is a simple check, so restore the position
-			bool comparisonDetected = false; //dummy
+			bool comparisonDetected = false; //dummy required param
 			res = compare(context, condition, comparisonDetected);
 		}
 		
