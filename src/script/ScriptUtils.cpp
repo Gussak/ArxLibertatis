@@ -61,13 +61,13 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
  */
 std::string Context::formatString(std::string format, auto var) const {
 	std::string strTmp(256, '\0');
-	//auto written = std::snprintf(&strTmp[0], strTmp.size(), std::string(format).data(), var);
 	
 	#pragma GCC diagnostic push
-	//TODO these look harmless (right?) couldnt just disable them at global project cfg? -Wno-format-nonliteral -Wno-double-promotion
-	//TODO something equivalent to windows, but how? #pragma warning( suppress : 4385 ) ?
+	//could just disable them globally with -Wno-format-nonliteral -Wno-double-promotion ?
+	//TODO something equivalent to windows, but how? #pragma warning( suppress : 4385 ) ? needs to filter too as is not GCC right?
 	#pragma GCC diagnostic ignored "-Wformat-nonliteral"
 	#pragma GCC diagnostic ignored "-Wdouble-promotion"
+	//auto written = std::snprintf(&strTmp[0], strTmp.size(), std::string(formatStringView).data(), var);
 	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var);
 	#pragma GCC diagnostic pop
 	
