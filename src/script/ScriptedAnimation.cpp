@@ -47,9 +47,12 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <string>
 #include <string_view>
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #include "ai/Paths.h"
 #include "core/GameTime.h"
 #include "game/EntityManager.h"
+#include "game/Inventory.h"
 #include "game/NPC.h"
 #include "graphics/data/Mesh.h"
 #include "io/resource/ResourcePath.h"
@@ -372,6 +375,80 @@ public:
 		DebugScript(' ' << dx << ' ' << dy << ' ' << dz);
 		
 		context.getEntity()->pos += Vec3f(dx, dy, dz);
+		
+		return Success;
+	}
+	
+};
+
+class InterpolateCommand : public Command {
+	
+public:
+	
+	InterpolateCommand() : Command("interpolate", AnyEntity) { }
+	
+	/**
+	 * INTERPOLATE EntityToMove TargetEntity NearTargetDistance
+	 *  EntityToMove (entityID) is who will be moved
+	 *  TargetEntity (entityID) is the target position
+	 *  NearTargetDistance (float) from 0.0 to 1.0 will be a percent of the distance between them. So 0.0 means 
+	 */
+	Result execute(Context & context) override {
+		std::string entityId;
+		
+		entityId = context.getWord(); 
+		Entity * entToMove = boost::equals(entityId, "self") ? context.getEntity() : entities.getById(entityId);
+		
+		entityId = context.getWord(); //target
+		Entity * entTarget = boost::equals(entityId, "self") ? context.getEntity() : entities.getById(entityId);
+		
+		if(entToMove == entTarget){
+			return Success;
+		}
+		
+		float fNearDist = context.getFloat();
+		if(fNearDist < 0.0f){
+			//TODO warn invalid negative value
+			return Success;
+		}
+		if(fNearDist == 1.0f){ //wont move at all
+			return Success;
+		}
+		
+		Vec3f posNew;
+		if(fNearDist == 0.0f){
+			posNew = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
+		}else{
+			Vec3f pos1 = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
+			Vec3f pos2 = entToMove == entities.player() ? entities.player()->pos : GetItemWorldPosition(entToMove);
+			//if(fNearDist > 0.0f && fNearDist <= 1.0f){ //calc dist from percent
+			if(fNearDist < 1.0f){ //calc dist from percent
+				//fNearDist=fdist(entToMove->pos, entTarget->pos)*fNearDist;
+				fNearDist=fdist(pos2, pos1)*fNearDist;
+			}
+			//float fDeltaX=fX2-fX1;
+			//float fDeltaY=fY2-fY1;
+			//float fDeltaZ=fZ2-fZ1;
+			Vec3f delta = pos2 - pos1;
+			//float fDeltaNorm = std::sqrt( 
+			float fDeltaNorm = ffsqrt( 
+				//glm::pow(pos2.x - pos1.x, 2) + 
+				//pow(pos2.x - pos1.x, 2) + 
+				//pow(pos2.y - pos1.y, 2) + 
+				//pow(pos2.z - pos1.z, 2)   );
+				arx::pow2(pos2.x - pos1.x) + 
+				arx::pow2(pos2.y - pos1.y) + 
+				arx::pow2(pos2.z - pos1.z)   );
+			float fDistifier=fNearDist/fDeltaNorm;
+			//fX=fX1+fDistifier*fDeltaX;
+			//fY=fY1+fDistifier*fDeltaY;
+			//fZ=fZ1+fDistifier*fDeltaZ;
+			posNew = pos1 + fDistifier*delta;
+		}
+		
+		DebugScript(' ' << posNew.x << ' ' << posNew.y << ' ' << posNew.z);
+		
+		context.getEntity()->pos = posNew;
 		
 		return Success;
 	}
