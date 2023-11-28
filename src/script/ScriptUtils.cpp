@@ -54,7 +54,18 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_entity(entity)
 	, m_message(msg)
 	, m_parameters(std::move(parameters))
-{ }
+{
+	size_t posNL=0;
+	while(true){
+		posNL = m_script->data.find('\n', posNL);
+		if(posNL == std::string::npos) {
+			break;
+		}else{
+			m_vNewLineAt.push_back(posNL);
+			posNL++;
+		}
+	}
+}
 
 std::string Context::getStringVar(std::string_view name) const {
 	
@@ -123,6 +134,25 @@ std::string Context::getCommand(bool skipNewlines) {
 	}
 	
 	return word;
+}
+
+std::string Context::getPositionAndLineNumber() const {
+	std::stringstream s;
+	s << m_pos;
+	
+	int iLine=0;
+	int iColumn=1;
+	for(size_t i=0;i<m_vNewLineAt.size();i++) {
+		if(m_pos > m_vNewLineAt[i]){
+			iLine=i+1;
+			iColumn = m_pos - m_vNewLineAt[i];
+		}else{
+			break;
+		}
+	}
+	
+	s << ", Line near " << iLine << ", Column near " << iColumn << "";
+	return s.str(); 
 }
 
 std::string Context::getWord() {
