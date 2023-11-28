@@ -773,17 +773,36 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			
 			if(boost::starts_with(name, "^dist_")) {
 				if(context.getEntity()) {
-					Entity * target = entities.getById(name.substr(6));
-					if(target == entities.player()) {
-						*fcontent = fdist(player.pos, context.getEntity()->pos);
-					} else if(target
-					          && (context.getEntity()->show == SHOW_FLAG_IN_SCENE
-					              || context.getEntity()->show == SHOW_FLAG_IN_INVENTORY)
-					          && (target->show == SHOW_FLAG_IN_SCENE
-					              || target->show == SHOW_FLAG_IN_INVENTORY)) {
-						*fcontent = fdist(GetItemWorldPosition(context.getEntity()), GetItemWorldPosition(target));
+					int iStrPosNext = 6;
+					if( name[iStrPosNext] == '"' ) { //absolute position ex.: ^dist_"8040.75,6000.10,5000.7"
+						Vec3f pos;
+						
+						int iStrPosIni=iStrPosNext+1;
+						iStrPosNext=name.find(',',iStrPosIni);
+						pos.x = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						iStrPosIni=iStrPosNext+1;
+						iStrPosNext=name.find(',',iStrPosIni);
+						pos.y = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						iStrPosIni=iStrPosNext+1;
+						iStrPosNext=name.find('"',iStrPosIni);
+						pos.z = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						*fcontent = fdist(context.getEntity()->pos, pos);
 					} else {
-						*fcontent = 99999999999.f;
+						Entity * target = entities.getById(name.substr(iStrPosNext));
+						if(target == entities.player()) {
+							*fcontent = fdist(player.pos, context.getEntity()->pos);
+						} else if(target
+											&& (context.getEntity()->show == SHOW_FLAG_IN_SCENE
+													|| context.getEntity()->show == SHOW_FLAG_IN_INVENTORY)
+											&& (target->show == SHOW_FLAG_IN_SCENE
+													|| target->show == SHOW_FLAG_IN_INVENTORY)) {
+							*fcontent = fdist(GetItemWorldPosition(context.getEntity()), GetItemWorldPosition(target));
+						} else {
+							*fcontent = 99999999999.f;
+						}
 					}
 					return TYPE_FLOAT;
 				}
@@ -909,6 +928,30 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^last_spawned")) {
 				txtcontent = idString(LASTSPAWNED);
 				return TYPE_TEXT;
+			}
+			
+			if(boost::starts_with(name, "^location")) {
+				Entity * entWorkWith;
+				std::string_view entityId = name.substr(11); //see x y z below for 11
+				if(boost::equals(entityId, "self")) {
+					entWorkWith = context.getEntity();
+				}else{
+					entWorkWith = entities.getById(entityId); 
+				}
+				if(entWorkWith && (entWorkWith->show == SHOW_FLAG_IN_SCENE || entWorkWith->show == SHOW_FLAG_IN_INVENTORY)) {
+					if(boost::starts_with(name, "^locationx_")) { // ^locationx_<entity>	number	absolute X position, <entity> can be self
+						*fcontent = entWorkWith == entities.player() ? player.pos.x : GetItemWorldPosition(entWorkWith).x;
+					}else
+					if(boost::starts_with(name, "^locationy_")) { // ^locationy_<entity>	number	absolute Y position, <entity> can be self
+						*fcontent = entWorkWith == entities.player() ? player.pos.y : GetItemWorldPosition(entWorkWith).y;
+					}else
+					if(boost::starts_with(name, "^locationz_")) { // ^locationz_<entity>	number	absolute Z position, <entity> can be self
+						*fcontent = entWorkWith == entities.player() ? player.pos.z : GetItemWorldPosition(entWorkWith).z;
+					}
+				} else {
+					*fcontent = 99999999999.f;
+				}
+				return TYPE_FLOAT;
 			}
 			
 			break;

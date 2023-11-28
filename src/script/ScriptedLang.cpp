@@ -43,6 +43,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/ScriptedLang.h"
 
+#include <iostream> //todoa del
 #include <memory>
 #include <string>
 
@@ -516,6 +517,12 @@ class IfCommand : public Command {
 			return true;
 		}
 		
+		virtual bool boolean(const Context & context, bool left, bool right) {
+			ARX_UNUSED(left), ARX_UNUSED(right);
+			ScriptWarning << "operator " << m_name << " is not aplicable to booleans";
+			return true;
+		}
+		
 		virtual bool text(const Context & context, std::string_view left, std::string_view right) {
 			ARX_UNUSED(left), ARX_UNUSED(right);
 			ScriptWarning << "operator " << m_name << " is not aplicable to text";
@@ -743,20 +750,22 @@ public:
 		addOperator(new GreaterOperator);
 	}
 	
-	Result execute(Context & context) override {
-		
-		std::string left = context.getWord();
-		
-		std::string op = context.getWord();
-		
+	Result compare(Context & context, bool & condition, bool & comparisonDetected, bool & bJustConsumeTheWords) {
+		std::string left  = context.getWord();
+		std::string op    = context.getWord();
 		std::string right = context.getWord();
-		
 		auto it = m_operators.find(op);
 		if(it == m_operators.end()) {
 			ScriptWarning << "unknown operator: " << op;
+			comparisonDetected = false;
 			return Failed;
+		}else{
+			comparisonDetected = true;
 		}
-		
+		if(bJustConsumeTheWords){ //after consuming the words above
+			return Success;
+		}
+
 		float f1, f2;
 		std::string s1, s2;
 		ValueType t1 = getVar(context, left, s1, f1, it->second->getType());
@@ -764,11 +773,9 @@ public:
 		
 		if(t1 != t2) {
 			ScriptWarning << "incompatible types: \"" << left << "\" (" << (t1 == TYPE_TEXT ? "text" : "number") << ") and \"" << right << "\" (" << (t2 == TYPE_TEXT ? "text" : "number") << ')';
-			context.skipBlock();
 			return Failed;
 		}
 		
-		bool condition;
 		if(t1 == TYPE_TEXT) {
 			condition = it->second->text(context, s1, s2);
 			DebugScript(" \"" << left << "\" " << op << " \"" << right << "\"  ->  \"" << s1 << "\" " << op << " \"" << s2 << "\"  ->  " << (condition ? "true" : "false")); // TODO fix formatting in Logger and use std::boolalpha
@@ -777,7 +784,162 @@ public:
 			DebugScript(" \"" << left << "\" " << op << " \"" << right << "\"  ->  " << f1 << " " << op << " " << f2 << "  ->  " << (condition ? "true" : "false"));
 		}
 		
+		return Success;
+	}
+	
+	//std::string sMyDbg; //TODOA DELETE
+	//#define MYDBG(x) {sMyDbg="";MyDbg(sMyDbg << x);} //TODOA DELETE
+	//void MyDbg(std::string s){ //TODOA DELETE THIS FUNC!!!
+		//std::cout << "MyDEBUG: " << s << '\n';
+	//}
+	#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //TODOA DELETE
+	//MYDBG("LogicMode:"<<(bLogicModeIsOr?"OR":"AND")<<", condition="<<condition<<", word:'"<<wordCheck<<"'\n");
+	
+	//enum LogicOp {
+		//Logic_OR,
+		//Logic_AND,
+		//Logic_NOT_OR,
+		//Logic_NOT_AND
+	//};
+	
+	bool recursiveLogicOperationByWord(Context & context, std::string & wordCheck, bool & condition, Result & res, bool & bJustConsumeTheWords) {
+		if(boost::equals(wordCheck, "and")) {
+			res = recursiveLogicOperation(context, condition, false, bJustConsumeTheWords);
+		} else
+		if(boost::equals(wordCheck, "!and")) {
+			res = recursiveLogicOperation(context, condition, false, bJustConsumeTheWords);
+			condition=!condition;
+		} else
+		if(boost::equals(wordCheck, "or")) {
+			res = recursiveLogicOperation(context, condition,  true, bJustConsumeTheWords);
+		} else
+		if(boost::equals(wordCheck, "!or")) {
+			res = recursiveLogicOperation(context, condition,  true, bJustConsumeTheWords);
+			condition=!condition;
+		}else{
+			return false;
+		}
+		return true;
+	}
+	/**
+	 * it is always 'if(and(...))' or 'if(or(...))' or the default 'if(SomeComparison)'
+	 * so all nested and() or or() or comparison must be inside a initial abrangent/top and() or or() 
+	 */
+	Result recursiveLogicOperation(Context & context, bool & condition, bool bLogicModeIsOr, bool & bJustConsumeTheWords) {
+		Result res = Success;
+		size_t positionBeforeWord;
+		std::string wordCheck;
+		int iCount=0;
+		while(true){
+			//if(res == Failed) return Failed; // errors found in the script.
+			if(res != Success) {MYDBG("Logic:RETURN:FAIL="<<res<<", j.c.words="<<bJustConsumeTheWords);return res;}; // errors found in the script.
+			iCount++;
+			positionBeforeWord = context.getPosition();
+			context.skipWhitespace(true);
+			wordCheck = context.getWord();
+			//DebugScript(' ' << (bLogicModeIsOr?"Or ":"And") << ' c:' << condition << ' w:' << wordCheck);
+			DebugScript(' ' << bLogicModeIsOr << ' ' << condition << ' ' << wordCheck);
+			MYDBG("LogicMode(before):"<<(bLogicModeIsOr?"OR":"AND")<<", condition="<<condition<<", word:'"<<wordCheck<<", scriptPos="<<positionBeforeWord<<", j.c.words="<<bJustConsumeTheWords);
+			
+			if( boost::equals(wordCheck, "{") ) {
+				// block begin detected. ready to end the recursive logic 
+				//if(iCount == 1){
+					//ScriptWarning << "logic condition expected but found: " << wordCheck;
+					//res = Failed; //TODO? this could instead be permissive and ignored tho.
+					//continue;
+				//}
+				context.seekToPosition(positionBeforeWord); //grants '{' will be considered, this will cascade upwards til exit the all conditions of the if()
+				MYDBG("Logic:BREAK: init block '{' found"<<", j.c.words="<<bJustConsumeTheWords);
+				break;
+			}
+			
+			//         ex.: if(comparison && comparison && comparison) {
+			//                      1     2       3     4      5       6
+			// iCount%2             1     0       1     0      1       0
+			
+			if(iCount%2 == 1){ //comparison or recursive logic nesting
+				if(recursiveLogicOperationByWord(context, wordCheck, condition, res, bJustConsumeTheWords)){
+					// all work already done at recursiveLogicOperationByWord(...)
+					MYDBG("LogicWordFound:CONTINUE: cond="<<condition<<", res="<<res<<", j.c.words="<<bJustConsumeTheWords);
+					continue;
+				} else { //check for normal comparison
+					//recursive logic operators or blanks were not detected. undo the wordCheck position
+					context.seekToPosition(positionBeforeWord);
+					// it needs to determine if the next thing is a comparison as the block begin char was not detected
+					bool comparisonDetected = false;
+					res = compare(context, condition, comparisonDetected, bJustConsumeTheWords);
+					if(comparisonDetected){
+						//if( bLogicModeIsOr &&  condition) {MYDBG("Logic:comparisonDetected:BREAK: cond="<<condition<<", res="<<res);bJustConsumeTheWords=true;break;} //logic OR  is ready to let it try to process the block
+						//if(!bLogicModeIsOr && !condition) {MYDBG("Logic:comparisonDetected:BREAK: cond="<<condition<<", res="<<res);bJustConsumeTheWords=true;break;} //logic AND is ready to let it try to skip    the block 
+						if( bLogicModeIsOr &&  condition) {bJustConsumeTheWords=true;MYDBG("Logic:comparisonDetected:OR:  cond="<<condition<<", res="<<res<<", j.c.words="<<bJustConsumeTheWords);} //logic OR  is ready to let it try to process the block
+						if(!bLogicModeIsOr && !condition) {bJustConsumeTheWords=true;MYDBG("Logic:comparisonDetected:AND: cond="<<condition<<", res="<<res<<", j.c.words="<<bJustConsumeTheWords);} //logic AND is ready to let it try to skip    the block 
+						MYDBG("Logic:comparisonDetected:CONTINUE: cond="<<condition<<", res="<<res<<", j.c.words="<<bJustConsumeTheWords);
+						continue;
+					}else{
+						// it is not a comparison, this is a command outside of a block, so restore position and end the loop
+						context.seekToPosition(positionBeforeWord);
+						//if(iCount == 1){
+							//ScriptWarning << "logic condition expected but found: " << wordCheck;
+							//res = Failed; //TODO? this could instead be permissive and ignored tho.
+							//continue;
+						//}
+						MYDBG("Logic:BREAK: command outside of a block"<<", j.c.words="<<bJustConsumeTheWords);
+						break;
+					}
+				}
+			}
+			
+			// logic connector say the next thing is a logical result to process. They also make reading the script more clear. they are always in-between, 2nd word on.
+			if(iCount%2 == 0){
+				if( boost::equals(wordCheck,  ",")                    ) {MYDBG("Logic:connector:CONTINUE: cond="<<condition<<", res="<<res<<", j.c.words="<<bJustConsumeTheWords);continue;}
+				if( boost::equals(wordCheck, "||") &&  bLogicModeIsOr ) {MYDBG("Logic:connector:CONTINUE: cond="<<condition<<", res="<<res<<", j.c.words="<<bJustConsumeTheWords);continue;}
+				if( boost::equals(wordCheck, "&&") && !bLogicModeIsOr ) {MYDBG("Logic:connector:CONTINUE: cond="<<condition<<", res="<<res<<", j.c.words="<<bJustConsumeTheWords);continue;}
+				//ScriptWarning << "unexpected logic connector: " << wordCheck;
+				//res = Failed;
+				//continue;
+				
+				// the absense of a logic connector is expected and means the end of a nesting ex.: if(AND(... && or(...) && !and(...))){...} //at '){' or some command like 'Set' also ends the logic
+				context.seekToPosition(positionBeforeWord);
+				MYDBG("Logic:BREAK: no logic connector found when expected, cascade upwards"<<", j.c.words="<<bJustConsumeTheWords);
+				break;
+			}
+			
+			//if(res == Failed) return Failed; // errors found in the script
+			
+			//if( condition &&  bLogicModeIsOr) break; //logic OR  is ready to let it process the block
+			//if(!condition && !bLogicModeIsOr) break; //logic AND is ready to let it skip    the block 
+			
+			//DebugScript(' ' << wordCheck << ' ' << condition << ' ' << bLogicModeIsOr);
+		}
+		
+		MYDBG("Logic:RETURN:SUCCESS"<<", j.c.words="<<bJustConsumeTheWords);
+		return Success;
+	}
+	Result execute(Context & context) override {
+		Result res; //this overrides processing condition result, in case of Failed
+		size_t positionBeforeWord = context.getPosition(); //this is used to undo the wordCkeck position
+		bool condition = false; //this will be set by the function calls
+		bool bJustConsumeTheWords = false; //when a multi nested condition can quickly end, this will be set to true so all words (related to logic operations and comparisons) are consumed and the block/command can be safely reached and processed or skipped.
+		context.skipWhitespace(true);
+		std::string wordCheck = context.getWord();
+		if(recursiveLogicOperationByWord(context, wordCheck, condition, res, bJustConsumeTheWords)){
+			// all work already done at recursiveLogicOperationByWord(...)
+			MYDBG("Logic:Nested:<<<End>>>:"<<(condition?"PROCESS":"SKIP")<<" res="<<res<<", j.c.words="<<bJustConsumeTheWords);
+		} else {
+			context.seekToPosition(positionBeforeWord); //is a simple check, so restore the position
+			bool comparisonDetected = false; //dummy required param
+			res = compare(context, condition, comparisonDetected, bJustConsumeTheWords);
+		}
+		
+		if(res == Failed) { 
+			//not mixed with !condition to isolate what shall be done on script interpreting failure
+			//MYDBG("Logic:SkipBlock, res="<<res<<", j.c.words="<<bJustConsumeTheWords);
+			context.skipBlock();
+			return Failed;
+		}
+		
 		if(!condition) {
+			//MYDBG("Logic:SkipBlock"<<", j.c.words="<<bJustConsumeTheWords);
 			context.skipBlock();
 		}
 		
