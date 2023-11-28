@@ -19,10 +19,14 @@
 
 #include "script/ScriptUtils.h"
 
+#include <iostream> //todoa del
 #include <set>
+//#include <typeinfo>
 #include <utility>
 
+//#include <boost/algorithm/string/predicate.hpp>
 #include <boost/lexical_cast.hpp>
+//#include <boost/type_index.hpp>
 
 #include "game/Entity.h"
 #include "graphics/data/Mesh.h"
@@ -56,24 +60,66 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_parameters(std::move(parameters))
 { }
 
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //TODOA DELETE
 /**
  * ex.: "~%05.2f,^somefloatvar~"
  */
-std::string Context::formatString(std::string format, auto var) const {
+//std::string Context::formatString(std::string format, auto var) const { //auto string wont work here
+	//std::string strTmp(256, '\0');
+	
+	//#pragma GCC diagnostic push
+	////could just disable them globally with -Wno-format-nonliteral -Wno-double-promotion ?
+	////TODO something equivalent to windows, but how? #pragma warning( suppress : 4385 ) ? needs to filter too as is not GCC right?
+	//#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+	//#pragma GCC diagnostic ignored "-Wdouble-promotion"
+	////#pragma GCC diagnostic ignored "-fno-rtti"
+	////auto written = std::snprintf(&strTmp[0], strTmp.size(), std::string(formatStringView).data(), var);
+	////using namespace std;
+	////using namespace boost::typeindex;
+	////MYDBG("AUTOtype:"<<type_id_with_cvr<decltype(var)>().pretty_name());
+	//MYDBG("AUTOtype:"<<boost::typeindex::type_id_with_cvr<decltype(var)>().pretty_name());
+	//MYDBG("AUTOtype:"<<boost::typeindex::type_id_with_cvr<decltype(var)>().raw_name());
+	//MYDBG("AUTOtype:"<<boost::typeindex::type_id_with_cvr<decltype(var)>().name());
+	//MYDBG("AUTOtype:"<<boost::typeindex::type_id_with_cvr<decltype(var)>());
+	//MYDBG("AUTOtype:"<<boost::typeindex::type_id_with_cvr<decltype(var)>().hash_code());
+	//MYDBG("AUTOtype.");
+	////MYDBG("AUTOtype:"<<type_id_with_cvr<decltype(var)>().pretty_name()<<", "<<typeid(var).name());
+	//int written;
+	//if(boost::equals(boost::typeindex::type_id_with_cvr<decltype(var)>().pretty_name(),"std::__cxx11::basic_string<char>")){
+		//written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), ((std::__cxx11::basic_string<char>)(var)).c_str());
+	//}else{
+		//written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var);
+	//}
+	//#pragma GCC diagnostic pop
+	
+	//strTmp.resize(size_t(written));
+	//return strTmp;
+//}
+#pragma GCC diagnostic push
+//TODO something equivalent to windows, but how? #pragma warning( suppress : 4385 ) ? needs to filter too as is not GCC right? could just disable them globally with -Wno-format-nonliteral -Wno-double-promotion ?
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#pragma GCC diagnostic ignored "-Wdouble-promotion"
+std::string Context::formatString(std::string format, float var) const {
 	std::string strTmp(256, '\0');
-	
-	#pragma GCC diagnostic push
-	//could just disable them globally with -Wno-format-nonliteral -Wno-double-promotion ?
-	//TODO something equivalent to windows, but how? #pragma warning( suppress : 4385 ) ? needs to filter too as is not GCC right?
-	#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-	#pragma GCC diagnostic ignored "-Wdouble-promotion"
-	//auto written = std::snprintf(&strTmp[0], strTmp.size(), std::string(formatStringView).data(), var);
 	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var);
-	#pragma GCC diagnostic pop
-	
 	strTmp.resize(size_t(written));
 	return strTmp;
 }
+std::string Context::formatString(std::string format, long var) const {
+	std::string strTmp(256, '\0');
+	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var);
+	strTmp.resize(size_t(written));
+	return strTmp;
+}
+std::string Context::formatString(std::string format, std::string var) const {
+	std::string strTmp(256, '\0');
+	MYDBG("formatString='"<<var<<"'\n");
+	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var.c_str());
+	strTmp.resize(size_t(written));
+	return strTmp;
+}
+#pragma GCC diagnostic pop
+
 std::string Context::getStringVar(std::string_view name) const {
 	
 	if(name.empty()) {

@@ -100,7 +100,10 @@ public:
 	std::string getFlags();
 	std::string getWord();
 	void skipWord();
-	std::string formatString(std::string format, auto var) const;
+	//std::string formatString(std::string format, auto var) const; //auto fails for string
+	std::string formatString(std::string format, float var) const;
+	std::string formatString(std::string format, long var) const;
+	std::string formatString(std::string format, std::string var) const;
 	
 	std::string getCommand(bool skipNewlines = true);
 	
