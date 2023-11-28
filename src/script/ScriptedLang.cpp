@@ -920,9 +920,11 @@ public:
 		size_t positionBeforeWord = context.getPosition(); //this is used to undo the wordCkeck position
 		bool condition = false; //this will be set by the function calls
 		bool bJustConsumeTheWords = false; //when a multi nested condition can quickly end, this will be set to true so all words (related to logic operations and comparisons) are consumed and the block/command can be safely reached and processed or skipped.
+		context.skipWhitespace(true);
 		std::string wordCheck = context.getWord();
 		if(recursiveLogicOperationByWord(context, wordCheck, condition, res, bJustConsumeTheWords)){
 			// all work already done at recursiveLogicOperationByWord(...)
+			MYDBG("Logic:Nested:<<<End>>>:"<<(condition?"PROCESS":"SKIP")<<" res="<<res<<", j.c.words="<<bJustConsumeTheWords);
 		} else {
 			context.seekToPosition(positionBeforeWord); //is a simple check, so restore the position
 			bool comparisonDetected = false; //dummy required param
@@ -931,13 +933,13 @@ public:
 		
 		if(res == Failed) { 
 			//not mixed with !condition to isolate what shall be done on script interpreting failure
-			MYDBG("Logic:SkipBlock, res="<<res<<", j.c.words="<<bJustConsumeTheWords);
+			//MYDBG("Logic:SkipBlock, res="<<res<<", j.c.words="<<bJustConsumeTheWords);
 			context.skipBlock();
 			return Failed;
 		}
 		
 		if(!condition) {
-			MYDBG("Logic:SkipBlock"<<", j.c.words="<<bJustConsumeTheWords);
+			//MYDBG("Logic:SkipBlock"<<", j.c.words="<<bJustConsumeTheWords);
 			context.skipBlock();
 		}
 		
