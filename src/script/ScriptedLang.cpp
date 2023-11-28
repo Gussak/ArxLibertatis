@@ -43,6 +43,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/ScriptedLang.h"
 
+#include <iostream> //todoa del
 #include <memory>
 #include <string>
 
@@ -783,6 +784,14 @@ public:
 		return Success;
 	}
 	
+	//std::string sMyDbg; //TODOA DELETE
+	//#define MYDBG(x) {sMyDbg="";MyDbg(sMyDbg << x);} //TODOA DELETE
+	//void MyDbg(std::string s){ //TODOA DELETE THIS FUNC!!!
+		//std::cout << "MyDEBUG: " << s << '\n';
+	//}
+	#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //TODOA DELETE
+	//MYDBG("LogicMode:"<<(bLogicModeIsOr?"OR":"AND")<<", condition="<<condition<<", word:'"<<wordCheck<<"'\n");
+	
 	//enum LogicOp {
 		//Logic_OR,
 		//Logic_AND,
@@ -814,70 +823,95 @@ public:
 	 * so all nested and() or or() or comparison must be inside a initial abrangent/top and() or or() 
 	 */
 	Result recursiveLogicOperation(Context & context, bool & condition, bool bLogicModeIsOr) {
-		Result res;
-		size_t posBkp;
+		Result res = Success;
+		size_t positionBeforeWord;
 		std::string wordCheck;
+		int iCount=0;
 		while(true){
-			posBkp = context.getPosition();
+			//if(res == Failed) return Failed; // errors found in the script.
+			if(res != Success) {MYDBG("Logic:RETURN:FAIL="<<res);return res;}; // errors found in the script.
+			iCount++;
+			positionBeforeWord = context.getPosition();
 			wordCheck = context.getWord();
-			//if(boost::equals(wordCheck, "and")) {
-				//res = recursiveLogicOperation(context, condition, false);
-			//} else
-			//if(boost::equals(wordCheck, "!and")) {
-				//res = recursiveLogicOperation(context, condition, false);
-				//condition=!condition;
-			//} else
-			//if(boost::equals(wordCheck, "or")) {
-				//res = recursiveLogicOperation(context, condition,  true);
-			//} else
-			//if(boost::equals(wordCheck, "!or")) {
-				//res = recursiveLogicOperation(context, condition,  true);
-				//condition=!condition;
-			if(recursiveLogicOperationByWord(context, wordCheck, condition, res)){
-				// all work already done at recursiveLogicOperationByWord(...)
-			} else
-			if(boost::equals(wordCheck, ",")) { //blanks: , || && are optional (within reason) and make reading more clear
-				// says there is more logical results to process
-				continue;
-			} else
-			if( bLogicModeIsOr && boost::equals(wordCheck, "||")) {
-				// like ',' but if the script developer wants to make it more readable
-				continue;
-			} else
-			if(!bLogicModeIsOr && boost::equals(wordCheck, "&&")) {
-				// like ',' but if the script developer wants to make it more readable
-				continue;
-			} else
-			if(!bLogicModeIsOr && boost::equals(wordCheck, "{")) {
+			//DebugScript(' ' << (bLogicModeIsOr?"Or ":"And") << ' c:' << condition << ' w:' << wordCheck);
+			DebugScript(' ' << bLogicModeIsOr << ' ' << condition << ' ' << wordCheck);
+			MYDBG("LogicMode(before):"<<(bLogicModeIsOr?"OR":"AND")<<", condition="<<condition<<", word:'"<<wordCheck<<", scriptPos="<<positionBeforeWord);
+			
+			if( boost::equals(wordCheck, "{") ) {
 				// block begin detected. ready to end the recursive logic 
-				context.seekToPosition(posBkp); //grants '{' will be considered
+				//if(iCount == 1){
+					//ScriptWarning << "logic condition expected but found: " << wordCheck;
+					//res = Failed; //TODO? this could instead be permissive and ignored tho.
+					//continue;
+				//}
+				context.seekToPosition(positionBeforeWord); //grants '{' will be considered, this will cascade upwards til exit the all conditions of the if()
+				MYDBG("Logic:BREAK: init block '{' found");
 				break;
-			} else {
-				//recursive logic operators or blanks were not detected. undo the wordCheck position
-				context.seekToPosition(posBkp);
-				// it needs to determine if the next thing is a comparison as the block begin char was not detected
-				bool comparisonDetected = false;
-				res = compare(context, condition, comparisonDetected);
-				if(comparisonDetected){
-					// it is a comparison, so the loop continues looking for more
-				}else{
-					// it is not a comparison, this is a command outside of a block, so restore position and end the loop
-					context.seekToPosition(posBkp);
-					break;
+			}
+			
+			//         ex.: if(comparison && comparison && comparison) {
+			//                      1     2       3     4      5       6
+			// iCount%2             1     0       1     0      1       0
+			
+			if(iCount%2 == 1){ //comparison or recursive logic nesting
+				if(recursiveLogicOperationByWord(context, wordCheck, condition, res)){
+					// all work already done at recursiveLogicOperationByWord(...)
+					MYDBG("LogicWordFound:CONTINUE: cond="<<condition<<", res="<<res);
+					continue;
+				} else { //check for normal comparison
+					//recursive logic operators or blanks were not detected. undo the wordCheck position
+					context.seekToPosition(positionBeforeWord);
+					// it needs to determine if the next thing is a comparison as the block begin char was not detected
+					bool comparisonDetected = false;
+					res = compare(context, condition, comparisonDetected);
+					if(comparisonDetected){
+						if( condition &&  bLogicModeIsOr) {MYDBG("Logic:comparisonDetected:BREAK: cond="<<condition<<", res="<<res);break;} //logic OR  is ready to let it try to process the block
+						if(!condition && !bLogicModeIsOr) {MYDBG("Logic:comparisonDetected:BREAK: cond="<<condition<<", res="<<res);break;} //logic AND is ready to let it try to skip    the block 
+						MYDBG("Logic:comparisonDetected:CONTINUE: cond="<<condition<<", res="<<res);
+						continue;
+					}else{
+						// it is not a comparison, this is a command outside of a block, so restore position and end the loop
+						context.seekToPosition(positionBeforeWord);
+						//if(iCount == 1){
+							//ScriptWarning << "logic condition expected but found: " << wordCheck;
+							//res = Failed; //TODO? this could instead be permissive and ignored tho.
+							//continue;
+						//}
+						MYDBG("Logic:BREAK: command outside of a block");
+						break;
+					}
 				}
 			}
 			
-			if(res == Failed) return Failed; // errors found in the script
+			// logic connector say the next thing is a logical result to process. They also make reading the script more clear. they are always in-between, 2nd word on.
+			if(iCount%2 == 0){
+				if( boost::equals(wordCheck,  ",")                    ) {MYDBG("Logic:connector:CONTINUE: cond="<<condition<<", res="<<res);continue;}
+				if( boost::equals(wordCheck, "||") &&  bLogicModeIsOr ) {MYDBG("Logic:connector:CONTINUE: cond="<<condition<<", res="<<res);continue;}
+				if( boost::equals(wordCheck, "&&") && !bLogicModeIsOr ) {MYDBG("Logic:connector:CONTINUE: cond="<<condition<<", res="<<res);continue;}
+				//ScriptWarning << "unexpected logic connector: " << wordCheck;
+				//res = Failed;
+				//continue;
+				
+				// the absense of a logic connector is expected and means the end of a nesting ex.: if(AND(... && or(...) && !and(...))){...} //at '){' or some command like 'Set' also ends the logic
+				context.seekToPosition(positionBeforeWord);
+				MYDBG("Logic:BREAK: no logic connector found when expected, cascade upwards");
+				break;
+			}
 			
-			if( condition &&  bLogicModeIsOr) break; //logic OR  is ready to let it process the block
-			if(!condition && !bLogicModeIsOr) break; //logic AND is ready to let it skip    the block 
+			//if(res == Failed) return Failed; // errors found in the script
+			
+			//if( condition &&  bLogicModeIsOr) break; //logic OR  is ready to let it process the block
+			//if(!condition && !bLogicModeIsOr) break; //logic AND is ready to let it skip    the block 
+			
+			//DebugScript(' ' << wordCheck << ' ' << condition << ' ' << bLogicModeIsOr);
 		}
 		
+		MYDBG("Logic:RETURN:SUCCESS");
 		return Success;
 	}
 	Result execute(Context & context) override {
 		Result res; //this overrides processing condition result, in case of Failed
-		size_t posBkp = context.getPosition(); //this is used to undo the wordCkeck position
+		size_t positionBeforeWord = context.getPosition(); //this is used to undo the wordCkeck position
 		bool condition = false; //this will be set by the function calls
 		std::string wordCheck = context.getWord();
 		//if(boost::equals(wordCheck, "and")) {
@@ -896,7 +930,7 @@ public:
 		if(recursiveLogicOperationByWord(context, wordCheck, condition, res)){
 			// all work already done at recursiveLogicOperationByWord(...)
 		} else {
-			context.seekToPosition(posBkp); //is a simple check, so restore the position
+			context.seekToPosition(positionBeforeWord); //is a simple check, so restore the position
 			bool comparisonDetected = false; //dummy required param
 			res = compare(context, condition, comparisonDetected);
 		}
