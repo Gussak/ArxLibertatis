@@ -835,7 +835,7 @@ public:
 			if(res != Success) {MYDBG("Logic:RETURN:FAIL="<<res<<", j.c.words="<<bJustConsumeTheWords);return res;}; // errors found in the script.
 			iCount++;
 			positionBeforeWord = context.getPosition();
-			skipWhitespace(skipNewlines);
+			context.skipWhitespace(true);
 			wordCheck = context.getWord();
 			//DebugScript(' ' << (bLogicModeIsOr?"Or ":"And") << ' c:' << condition << ' w:' << wordCheck);
 			DebugScript(' ' << bLogicModeIsOr << ' ' << condition << ' ' << wordCheck);
