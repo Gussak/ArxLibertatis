@@ -832,17 +832,36 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			
 			if(boost::starts_with(name, "^dist_")) {
 				if(context.getEntity()) {
-					Entity * target = entities.getById(name.substr(6));
-					if(target == entities.player()) {
-						*fcontent = fdist(player.pos, context.getEntity()->pos);
-					} else if(target
-					          && (context.getEntity()->show == SHOW_FLAG_IN_SCENE
-					              || context.getEntity()->show == SHOW_FLAG_IN_INVENTORY)
-					          && (target->show == SHOW_FLAG_IN_SCENE
-					              || target->show == SHOW_FLAG_IN_INVENTORY)) {
-						*fcontent = fdist(GetItemWorldPosition(context.getEntity()), GetItemWorldPosition(target));
+					if( name[6] == '{' ) {
+						Vec3f pos;
+						int iStrPosNext = 6;
+						
+						int iStrPosIni=iStrPosNext+1; //skip '{'
+						iStrPosNext=name.find(',',iStrPosIni);
+						pos.x = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						iStrPosIni=iStrPosNext+1; //skip ','
+						iStrPosNext=name.find(',',iStrPosIni);
+						pos.y = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						iStrPosIni=iStrPosNext+1; //skip ','
+						iStrPosNext=name.find('}',iStrPosIni);
+						pos.z = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						*fcontent = fdist(context.getEntity()->pos, pos);
 					} else {
-						*fcontent = 99999999999.f;
+						Entity * target = entities.getById(name.substr(6));
+						if(target == entities.player()) {
+							*fcontent = fdist(player.pos, context.getEntity()->pos);
+						} else if(target
+											&& (context.getEntity()->show == SHOW_FLAG_IN_SCENE
+													|| context.getEntity()->show == SHOW_FLAG_IN_INVENTORY)
+											&& (target->show == SHOW_FLAG_IN_SCENE
+													|| target->show == SHOW_FLAG_IN_INVENTORY)) {
+							*fcontent = fdist(GetItemWorldPosition(context.getEntity()), GetItemWorldPosition(target));
+						} else {
+							*fcontent = 99999999999.f;
+						}
 					}
 					return TYPE_FLOAT;
 				}
