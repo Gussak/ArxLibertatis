@@ -56,33 +56,67 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_parameters(std::move(parameters))
 { }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+std::string Context::formatString(std::string format, float var) const {
+	std::string strTmp(256, '\0');
+	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), static_cast<double>(var) );
+	strTmp.resize(size_t(written));
+	return strTmp;
+}
+std::string Context::formatString(std::string format, long var) const {
+	std::string strTmp(256, '\0');
+	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var);
+	strTmp.resize(size_t(written));
+	return strTmp;
+}
+std::string Context::formatString(std::string format, std::string var) const {
+	std::string strTmp(256, '\0');
+	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var.c_str());
+	strTmp.resize(size_t(written));
+	return strTmp;
+}
+#pragma GCC diagnostic pop
+
 std::string Context::getStringVar(std::string_view name) const {
 	
 	if(name.empty()) {
 		return std::string();
-	} else if(name[0] == '^') {
+	}
+	
+	std::string format;
+	if(name[0] == '%') { //printf format syntax
+		format = name.substr( 0, name.find(',',0) );
+		name   = name.substr( format.size()+1 ); //+1 skips the ','
+	}
+	
+	if(name[0] == '^') {
 		long lv;
 		float fv;
 		std::string tv;
 		switch(getSystemVar(*this, name, tv, &fv, &lv)) {
-			case TYPE_TEXT: return tv;
-			case TYPE_LONG: return std::to_string(lv);
-			default: return std::to_string(fv);
+			case TYPE_TEXT: return format.size() > 0 ? formatString(format, tv) : tv;
+			case TYPE_LONG: return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
+			default: return format.size() > 0 ? formatString(format, fv) : std::to_string(fv);
 		}
 	} else if(name[0] == '#') {
-		return std::to_string(GETVarValueLong(svar, name));
+		long lv = GETVarValueLong(svar, name);
+		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
 	} else if(name[0] == '\xA7') {
-		return std::to_string(GETVarValueLong(getEntity()->m_variables, name));
+		long lv = GETVarValueLong(getEntity()->m_variables, name);
+		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
 	} else if(name[0] == '&') {
-		return boost::lexical_cast<std::string>(GETVarValueFloat(svar, name));
+		float fv = GETVarValueFloat(svar, name);
+		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
 	} else if(name[0] == '@') {
-		return boost::lexical_cast<std::string>(GETVarValueFloat(getEntity()->m_variables, name));
+		float fv = GETVarValueFloat(getEntity()->m_variables, name);
+		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
 	} else if(name[0] == '$') {
 		const SCRIPT_VAR * var = GetVarAddress(svar, name);
-		return var ? var->text : "void";
+		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
 	} else if(name[0] == '\xA3') {
 		const SCRIPT_VAR * var = GetVarAddress(getEntity()->m_variables, name);
-		return var ? var->text : "void";
+		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
 	}
 	
 	return std::string(name);
