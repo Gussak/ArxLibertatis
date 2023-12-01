@@ -136,6 +136,8 @@ public:
 	size_t getPosition() const { return m_pos; }
 	
 	std::string getPositionAndLineNumber() const;
+	void seekToPosition(size_t pos);
+	
 };
 
 class Command {

@@ -191,6 +191,10 @@ std::string Context::getPositionAndLineNumber() const {
 	return s.str(); 
 }
 
+void Context::seekToPosition(size_t pos) { 
+	m_pos=pos; 
+}
+
 std::string Context::getWord() {
 	
 	std::string_view esdat = m_script->data;
