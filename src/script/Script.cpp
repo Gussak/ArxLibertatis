@@ -475,6 +475,37 @@ static Date getSystemTime() {
 	return s_frameSystemTime;
 }
 
+static float getDegrees(const script::Context & context, const std::string_view & name, const int & offset, const char xyz) {
+	Entity * entity = nullptr;
+	if (offset == -1) {
+		entity = context.getEntity();
+	} else {
+		entity = entities.getById(name.substr(offset));
+	}
+	
+	if( !entity ){
+		return 0.f;
+	}
+	
+	float degrees = 0.f;
+	switch(xyz) {
+		case 'x': degrees = (entity == entities.player() ? player.angle : entity->angle).getPitch(); break;
+		case 'y': degrees = (entity == entities.player() ? player.angle : entity->angle).getYaw();   break;
+		case 'z': degrees = (entity == entities.player() ? player.angle : entity->angle).getRoll();  break;
+		case 'Y': 
+			if( !context.getEntity() ) {
+				return 0.f;
+			}
+			degrees = Camera::getLookAtAngle(context.getEntity()->pos, entity->pos).getYaw();  
+			break;
+		default: /*TODO: generate some warning on log?*/ break;
+	}
+	
+	degrees = MAKEANGLE(degrees);
+	
+	return degrees;
+}
+
 ValueType getSystemVar(const script::Context & context, std::string_view name,
                        std::string & txtcontent, float * fcontent, long * lcontent) {
 	
@@ -661,7 +692,7 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_FLOAT;
 			}
 			
-			if(boost::starts_with(name, "^anglex_")) {
+			if(boost::starts_with(name, "^anglex_")) { //radians
 				*fcontent = 0.f;
 				Entity * entity = getEntityParam(name, 8, context);
 				if(entity) {
@@ -671,7 +702,7 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_FLOAT;
 			}
 			
-			if(boost::starts_with(name, "^anglez_")) {
+			if(boost::starts_with(name, "^anglez_")) { //radians
 				*fcontent = 0.f;
 				Entity * entity = getEntityParam(name, 8, context);
 				if(entity) {
@@ -770,6 +801,34 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 		}
 		
 		case 'd': {
+			if(name == "^degrees") {
+				*fcontent = getDegrees(context,name,-1,'y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name,"^degrees_")){
+				*fcontent = getDegrees(context,name, 9,'y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name,"^degreesx_")){
+				*fcontent = getDegrees(context,name,10,'x');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name,"^degreesy_")){
+				*fcontent = getDegrees(context,name,10,'y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name,"^degreesz_")){
+				*fcontent = getDegrees(context,name,10,'z');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name,"^degreesto_")){
+				*fcontent = getDegrees(context,name,11,'Y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name,"^degreesyto_")){
+				*fcontent = getDegrees(context,name,12,'Y');
+				return TYPE_FLOAT;
+			}
 			
 			if(boost::starts_with(name, "^dist_")) {
 				if(context.getEntity()) {
