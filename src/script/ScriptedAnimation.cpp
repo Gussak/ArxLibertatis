@@ -388,7 +388,7 @@ public:
 	
 	InterpolateCommand() : Command("interpolate", AnyEntity) { }
 	
-	void interpretLocation(Vec3f & pos, const std::string_view & strPos){
+	void interpretLocation(Vec3f & pos, const std::string_view & strPos){ //TODO static global reuse with ^dist_{x,y,z}, place at ScriptUtils probably
 		int iStrPosIni=0;
 		int iStrPosNext=strPos.find(',',iStrPosIni);
 		pos.x = util::parseFloat(strPos.substr(iStrPosIni,iStrPosNext-iStrPosIni));
@@ -402,12 +402,13 @@ public:
 	}
 	
 	/**
-	 * TODO: put this comment on wiki instead (keep here too would be better tho, but then it would be easier to format here how it would be required on wiki, so we could just copy/paste there)
-	 * INTERPOLATE <EntityToMove> [-f FromLocation] <TargetLocation|TargetEntity> <NearTargetDistance>
+	 * INTERPOLATE <EntityToMove> [-no-limits] [-f FromLocation] <TargetLocation|TargetEntity> <NearTargetDistance>
 	 *  <EntityToMove>: (entityID) is who will be moved
+	 *  [-no-limits]: allows negative distance and distance bigger than max distance
 	 *  [-f FromLocation]: (x,y,z) is the absolute position to move from ignoring EntityToMove position
 	 *  <TargetLocation|TargetEntity> TargetLocation: (x,y,z) is the absolute target position; TargetEntity: (entityID) is the target entity to get the position
-	 *  <NearTargetDistance>: (float) from 0.0 to 1.0 will be a percent of the distance between them. So 0.0 means 
+	 *  <NearTargetDistance>: (float) from 0.0 to 1.0 will be a percent of the distance between them. So 0.0 means at target location while 1.0 means at EntityToMove location. If bigger than dist between from/target allows moving farer instead of nearer, and if negative it can move past the target location.
+	 * TODO: put this comment on wiki instead (keep here too would be better tho, but then it would be easier to format here how it would be required on wiki, so we could just copy/paste there)
 	 */
 	Result execute(Context & context) override {
 		std::string strCheck;
@@ -416,11 +417,17 @@ public:
 		Vec3f posTarget;
 		Vec3f posFrom;
 		Vec3f posNew;
+		bool bLimitDist=true;
 		
 		strCheck = context.getWord(); 
 		entToMove = boost::equals(strCheck, "self") ? context.getEntity() : entities.getById(strCheck);
 		
 		strCheck = context.getWord();
+		
+		if(strCheck == "-no-limits"){
+			bLimitDist=false;
+			strCheck = context.getWord();
+		}
 		
 		//optional from position
 		if(strCheck == "-f"){
@@ -434,20 +441,26 @@ public:
 		}else{
 			entTarget = boost::equals(strCheck, "self") ? context.getEntity() : entities.getById(strCheck);
 			if(!entTarget){
-				return Success; //TODO Failed with warn?
+				ScriptWarning << "null target";
+				return Failed;
 			}
 		}
 		
 		if(entToMove == entTarget){
-			return Success; //TODO warn?
+			ScriptWarning << "entity to move and target are the same";
+			return Failed;
 		}
 		
 		if(posFrom==posTarget){
-			return Success; //TODO warn?
+			ScriptWarning << "position to move from is the target position";
+			return Failed;
 		}
 		
 		float fNearDist = context.getFloat();
-		//a negative value can move past the target location, what may be intentional. if(fNearDist < 0.0f){			return Success;		} //TODO warn invalid negative value, return Failed?
+		if(bLimitDist && fNearDist < 0.0f){
+			ScriptWarning << "clamp negative dist";
+			return Failed;
+		}
 		
 		if(fNearDist == 1.0f){ //wont move at all, is 100% far away
 			return Success;
@@ -458,10 +471,17 @@ public:
 		}else{
 			posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
 			posFrom = entToMove == entities.player() ? entities.player()->pos : GetItemWorldPosition(entToMove);
-			// a fNearDist bigger than dist between from/target allows moving farer instead of nearer, what may be intentional.
-			if(fNearDist > 0.0f && fNearDist < 1.0f){ //calc dist from percent. ==1.0f returned already. >1.0f is absolute distance
-				fNearDist=fdist(posFrom, posTarget)*fNearDist;
+			float fDist = fdist(posFrom, posTarget);
+			
+			if(bLimitDist && fNearDist > fDist){
+				fNearDist = fDist;
+				return Success;
 			}
+			
+			if(fNearDist > 0.0f && fNearDist < 1.0f){ //calc dist from percent. ==1.0f returned already. >1.0f is absolute distance
+				fNearDist = fDist * fNearDist;
+			}
+			
 			//TODO compare results with LegacyMath.h:interpolatePos() ? this below is easier to maintain tho.
 			Vec3f delta = posFrom - posTarget;
 			float fDeltaNorm = ffsqrt( //std::sqrt
