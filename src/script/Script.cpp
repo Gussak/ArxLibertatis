@@ -506,6 +506,20 @@ static float getDegrees(const script::Context & context, const std::string_view 
 	return degrees;
 }
 
+static float getLocation(const std::string_view & name, const char xyz) {
+	Entity * entWorkWith = entities.getById(name.substr(11));
+	float f = 99999999999.f;
+	if(entWorkWith && (entWorkWith->show == SHOW_FLAG_IN_SCENE || entWorkWith->show == SHOW_FLAG_IN_INVENTORY)) {
+		switch(xyz) {
+			case 'x': f = entWorkWith == entities.player() ? player.pos.x : GetItemWorldPosition(entWorkWith).x; break;
+			case 'y': f = entWorkWith == entities.player() ? player.pos.y : GetItemWorldPosition(entWorkWith).y; break;
+			case 'z': f = entWorkWith == entities.player() ? player.pos.z : GetItemWorldPosition(entWorkWith).z; break;
+			default: break;
+		}
+	}
+	return f;
+}
+
 ValueType getSystemVar(const script::Context & context, std::string_view name,
                        std::string & txtcontent, float * fcontent, long * lcontent) {
 	
@@ -987,6 +1001,19 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^last_spawned")) {
 				txtcontent = idString(LASTSPAWNED);
 				return TYPE_TEXT;
+			}
+			
+			if(boost::starts_with(name, "^locationx_")) {
+				*fcontent = getLocation(name, 'x');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^locationy_")) {
+				*fcontent = getLocation(name, 'y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^locationz_")) {
+				*fcontent = getLocation(name, 'z');
+				return TYPE_FLOAT;
 			}
 			
 			break;
