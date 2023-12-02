@@ -430,35 +430,37 @@ public:
 		}
 		
 		//optional from position
+		bool bPosFrom=false;
 		if(strCheck == "-f"){
 			strCheck = context.getWord();
 			interpretLocation(posFrom,strCheck);
+			bPosFrom = true;
 		}
 		
 		//target
+		bool bPosTarget = false;
 		if(boost::contains(strCheck,",")){
 			interpretLocation(posTarget,strCheck);
+			bPosTarget = true;
 		}else{
 			entTarget = boost::equals(strCheck, "self") ? context.getEntity() : entities.getById(strCheck);
-			if(!entTarget){
-				ScriptWarning << "null target";
-				return Failed;
-			}
-		}
-		
-		if(entToMove == entTarget){
-			ScriptWarning << "entity to move and target are the same";
-			return Failed;
-		}
-		
-		if(posFrom==posTarget){
-			ScriptWarning << "position to move from is the target position";
-			return Failed;
 		}
 		
 		float fNearDist = context.getFloat();
+		
+		// can only return after all params have been collected!
+		if(!entTarget){
+			ScriptWarning << "null target = " << strCheck << "; ";
+			return Failed;
+		}
+			
+		if(entToMove == entTarget){
+			ScriptWarning << "entity to move and target are the same" << "; ";
+			return Failed;
+		}
+		
 		if(bLimitDist && fNearDist < 0.0f){
-			ScriptWarning << "clamp negative dist";
+			ScriptWarning << "clamp negative dist" << "; ";
 			return Failed;
 		}
 		
@@ -466,11 +468,16 @@ public:
 			return Success;
 		}
 		
+		if(!bPosFrom  ) posFrom   = entToMove == entities.player() ? entities.player()->pos : GetItemWorldPosition(entToMove);
+		if(!bPosTarget) posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
+		if(posFrom==posTarget){
+			ScriptWarning << "position to move from is the target position" << "; ";
+			return Failed;
+		}
+		
 		if(fNearDist == 0.0f){
 			posNew = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
 		}else{
-			posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
-			posFrom = entToMove == entities.player() ? entities.player()->pos : GetItemWorldPosition(entToMove);
 			float fDist = fdist(posFrom, posTarget);
 			
 			if(bLimitDist && fNearDist > fDist){
@@ -821,6 +828,7 @@ void setupScriptedAnimation() {
 	ScriptEvent::registerCommand(std::make_unique<SetPathCommand>());
 	ScriptEvent::registerCommand(std::make_unique<UsePathCommand>());
 	ScriptEvent::registerCommand(std::make_unique<UnsetControlledZoneCommand>());
+	ScriptEvent::registerCommand(std::make_unique<InterpolateCommand>());
 	
 }
 

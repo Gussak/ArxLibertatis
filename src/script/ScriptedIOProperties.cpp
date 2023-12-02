@@ -48,6 +48,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <string_view>
 
 #include "game/Entity.h"
+#include "game/EntityManager.h"
 #include "graphics/Math.h"
 #include "graphics/data/Mesh.h"
 #include "io/resource/ResourcePath.h"
@@ -569,14 +570,43 @@ public:
 	
 	UseMeshCommand() : Command("usemesh", AnyEntity) { }
 	
+	/**
+	 * TODO: wiki: usemesh [-e] <mesh> [e?entityId]
+	 */
 	Result execute(Context & context) override {
 		
-		res::path mesh = res::path::load(context.getWord());
+		std::string strMesh;
+		
+		std::string strOpt = context.getWord();
+		bool bGetEnt=false;
+		if(strOpt == "-e") {
+			bGetEnt=true;
+			strMesh = context.getWord();
+		} else {
+			strMesh = strOpt;
+		}
+		
+		res::path mesh = res::path::load(strMesh);
+		
+		std::string strEntId;
+		if(bGetEnt) strEntId = context.getWord();
+				
+		Entity * ent = nullptr;
+		if(strEntId.size() > 0) {
+			ent = entities.getById(strEntId);
+		} else {
+			ent = context.getEntity();
+		}
 		
 		DebugScript(' ' << mesh);
 		
-		ARX_INTERACTIVE_MEMO_TWEAK(context.getEntity(), TWEAK_TYPE_MESH, mesh, res::path());
-		ARX_INTERACTIVE_USEMESH(context.getEntity(), mesh);
+		if(ent) {
+			ARX_INTERACTIVE_MEMO_TWEAK(ent, TWEAK_TYPE_MESH, mesh, res::path());
+			ARX_INTERACTIVE_USEMESH(ent, mesh);
+		} else {
+			ScriptWarning << "invalid null entity" << ", bGetEnt="<<bGetEnt;
+			return Failed;
+		}
 		
 		return Success;
 	}
