@@ -129,7 +129,7 @@ void RestoreInitialIOStatus();
 
 void UnlinkAllLinkedObjects();
 Entity * getCollidingEntityAt(const Vec3f & pos, const Vec3f & size);
-Entity * GetFirstInterAtPos(const Vec2s & pos);
+Entity * GetFirstInterAtPos(const Vec2s & pos, float fForceMaxDist = 0.0f);
 
 /*!
  * Adds an Interactive Object to the Scene
