@@ -584,6 +584,16 @@ void CleanInventory() {
 	
 }
 
+void DropAllItemsInFrontOfPlayer(Entity * entFrom) {
+	if(!entFrom)return;
+	if(!entFrom->inventory)return;
+	for(auto slot : entFrom->inventory->slots()) {
+		if(slot.entity) {
+			PutInFrontOfPlayer(slot.entity);
+		}
+	}
+}
+
 void optimizeInventory(Entity * container) {
 	
 	arx_assert(container && container->inventory);

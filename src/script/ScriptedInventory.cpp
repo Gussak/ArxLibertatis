@@ -528,6 +528,42 @@ public:
 	
 };
 
+class DropItemCommand : public Command {
+	
+public:
+	
+	/**
+	 * dropitem [-f] <entityID> <"all"|itemID>
+	 * -f: drop in front of player
+	 * entityID: entity ID to drop items from
+	 */
+	DropItemCommand() : Command("dropitem") { }
+	
+	Result execute(Context & context) override {
+		bool bInFrontOfPlayer = false;
+		HandleFlags("f") {
+			if(flg & flag('f')) {
+				bInFrontOfPlayer = true;
+			}
+		}
+		
+		std::string strEntID  = context.getWord();
+		std::string strItemID = context.getWord();
+		if(strItemID == "all") {
+			if(bInFrontOfPlayer) {
+				DropAllItemsInFrontOfPlayer( entities.getById( strEntID ) );
+			} else {
+				//TODO not implemented yet
+			}
+		} else {
+			//TODO not implemented yet
+		}
+		
+		return Success;
+	}
+	
+};
+
 } // anonymous namespace
 
 void setupScriptedInventory() {
@@ -536,6 +572,7 @@ void setupScriptedInventory() {
 	ScriptEvent::registerCommand(std::make_unique<EquipCommand>());
 	ScriptEvent::registerCommand(std::make_unique<WeaponCommand>());
 	ScriptEvent::registerCommand(std::make_unique<SetWeaponCommand>());
+	ScriptEvent::registerCommand(std::make_unique<DropItemCommand>());
 	
 }
 
