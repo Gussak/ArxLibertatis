@@ -469,15 +469,32 @@ class WeaponCommand : public Command {
 	
 public:
 	
+	/**
+	 * weapon [-e <applyAtEntityID>] <draw>
+	 */
 	WeaponCommand() : Command("weapon", IO_NPC) { }
 	
 	Result execute(Context & context) override {
+		bool draw = false;
+		std::string strEntId;
+		size_t positionBeforeWord = context.getPosition();
 		
-		bool draw = context.getBool();
+		std::string strOpt = context.getWord();
+		if(strOpt == "-e") {
+			strEntId = context.getWord();
+		} else {
+			context.seekToPosition(positionBeforeWord);
+		}
+		draw = context.getBool();
+		
+		Entity * io = nullptr;
+		if(strEntId.size() > 0) {
+			io = entities.getById(strEntId);
+		} else {
+			io = context.getEntity();
+		}
 		
 		DebugScript(' ' << draw);
-		
-		Entity * io = context.getEntity();
 		
 		if(draw) {
 			if(io->_npcdata->weaponinhand == 0) {
