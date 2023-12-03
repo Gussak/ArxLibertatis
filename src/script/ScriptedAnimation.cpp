@@ -41,6 +41,9 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 ===========================================================================
 */
 
+#include <iostream> //del
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
+
 #include "script/ScriptedAnimation.h"
 
 #include <cstring>
@@ -401,6 +404,14 @@ public:
 		pos.z = util::parseFloat(strPos.substr(iStrPosIni));
 	}
 	
+	std::string vec3fToStr(Vec3f & v3) {
+		std::string s;
+		s+=std::to_string(v3.x)+",";
+		s+=std::to_string(v3.y)+",";
+		s+=std::to_string(v3.z);
+		return s;
+	}
+	
 	/**
 	 * INTERPOLATE <EntityToMove> [-no-limits] [-f FromLocation] <TargetLocation|TargetEntity> <NearTargetDistance>
 	 *  <EntityToMove>: (entityID) is who will be moved
@@ -417,10 +428,14 @@ public:
 		Vec3f posTarget;
 		Vec3f posFrom;
 		Vec3f posNew;
-		bool bLimitDist=true;
+		bool bLimitDist = true;
+		bool bPosFrom   = false;
+		bool bPosTarget = false;
+		float fNearDist = 0.0f;
 		
 		strCheck = context.getWord(); 
 		entToMove = boost::equals(strCheck, "self") ? context.getEntity() : entities.getById(strCheck);
+		posFrom   = entToMove == entities.player() ? entities.player()->pos : GetItemWorldPosition(entToMove);
 		
 		strCheck = context.getWord();
 		
@@ -429,34 +444,40 @@ public:
 			strCheck = context.getWord();
 		}
 		
-		//optional from position
-		bool bPosFrom=false;
+		//optional from absolute position
 		if(strCheck == "-f"){
-			strCheck = context.getWord();
-			interpretLocation(posFrom,strCheck);
+			interpretLocation(posFrom, context.getWord());
 			bPosFrom = true;
 		}
 		
 		//target
-		bool bPosTarget = false;
-		if(boost::contains(strCheck,",")){
+		if(boost::contains(strCheck,",")){ //absolute location
 			interpretLocation(posTarget,strCheck);
 			bPosTarget = true;
 		}else{
 			entTarget = boost::equals(strCheck, "self") ? context.getEntity() : entities.getById(strCheck);
+			posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
 		}
 		
-		float fNearDist = context.getFloat();
+		fNearDist = context.getFloat();
+		
+		//std::string strDbg;
+		//strDbg=strDbg+",strCheck="+strCheck +",entToMove="+((long)entToMove) +",entTarget="+entTarget +",posTarget="+ posTarget+",posFrom="+ posFrom+",posNew="+ posNew+",bLimitDist="+ bLimitDist+",bPosFrom="+bPosFrom +",bPosTarget="+ bPosTarget+",fNearDist="+ fNearDist;
+		MYDBG(",strCheck="<<strCheck <<",entToMove="<<entToMove <<",entTarget="<<entTarget <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",posNew="<< vec3fToStr(posNew)<<",bLimitDist="<< bLimitDist<<",bPosFrom="<<bPosFrom <<",bPosTarget="<< bPosTarget<<",fNearDist="<< fNearDist); 
+		//DebugScript(strDbg);
+		//ScriptWarning << strDbg;
 		
 		// can only return after all params have been collected!
-		if(!entTarget){
-			ScriptWarning << "null target = " << strCheck << "; ";
-			return Failed;
-		}
-			
-		if(entToMove == entTarget){
-			ScriptWarning << "entity to move and target are the same" << "; ";
-			return Failed;
+		if(!bPosTarget){
+			if(!entTarget){
+				ScriptWarning << "null target = " << strCheck << "; ";
+				return Failed;
+			}
+				
+			if(entToMove == entTarget){
+				ScriptWarning << "entity to move and target are the same" << "; ";
+				return Failed;
+			}
 		}
 		
 		if(bLimitDist && fNearDist < 0.0f){
@@ -468,15 +489,17 @@ public:
 			return Success;
 		}
 		
-		if(!bPosFrom  ) posFrom   = entToMove == entities.player() ? entities.player()->pos : GetItemWorldPosition(entToMove);
-		if(!bPosTarget) posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
 		if(posFrom==posTarget){
 			ScriptWarning << "position to move from is the target position" << "; ";
 			return Failed;
 		}
 		
 		if(fNearDist == 0.0f){
-			posNew = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
+			if(bPosTarget) {
+				posNew = posTarget;
+			} else {
+				posNew = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
+			}
 		}else{
 			float fDist = fdist(posFrom, posTarget);
 			

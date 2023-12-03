@@ -1624,7 +1624,7 @@ Entity * AddItem(const res::path & classPath_, EntityInstance instance, AddInter
 /*!
  * \brief Returns nearest interactive object found at position x, y
  */
-Entity * GetFirstInterAtPos(const Vec2s & pos) {
+Entity * GetFirstInterAtPos(const Vec2s & pos, float fForceMaxDist) {
 	
 	float _fdist = 9999999999.f;
 	float fdistBB = 9999999999.f;
@@ -1634,6 +1634,10 @@ Entity * GetFirstInterAtPos(const Vec2s & pos) {
 	
 	if(player.m_telekinesis) {
 		fMaxDist = 850;
+	}
+	
+	if(fForceMaxDist > 0.0f) {
+		fMaxDist = fForceMaxDist;
 	}
 	
 	for(Entity & entity : entities) {

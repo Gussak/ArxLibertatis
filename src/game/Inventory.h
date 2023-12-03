@@ -447,6 +447,7 @@ Vec3f GetItemWorldPosition(const Entity * io);
 Vec3f GetItemWorldPositionSound(const Entity * io);
 
 void CleanInventory();
+void DropAllItemsInFrontOfPlayer(Entity * entFrom);
 bool IsInPlayerInventory(Entity * io);
 Entity * getInventoryItemWithLowestDurability(std::string_view className, float minDurability = 0.f);
 void useInventoryItemWithLowestDurability(std::string_view className, float minDurability = 0.f);

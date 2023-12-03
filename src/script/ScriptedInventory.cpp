@@ -469,15 +469,32 @@ class WeaponCommand : public Command {
 	
 public:
 	
+	/**
+	 * weapon [-e <applyAtEntityID>] <draw>
+	 */
 	WeaponCommand() : Command("weapon", IO_NPC) { }
 	
 	Result execute(Context & context) override {
+		bool draw = false;
+		std::string strEntId;
+		size_t positionBeforeWord = context.getPosition();
 		
-		bool draw = context.getBool();
+		std::string strOpt = context.getWord();
+		if(strOpt == "-e") {
+			strEntId = context.getWord();
+		} else {
+			context.seekToPosition(positionBeforeWord);
+		}
+		draw = context.getBool();
+		
+		Entity * io = nullptr;
+		if(strEntId.size() > 0) {
+			io = entities.getById(strEntId);
+		} else {
+			io = context.getEntity();
+		}
 		
 		DebugScript(' ' << draw);
-		
-		Entity * io = context.getEntity();
 		
 		if(draw) {
 			if(io->_npcdata->weaponinhand == 0) {
@@ -528,6 +545,21 @@ public:
 	
 };
 
+class DropAllItemsCommand : public Command {
+	
+public:
+	
+	DropAllItemsCommand() : Command("dropallitems") { }
+	
+	Result execute(Context & context) override {
+		
+		DropAllItemsInFrontOfPlayer( entities.getById( context.getWord() ) );
+		
+		return Success;
+	}
+	
+};
+
 } // anonymous namespace
 
 void setupScriptedInventory() {
@@ -536,6 +568,7 @@ void setupScriptedInventory() {
 	ScriptEvent::registerCommand(std::make_unique<EquipCommand>());
 	ScriptEvent::registerCommand(std::make_unique<WeaponCommand>());
 	ScriptEvent::registerCommand(std::make_unique<SetWeaponCommand>());
+	ScriptEvent::registerCommand(std::make_unique<DropAllItemsCommand>());
 	
 }
 

@@ -953,6 +953,11 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_TEXT;
 			}
 			
+			if(boost::starts_with(name, "^hover_")) {
+				txtcontent = idString( GetFirstInterAtPos( DANAEMouse, util::parseFloat(name.substr(7)) ) );
+				return TYPE_TEXT;
+			}
+			
 			break;
 		}
 		
