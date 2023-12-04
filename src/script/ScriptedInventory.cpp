@@ -580,7 +580,7 @@ public:
 		} else {
 			Entity * entToDrop = entities.getById( strItemID );
 			if(entToDrop->owner() != entDropFromInventory) {
-				ScriptWarning << entDropFromInventory->id() << "is not owner of " << strItemID;
+				ScriptWarning << entDropFromInventory->idString() << "is not owner of " << strItemID;
 				return Failed;
 			}
 			PutInFrontOfEntity(entToDrop, bInFrontOfPlayer ? entities.player() : entDropFromInventory);
