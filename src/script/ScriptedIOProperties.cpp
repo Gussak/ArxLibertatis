@@ -40,6 +40,8 @@ If you have questions concerning this license or the applicable additional terms
 ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 ===========================================================================
 */
+#include <iostream> //del
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
 
 #include "script/ScriptedIOProperties.h"
 
@@ -48,6 +50,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <string_view>
 
 #include "game/Entity.h"
+#include "game/EntityManager.h"
 #include "graphics/Math.h"
 #include "graphics/data/Mesh.h"
 #include "io/resource/ResourcePath.h"
@@ -569,14 +572,41 @@ public:
 	
 	UseMeshCommand() : Command("usemesh", AnyEntity) { }
 	
+	/**
+	 * TODO: wiki: usemesh [-e entityId] <mesh>
+	 */
 	Result execute(Context & context) override {
 		
-		res::path mesh = res::path::load(context.getWord());
+		std::string strMesh;
+		std::string strEntId;
 		
-		DebugScript(' ' << mesh);
+		std::string strOpt = context.getWord();
+		if(strOpt == "-e") {
+			strEntId = context.getWord();
+			strMesh = context.getWord();
+		} else {
+			strMesh = strOpt;
+		}
+		DebugScript("strEntId=" << strEntId << ",strMesh=" << strMesh);
+		MYDBG("strEntId=" << strEntId << ",strMesh=" << strMesh);
 		
-		ARX_INTERACTIVE_MEMO_TWEAK(context.getEntity(), TWEAK_TYPE_MESH, mesh, res::path());
-		ARX_INTERACTIVE_USEMESH(context.getEntity(), mesh);
+		Entity * ent = nullptr;
+		if(strEntId.size() > 0) {
+			ent = entities.getById(strEntId);
+		} else {
+			ent = context.getEntity();
+		}
+		res::path mesh = res::path::load(strMesh);
+		DebugScript(" mesh=" << mesh << " entity=" << ent);
+		MYDBG("strEntId=" << strEntId << ",strMesh=" << " mesh=" << mesh << " entity=" << ent);
+		
+		if(ent) {
+			ARX_INTERACTIVE_MEMO_TWEAK(ent, TWEAK_TYPE_MESH, mesh, res::path());
+			ARX_INTERACTIVE_USEMESH(ent, mesh);
+		} else {
+			ScriptWarning << "invalid null entity:"<<", entityId="<<strEntId<<", mesh="<<mesh;
+			return Failed;
+		}
 		
 		return Success;
 	}
