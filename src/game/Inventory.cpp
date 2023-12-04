@@ -145,47 +145,63 @@ static void ARX_INVENTORY_Declare_InventoryIn(Entity * io, Entity * container) {
 //! Puts an IO in front of the player
 void PutInFrontOfPlayer(Entity * io) {
 	
-	if(!io) {
+	PutInFrontOfEntity(io, entities.player());
+	
+}
+
+void PutInFrontOfEntity(Entity * ioToDrop, Entity * ioDropAt) {
+	
+	if(!ioDropAt) {
 		return;
 	}
 	
-	if((io->ioflags & IO_ITEM) && io->_itemdata->count > 1) {
-		while(io->_itemdata->count > 1) {
-			Entity * unstackedEntity = CloneIOItem(io);
+	PutAt(ioToDrop, ioDropAt->pos, ioDropAt->angle);
+	
+}
+
+void PutAt(Entity * ioToDrop, Vec3f posAt, Anglef angleAt) {
+	
+	if(!ioToDrop) {
+		return;
+	}
+	
+	if((ioToDrop->ioflags & IO_ITEM) && ioToDrop->_itemdata->count > 1) {
+		while(ioToDrop->_itemdata->count > 1) {
+			Entity * unstackedEntity = CloneIOItem(ioToDrop);
 			unstackedEntity->scriptload = 1;
 			unstackedEntity->_itemdata->count = 1;
-			unstackedEntity->pos = io->pos;
-			unstackedEntity->angle = io->angle;
-			PutInFrontOfPlayer(unstackedEntity);
-			io->_itemdata->count--;
+			unstackedEntity->pos = ioToDrop->pos;
+			unstackedEntity->angle = ioToDrop->angle;
+			PutAt(unstackedEntity, posAt, angleAt);
+			ioToDrop->_itemdata->count--;
 		}
 	}
 	
-	if(g_draggedEntity == io) {
+	if(g_draggedEntity == ioToDrop) {
 		setDraggedEntity(nullptr);
 	}
 	
-	io->setOwner(nullptr);
+	ioToDrop->setOwner(nullptr);
 	
-	io->angle = Anglef();
-	io->show = SHOW_FLAG_IN_SCENE;
+	ioToDrop->angle = Anglef();
+	ioToDrop->show = SHOW_FLAG_IN_SCENE;
 	
-	Sphere limit(player.pos + Vec3f(0.f, 20.f, 0.f), 80);
-	Vec3f dir = angleToVectorXZ(player.angle.getYaw());
-	EntityDragResult result = findSpotForDraggedEntity(limit.origin, dir, io, limit);
+	Sphere limit(posAt + Vec3f(0.f, 20.f, 0.f), 80);
+	Vec3f dir = angleToVectorXZ(angleAt.getYaw());
+	EntityDragResult result = findSpotForDraggedEntity(limit.origin, dir, ioToDrop, limit);
 	
 	if(!result.foundSpot) {
-		ARX_INTERACTIVE_Teleport(io, player.pos, true);
+		ARX_INTERACTIVE_Teleport(ioToDrop, posAt, true);
 		return;
 	}
 	
-	ARX_INTERACTIVE_Teleport(io, result.pos - toXZ(result.offset), true);
+	ARX_INTERACTIVE_Teleport(ioToDrop, result.pos - toXZ(result.offset), true);
 	
-	if(io->obj && io->obj->pbox) {
+	if(ioToDrop->obj && ioToDrop->obj->pbox) {
 		Vec3f vector = Vec3f(0.f, 100.f, 0.f);
-		io->soundtime = 0;
-		io->soundcount = 0;
-		EERIE_PHYSICS_BOX_Launch(io->obj, io->pos, io->angle, vector);
+		ioToDrop->soundtime = 0;
+		ioToDrop->soundcount = 0;
+		EERIE_PHYSICS_BOX_Launch(ioToDrop->obj, ioToDrop->pos, ioToDrop->angle, vector);
 	}
 	
 }
@@ -585,11 +601,31 @@ void CleanInventory() {
 }
 
 void DropAllItemsInFrontOfPlayer(Entity * entFrom) {
-	if(!entFrom)return;
-	if(!entFrom->inventory)return;
+	DropAllItemsInFrontOfEntity(entFrom, entities.player());
+}
+
+void DropAllItemsInFrontOfEntity(Entity * entFrom, Entity * entAt) {
+	
+	if(!entAt) {
+		return;
+	}
+	
+	DropAllItemsAt(entFrom, entAt->pos, entAt->angle);
+}
+	
+void DropAllItemsAt(Entity * entFrom, Vec3f posAt, Anglef angleAt) {
+	
+	if(!entFrom) {
+		return;
+	}
+	
+	if(!entFrom->inventory) {
+		return;
+	}
+	
 	for(auto slot : entFrom->inventory->slots()) {
 		if(slot.entity) {
-			PutInFrontOfPlayer(slot.entity);
+			PutAt(slot.entity, posAt, angleAt);
 		}
 	}
 }
