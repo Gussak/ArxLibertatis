@@ -441,12 +441,16 @@ InventoryPos locateInInventories(const Entity * item);
  */
 InventoryPos removeFromInventories(Entity * item);
 
+void PutAt(Entity * ioToDrop, Vec3f posAt, Anglef angleAt);
+void PutInFrontOfEntity(Entity * ioToDrop, Entity * ioDropAt);
 void PutInFrontOfPlayer(Entity * io);
 
 Vec3f GetItemWorldPosition(const Entity * io);
 Vec3f GetItemWorldPositionSound(const Entity * io);
 
 void CleanInventory();
+void DropAllItemsAt(Entity * entFrom, Vec3f posAt, Anglef angleAt);
+void DropAllItemsInFrontOfEntity(Entity * entFrom, Entity * entAt);
 void DropAllItemsInFrontOfPlayer(Entity * entFrom);
 bool IsInPlayerInventory(Entity * io);
 Entity * getInventoryItemWithLowestDurability(std::string_view className, float minDurability = 0.f);

@@ -534,29 +534,39 @@ public:
 	
 	/**
 	 * dropitem [-f] <entityID> <"all"|itemID>
-	 * -f: drop in front of player
+	 * -p: drop in front of player (without it will drop in front of entityID)
 	 * entityID: entity ID to drop items from
+	 * "all": to drop all items from entityID
+	 * itemID: item ID to be dropped
 	 */
 	DropItemCommand() : Command("dropitem") { }
 	
 	Result execute(Context & context) override {
 		bool bInFrontOfPlayer = false;
-		HandleFlags("f") {
-			if(flg & flag('f')) {
+		HandleFlags("p") {
+			if(flg & flag('p')) {
 				bInFrontOfPlayer = true;
 			}
 		}
 		
-		std::string strEntID  = context.getWord();
+		std::string strEntIDdropFrom  = context.getWord();
 		std::string strItemID = context.getWord();
+		Entity * entDropFromInventory = entities.getById( strEntIDdropFrom );
+		
+		if(!entDropFromInventory) {
+			ScriptWarning << "null entity to drop from inventory";
+			return Failed;
+		}
+		
 		if(strItemID == "all") {
-			if(bInFrontOfPlayer) {
-				DropAllItemsInFrontOfPlayer( entities.getById( strEntID ) );
-			} else {
-				//TODO not implemented yet
-			}
+			DropAllItemsInFrontOfEntity( entDropFromInventory, bInFrontOfPlayer ? entities.player() : entDropFromInventory );
 		} else {
-			//TODO not implemented yet
+			Entity * entToDrop = entities.getById( strItemID );
+			if(entToDrop->owner() != entDropFromInventory) {
+				ScriptWarning << entDropFromInventory->id() << "is not owner of " << strItemID;
+				return Failed;
+			}
+			PutInFrontOfEntity(entToDrop, bInFrontOfPlayer ? entities.player() : entDropFromInventory);
 		}
 		
 		return Success;
