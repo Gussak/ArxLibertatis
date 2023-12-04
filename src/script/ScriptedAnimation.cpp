@@ -514,14 +514,18 @@ public:
 			posNew = posTarget;
 		}else{
 			fDist = fdist(posFrom, posTarget);
+			if(fDist < 0.f) { //TODO explain how this can happen???
+				fDist = 0.f;
+			}
 			
 			if(bLimitDist && (fNearDist > fDist)) {
-				ScriptWarning << "has limit and got past beyond it " << fNearDist << " > " << fDist << ", so limit it to max dist";
-				fNearDist = fDist;
+				//this is not a warning: ScriptWarning << "has limit and got past beyond it " << fNearDist << " > " << fDist << ", so limit it to max dist";
 				posNew = posTarget;
 			} else {
 				if(fNearDist > 0.f && fNearDist < 1.0f){ //calc dist from percent. ==1.0f returned already. >1.0f is absolute distance
 					fDist = fDist * fNearDist;
+				} else {
+					fDist = fNearDist;
 				}
 				
 				//TODO compare results with LegacyMath.h:interpolatePos() ? this below is easier to maintain tho.
@@ -538,7 +542,7 @@ public:
 		DebugScript("posNew=" << vec3fToStr(posNew) << ", fNearDist=" << fNearDist);
 		MYDBG("INTERPOLATE: strEntityToMove="<<strEntityToMove <<",strTarget="<<strTarget <<",entToMoveId="<<entToMove->idString() <<",entTargetId="<<(entTarget?entTarget->idString():"null") <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",fDist="<<fDist<<",posNew="<< vec3fToStr(posNew)<<",bLimitDist="<< bLimitDist<<",bAbsPosFrom="<<bAbsPosFrom <<",bPosTarget="<< bPosTarget<<",fNearDist="<< fNearDist);
 		
-		entToMove->pos = posNew;
+		ARX_INTERACTIVE_TeleportSafe(entToMove, posNew);
 		
 		return Success;
 	}

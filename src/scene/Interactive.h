@@ -94,6 +94,7 @@ void ARX_INTERACTIVE_MEMO_TWEAK(Entity * io, TweakType type, const res::path & p
 void ARX_INTERACTIVE_APPLY_TWEAK_INFO(Entity * io);
 bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp);
 void ARX_INTERACTIVE_Teleport(Entity * io, const Vec3f & target, bool flag = false);
+void ARX_INTERACTIVE_TeleportSafe(Entity * io, const Vec3f & target, bool flag = false);
 
 bool IsEquipedByPlayer(const Entity * io);
 void CleanScriptLoadedIO();

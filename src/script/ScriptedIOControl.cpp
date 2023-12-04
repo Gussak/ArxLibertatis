@@ -581,13 +581,7 @@ public:
 				return Success;
 			}
 			
-			if(!(io->ioflags & IO_NPC) || io->_npcdata->lifePool.current > 0) {
-				io->setOwner(nullptr);
-				if(io->show != SHOW_FLAG_HIDDEN && io->show != SHOW_FLAG_MEGAHIDE) {
-					io->show = SHOW_FLAG_IN_SCENE;
-				}
-				ARX_INTERACTIVE_Teleport(io, pos);
-			}
+      ARX_INTERACTIVE_TeleportSafe(io, pos);
 			
 		} else {
 			
@@ -599,13 +593,9 @@ public:
 			if(teleport_player) {
 				Vec3f pos = GetItemWorldPosition(io);
 				ARX_INTERACTIVE_Teleport(entities.player(), pos);
-			} else if(!(io->ioflags & IO_NPC) || io->_npcdata->lifePool.current > 0) {
-				io->setOwner(nullptr);
-				if(io->show != SHOW_FLAG_HIDDEN && io->show != SHOW_FLAG_MEGAHIDE) {
-					io->show = SHOW_FLAG_IN_SCENE;
-				}
-				ARX_INTERACTIVE_Teleport(io, io->initpos);
-			}
+			} else {
+        ARX_INTERACTIVE_TeleportSafe(io, io->initpos);
+      }
 		}
 		
 		return Success;

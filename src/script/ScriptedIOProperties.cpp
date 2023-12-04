@@ -588,7 +588,7 @@ public:
 			strMesh = strOpt;
 		}
 		DebugScript("strEntId=" << strEntId << ",strMesh=" << strMesh);
-		MYDBG("strEntId=" << strEntId << ",strMesh=" << strMesh);
+		//MYDBG("strEntId=" << strEntId << ",strMesh=" << strMesh);
 		
 		Entity * ent = nullptr;
 		if(strEntId.size() > 0) {
@@ -598,7 +598,7 @@ public:
 		}
 		res::path mesh = res::path::load(strMesh);
 		DebugScript(" mesh=" << mesh << " entity=" << ent);
-		MYDBG("strEntId=" << strEntId << ",strMesh=" << " mesh=" << mesh << " entity=" << ent);
+		//MYDBG("strEntId=" << strEntId << ",strMesh=" << " mesh=" << mesh << " entity=" << ent);
 		
 		if(ent) {
 			ARX_INTERACTIVE_MEMO_TWEAK(ent, TWEAK_TYPE_MESH, mesh, res::path());
