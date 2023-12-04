@@ -64,14 +64,32 @@ class BehaviourCommand : public Command {
 	
 public:
 	
+	/**
+	 * behavior [-elsdmfa] [e?<applyAtEntityID>] <command>
+	 * -e <applyAtEntityID> uses specified entity to apply this command instead of the caller
+	 * -l sets flag BEHAVIOUR_LOOK_AROUND
+	 * -s sets flag BEHAVIOUR_SNEAK
+	 * -d sets flag BEHAVIOUR_DISTANT
+	 * -m sets flag BEHAVIOUR_MAGIC
+	 * -f sets flag BEHAVIOUR_FIGHT
+	 * -a sets flag BEHAVIOUR_STARE_AT
+	 * <command> commands:
+	 *  stack|unstack|unstackall|go_home|friendly|move_to|guard|none - these have no param
+	 *  wander_around|hide|look_for|flee <seconds> - these require <seconds> to perform that behavior
+	 */
 	BehaviourCommand() : Command("behavior", IO_NPC) { }
 	
 	Result execute(Context & context) override {
 		
+		std::string strEntId;
 		Entity * io = context.getEntity();
 		
 		Behaviour behavior = 0;
-		HandleFlags("lsdmfa012") {
+		HandleFlags("elsdmfa012") {
+			if(flg & flag('e')) {
+				strEntId = context.getWord();
+				io = entities.getById(strEntId);
+			}
 			behavior |= (flg & flag('l')) ? BEHAVIOUR_LOOK_AROUND : Behaviour(0);
 			behavior |= (flg & flag('s')) ? BEHAVIOUR_SNEAK : Behaviour(0);
 			behavior |= (flg & flag('d')) ? BEHAVIOUR_DISTANT : Behaviour(0);
@@ -81,6 +99,11 @@ public:
 		}
 		
 		std::string command = context.getWord();
+		
+		if(!io) { //after collecting all params
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
+		}
 		
 		if(options.empty()) {
 			if(command == "stack") {
@@ -396,15 +419,31 @@ class SetMoveModeCommand : public Command {
 	
 public:
 	
+	/**
+	 * setmovemode [-e <applyAtEntityID>] <mode>
+	 */
 	SetMoveModeCommand() : Command("setmovemode", IO_NPC) { }
 	
 	Result execute(Context & context) override {
+		std::string strEntId;
+		
+		HandleFlags("e") {
+			if(flg & flag('e')) {
+				strEntId = context.getWord();
+			}
+		}
 		
 		std::string mode = context.getWord();
 		
+		Entity * io = strEntId == "" ? context.getEntity() : entities.getById(strEntId);
+		
+		if(!io) { //after collecting all params
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
+		}
+		
 		DebugScript(' ' << mode);
 		
-		Entity * io = context.getEntity();
 		if(mode == "walk") {
 			ARX_NPC_ChangeMoveMode(io, WALKMODE);
 		} else if(mode == "run") {
@@ -448,26 +487,58 @@ class SetTargetCommand : public Command {
 	
 public:
 	
+	/**
+	 * settarget [-sane] [e?<applyAtEntityID>] ["object"] <"path"|"none"|targetID>
+	 * "object" - is just ignored, does not modify any result
+	 * "path" - changes the target mode to TARGET_PATH
+	 * "none" - changes the target mode to TARGET_NONE
+	 * targetID - specifies the entity ID to be used as target
+	 * -s sets PATHFIND_ONCE flag
+	 * -a sets PATHFIND_ALWAYS flag
+	 * -n sets PATHFIND_NO_UPDATE flag
+	 * -e <applyAtEntityID> uses specified entity to apply this command instead of the caller
+	 */
 	SetTargetCommand() : Command("settarget", AnyEntity) { }
 	
 	Result execute(Context & context) override {
 		
+		std::string strEntId;
 		Entity * io = context.getEntity();
-		if(io->ioflags & IO_NPC) {
-			io->_npcdata->pathfind.flags &= ~(PATHFIND_ALWAYS | PATHFIND_ONCE | PATHFIND_NO_UPDATE);
+		
+		bool bFlagS = false;
+		bool bFlagA = false;
+		bool bFlagN = false;
+		HandleFlags("sane") {
+			if(flg & flag('s')) bFlagS=true;
+			if(flg & flag('a')) bFlagA=true;
+			if(flg & flag('n')) bFlagN=true;
+			if(flg & flag('e')) {
+				strEntId = context.getWord();
+				io = entities.getById(strEntId);
+			}
 		}
 		
-		HandleFlags("san") {
-			if(io->ioflags & IO_NPC) {
-				if(flg & flag('s')) {
-					io->_npcdata->pathfind.flags |= PATHFIND_ONCE;
-				}
-				if(flg & flag('a')) {
-					io->_npcdata->pathfind.flags |= PATHFIND_ALWAYS;
-				}
-				if(flg & flag('n')) {
-					io->_npcdata->pathfind.flags |= PATHFIND_NO_UPDATE;
-				}
+		std::string target = context.getWord();
+		if(target == "object") {
+			target = context.getWord();
+		}
+		
+		if(!io) { //after collecting all params
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
+		}
+		
+		if(io->ioflags & IO_NPC) {
+			io->_npcdata->pathfind.flags &= ~(PATHFIND_ALWAYS | PATHFIND_ONCE | PATHFIND_NO_UPDATE);
+		
+			if( bFlagS ) {
+				io->_npcdata->pathfind.flags |= PATHFIND_ONCE;
+			}
+			if( bFlagA ) {
+				io->_npcdata->pathfind.flags |= PATHFIND_ALWAYS;
+			}
+			if( bFlagN ) {
+				io->_npcdata->pathfind.flags |= PATHFIND_NO_UPDATE;
 			}
 		}
 		
@@ -481,12 +552,8 @@ public:
 			}
 		}
 		
-		std::string target = context.getWord();
-		if(target == "object") {
-			target = context.getWord();
-		}
 		target = context.getStringVar(target);
-		Entity * t = entities.getById(target, io);
+		Entity * entTarget = entities.getById(target, io);
 		
 		DebugScript(' ' << options << ' ' << target);
 		
@@ -494,9 +561,9 @@ public:
 			io->_camdata->translatetarget = Vec3f(0.f);
 		}
 		
-		EntityHandle i = EntityHandle();
-		if(t != nullptr) {
-			i = io->targetinfo = t->index();
+		EntityHandle ehIndex = EntityHandle();
+		if(entTarget != nullptr) {
+			ehIndex = io->targetinfo = entTarget->index();
 			GetTargetPos(io);
 		}
 		
@@ -507,11 +574,11 @@ public:
 			io->targetinfo = EntityHandle(TARGET_NONE);
 		}
 		
-		if(old_target != i) {
+		if(old_target != ehIndex) {
 			if(io->ioflags & IO_NPC) {
 				io->_npcdata->reachedtarget = 0;
 			}
-			ARX_NPC_LaunchPathfind(io, i);
+			ARX_NPC_LaunchPathfind(io, ehIndex);
 		}
 		
 		return Success;
