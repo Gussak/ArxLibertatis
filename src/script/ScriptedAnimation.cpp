@@ -413,118 +413,132 @@ public:
 	}
 	
 	/**
-	 * INTERPOLATE <EntityToMove> [-no-limits] [-f FromLocation] <TargetLocation|TargetEntity> <NearTargetDistance>
+	 * INTERPOLATE [-fl] <EntityToMove> <f?FromLocation> <TargetLocation|TargetEntity> <NearTargetDistance>
 	 *  <EntityToMove>: (entityID) is who will be moved
-	 *  [-no-limits]: allows negative distance and distance bigger than max distance
-	 *  [-f FromLocation]: (x,y,z) is the absolute position to move from ignoring EntityToMove position
-	 *  <TargetLocation|TargetEntity> TargetLocation: (x,y,z) is the absolute target position; TargetEntity: (entityID) is the target entity to get the position
+	 *  [-l]: no limits, allows negative distance and distance bigger than max distance
+	 *  [-f]: FromLocation: x,y,z is the absolute position to move from ignoring EntityToMove position
+	 *  <TargetLocation|TargetEntity> TargetLocation: x,y,z is the absolute target position; TargetEntity: (entityID) is the target entity to get the position
 	 *  <NearTargetDistance>: (float) from 0.0 to 1.0 will be a percent of the distance between them. So 0.0 means at target location while 1.0 means at EntityToMove location. If bigger than dist between from/target allows moving farer instead of nearer, and if negative it can move past the target location.
 	 * TODO: put this comment on wiki instead (keep here too would be better tho, but then it would be easier to format here how it would be required on wiki, so we could just copy/paste there)
 	 */
 	Result execute(Context & context) override {
-		std::string strCheck;
 		Entity * entToMove = nullptr;
 		Entity * entTarget = nullptr;
-		Vec3f posTarget;
-		Vec3f posFrom;
-		Vec3f posNew;
+		Vec3f posTarget = Vec3f(0.f);
+		Vec3f posFrom = Vec3f(0.f);
+		Vec3f posNew = Vec3f(0.f);
 		bool bLimitDist = true;
-		bool bPosFrom   = false;
+		bool bAbsPosFrom = false;
 		bool bPosTarget = false;
-		float fNearDist = 0.0f;
+		float fNearDist = 0.f;
 		
-		strCheck = context.getWord(); 
-		entToMove = boost::equals(strCheck, "self") ? context.getEntity() : entities.getById(strCheck);
-		posFrom   = entToMove == entities.player() ? entities.player()->pos : GetItemWorldPosition(entToMove);
-		
-		strCheck = context.getWord();
-		
-		if(strCheck == "-no-limits"){
-			bLimitDist=false;
-			strCheck = context.getWord();
+		HandleFlags("fl") {
+			if(flg & flag('f')) {
+				bAbsPosFrom = true;
+			}
+			if(flg & flag('l')) {
+				bLimitDist=false;
+			}
 		}
+		
+		std::string strEntityToMove = context.getWord();
+		entToMove = strEntityToMove=="self" ? context.getEntity() : entities.getById(strEntityToMove);
 		
 		//optional from absolute position
-		if(strCheck == "-f"){
+		if(bAbsPosFrom){
+			//param:FromLocation
 			interpretLocation(posFrom, context.getWord());
-			bPosFrom = true;
+		} else {
+			if(entToMove) {
+				posFrom = entToMove == entities.player() ? entities.player()->pos : GetItemWorldPosition(entToMove);
+			}
 		}
 		
-		//target
-		if(boost::contains(strCheck,",")){ //absolute location
-			interpretLocation(posTarget,strCheck);
+		std::string strTarget = context.getWord();
+		if(boost::contains(strTarget,",")){ //absolute location
+			//param:TargetLocation
+			interpretLocation(posTarget,strTarget);
 			bPosTarget = true;
 		}else{
-			entTarget = boost::equals(strCheck, "self") ? context.getEntity() : entities.getById(strCheck);
-			posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
+			//param:TargetEntity
+			entTarget = strTarget=="self" ? context.getEntity() : entities.getById(strTarget);
+			if(entTarget) {
+				posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
+			}
 		}
 		
+		//param:NearTargetDistance
 		fNearDist = context.getFloat();
 		
-		//std::string strDbg;
-		//strDbg=strDbg+",strCheck="+strCheck +",entToMove="+((long)entToMove) +",entTarget="+entTarget +",posTarget="+ posTarget+",posFrom="+ posFrom+",posNew="+ posNew+",bLimitDist="+ bLimitDist+",bPosFrom="+bPosFrom +",bPosTarget="+ bPosTarget+",fNearDist="+ fNearDist;
-		MYDBG(",strCheck="<<strCheck <<",entToMove="<<entToMove <<",entTarget="<<entTarget <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",posNew="<< vec3fToStr(posNew)<<",bLimitDist="<< bLimitDist<<",bPosFrom="<<bPosFrom <<",bPosTarget="<< bPosTarget<<",fNearDist="<< fNearDist); 
-		//DebugScript(strDbg);
-		//ScriptWarning << strDbg;
 		
-		// can only return after all params have been collected!
+		///////////////////////////////////////////////////////////////
+		// !!! ATTENTION !!!
+		// can only return after all params have been collected to not break the remainder of the script!
+		// return failure first from null pointers that are a better warn info than others.
+		///////////////////////////////////////////////////////////////
+		
+		if(!entToMove) {
+			ScriptWarning << "null EntityToMove " << strEntityToMove;
+			return Failed;
+		}
+		
 		if(!bPosTarget){
-			if(!entTarget){
-				ScriptWarning << "null target = " << strCheck << "; ";
+			if(!entTarget) {
+				ScriptWarning << "null TargetEntity " << strTarget;
 				return Failed;
 			}
-				
+		}
+			
+		if(!bPosTarget){
 			if(entToMove == entTarget){
-				ScriptWarning << "entity to move and target are the same" << "; ";
+				ScriptWarning << "EntityToMove and TargetEntity are the same";
 				return Failed;
 			}
 		}
 		
-		if(bLimitDist && fNearDist < 0.0f){
-			ScriptWarning << "clamp negative dist" << "; ";
-			return Failed;
+		if(posFrom==posTarget){ //already there
+			return Success;
 		}
 		
 		if(fNearDist == 1.0f){ //wont move at all, is 100% far away
 			return Success;
 		}
 		
-		if(posFrom==posTarget){
-			ScriptWarning << "position to move from is the target position" << "; ";
+		if(bLimitDist && (fNearDist < 0.0f)){
+			ScriptWarning << "has limit but distance is negative " << fNearDist << ", so won't move";
 			return Failed;
 		}
 		
-		if(fNearDist == 0.0f){
-			if(bPosTarget) {
+		float fDist = 0.f;
+		if(fNearDist == 0.f) { //to be there
+			posNew = posTarget;
+		}else{
+			fDist = fdist(posFrom, posTarget);
+			
+			if(bLimitDist && (fNearDist > fDist)) {
+				ScriptWarning << "has limit and got past beyond it " << fNearDist << " > " << fDist << ", so limit it to max dist";
+				fNearDist = fDist;
 				posNew = posTarget;
 			} else {
-				posNew = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
+				if(fNearDist > 0.f && fNearDist < 1.0f){ //calc dist from percent. ==1.0f returned already. >1.0f is absolute distance
+					fDist = fDist * fNearDist;
+				}
+				
+				//TODO compare results with LegacyMath.h:interpolatePos() ? this below is easier to maintain tho.
+				Vec3f delta = posFrom - posTarget;
+				float fDeltaNorm = ffsqrt( //std::sqrt
+					arx::pow2(posFrom.x - posTarget.x) + //glm::pow(
+					arx::pow2(posFrom.y - posTarget.y) + 
+					arx::pow2(posFrom.z - posTarget.z)   );
+				float fDistPerc=fDist/fDeltaNorm;
+				posNew = posTarget + (fDistPerc*delta);
 			}
-		}else{
-			float fDist = fdist(posFrom, posTarget);
-			
-			if(bLimitDist && fNearDist > fDist){
-				fNearDist = fDist;
-				return Success;
-			}
-			
-			if(fNearDist > 0.0f && fNearDist < 1.0f){ //calc dist from percent. ==1.0f returned already. >1.0f is absolute distance
-				fNearDist = fDist * fNearDist;
-			}
-			
-			//TODO compare results with LegacyMath.h:interpolatePos() ? this below is easier to maintain tho.
-			Vec3f delta = posFrom - posTarget;
-			float fDeltaNorm = ffsqrt( //std::sqrt
-				arx::pow2(posFrom.x - posTarget.x) + //glm::pow(
-				arx::pow2(posFrom.y - posTarget.y) + 
-				arx::pow2(posFrom.z - posTarget.z)   );
-			float fDistPerc=fNearDist/fDeltaNorm;
-			posNew = posTarget + (fDistPerc*delta);
 		}
 		
-		DebugScript("posNew.x=" << posNew.x << ",posNew.y=" << posNew.y << ",posNew.z=" << posNew.z << ",fNearDist=" << fNearDist);
+		DebugScript("posNew=" << vec3fToStr(posNew) << ", fNearDist=" << fNearDist);
+		MYDBG("INTERPOLATE: strEntityToMove="<<strEntityToMove <<",strTarget="<<strTarget <<",entToMoveId="<<entToMove->idString() <<",entTargetId="<<(entTarget?entTarget->idString():"null") <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",fDist="<<fDist<<",posNew="<< vec3fToStr(posNew)<<",bLimitDist="<< bLimitDist<<",bAbsPosFrom="<<bAbsPosFrom <<",bPosTarget="<< bPosTarget<<",fNearDist="<< fNearDist);
 		
-		context.getEntity()->pos = posNew;
+		entToMove->pos = posNew;
 		
 		return Success;
 	}
