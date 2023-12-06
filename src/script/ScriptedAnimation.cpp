@@ -41,9 +41,6 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 ===========================================================================
 */
 
-#include <iostream> //del
-#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
-
 #include "script/ScriptedAnimation.h"
 
 #include <cstring>
@@ -476,7 +473,6 @@ public:
 			}
 		}
 		
-		//param: NearTargetDistance or StepDistance or PercentDistance
 		fContextDist = context.getFloat();
 		
 		///////////////////////////////////////////////////////////////
@@ -561,25 +557,12 @@ public:
 				
 				if(bLimitDist) {
 					if(fContextDist > fDistMax){
-						//ScriptWarning << "limit was requested but distance is bigger than max dist " << fContextDist;
-						//return Failed;
 						return Success; //limit requested so just accept it, wont move at all, is limited to max dist
 					}
 					if(fContextDist < 0.f){
 						fContextDist = 0.f; //fix the dist by limit request
-						//ScriptWarning << "limit was requested but distance is negative " << fContextDist;
-						//return Failed;
-						//return Success; //limit requested so just accept it
 					}
-					//else if(fContextDist > fDistMax){
-						//ScriptWarning << "limit was requested but distance is bigger than max dist " << fContextDist;
-						//return Failed;
-					//}
 				}
-				//if(bLimitDist && (fContextDist < 0.0f)){ //but is invalid
-					//ScriptWarning << "limit was requested but distance is negative " << fContextDist << ", so won't move";
-					//return Failed;
-				//}
 				
 				fDistRequested = fContextDist;
 				
@@ -591,44 +574,17 @@ public:
 			posRequested = posTarget;
 		}
 		
-		//float fDist = 0.f;
-		//if(!bStepDistanceMode && (fContextDist == 0.f)) { //NearTargetDistance: will just be placed at target location
-		//if((cDistMode=='p' || cDistMode=='n') && (fContextDist == 0.f)) { //NearTargetDistance: will just be placed at target location
-			//posRequested = posTarget;
-		//} else {
 		if(posRequested != posTarget) {
-			//fDist = fdist(posFrom, posTarget);
-			//if(fDist < 0.f) { //TODO explain how fdist() negative can happen
-				//fDist = 0.f;
-			//}
-			
-			//if(bLimitDist && (fContextDist > fDist)) { todoa
-				////this is not a warning: ScriptWarning << "has limit and got past beyond it " << fContextDist << " > " << fDist << ", so limit it to max dist";
-				//posRequested = posTarget;
-			//} else {
-				//float fDistRequested = 0.f;
-				//if(!bStepDistanceMode && (fContextDist > 0.f) && (fContextDist < 1.0f)) { //PercentDistance: calc dist from percent. ==1.0f returned already. >1.0f is absolute distance
-					//fDistRequested = fDistMax * fContextDist;
-				//} else {
-					//if(bStepDistanceMode){ //StepDistance
-						//fDistRequested = fDistMax - fContextDist;
-					//}else{
-						//fDistRequested = fContextDist; //NearTargetDistance
-					//}
-				//}
-				
-				Vec3f delta = posFrom - posTarget;
-				float fDeltaNorm = ffsqrt( //TODO compare results with LegacyMath.h:interpolatePos() ?
-					arx::pow2(posFrom.x - posTarget.x) + //glm::pow(
-					arx::pow2(posFrom.y - posTarget.y) + 
-					arx::pow2(posFrom.z - posTarget.z)   );
-				float fDistPerc=fDistRequested/fDeltaNorm;
-				posRequested = posTarget + (fDistPerc*delta);
-			//}
+			Vec3f delta = posFrom - posTarget;
+			float fDeltaNorm = ffsqrt( //TODO compare results with LegacyMath.h:interpolatePos() ?
+				arx::pow2(posFrom.x - posTarget.x) + //glm::pow(
+				arx::pow2(posFrom.y - posTarget.y) + 
+				arx::pow2(posFrom.z - posTarget.z)   );
+			float fDistPerc=fDistRequested/fDeltaNorm;
+			posRequested = posTarget + (fDistPerc*delta);
 		}
 		
 		DebugScript("posRequested=" << vec3fToStr(posRequested) << ", fContextDist=" << fContextDist);
-		MYDBG("INTERPOLATE: strEntityToMove="<<strEntityToMove <<",strTarget="<<strTarget <<",entToMoveId="<<entToMove->idString() <<",entTargetId="<<(entTarget?entTarget->idString():"null") <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",fDistMax="<<fDistMax<<",posRequested="<< vec3fToStr(posRequested)<<",bLimitDist="<< bLimitDist<<",bAbsPosFrom="<<bAbsPosFrom <<",bPosTarget="<< bPosTarget<<",fContextDist="<< fContextDist);
 		
 		ARX_INTERACTIVE_TeleportSafe(entToMove, posRequested);
 		
