@@ -63,6 +63,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "core/GameTime.h"
 #include "core/Core.h"
 #include "core/Config.h"
+#include "core/FpsCounter.h"
 
 #include "game/Camera.h"
 #include "game/Damage.h"
@@ -819,6 +820,11 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^fighting")) {
 				*lcontent = long(ARX_PLAYER_IsInFightMode());
 				return TYPE_LONG;
+			}
+			
+			if(boost::starts_with(name, "^fps")) {
+				*fcontent = g_fpsCounter.FPS;
+				return TYPE_FLOAT;
 			}
 			
 			break;

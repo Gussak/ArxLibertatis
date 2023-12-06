@@ -1896,6 +1896,8 @@ void ArxGame::renderLevel() {
 
 void ArxGame::render() {
 	
+	g_fpsCounter.CalcFPS(); //this here makes the script var "^fps" work
+	
 	ARX_PROFILE_FUNC();
 	
 	SetActiveCamera(&g_playerCamera);
@@ -1967,7 +1969,6 @@ void ArxGame::render() {
 	if(g_debugInfo != InfoPanelNone) {
 		switch(g_debugInfo) {
 		case InfoPanelFramerate: {
-			g_fpsCounter.CalcFPS();
 			ShowFPS();
 			break;
 		}
