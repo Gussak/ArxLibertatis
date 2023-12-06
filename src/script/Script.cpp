@@ -915,7 +915,6 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			}
 			
 			if(boost::starts_with(name, "^fps")) {
-				g_fpsCounter.CalcFPS();
 				*fcontent = g_fpsCounter.FPS;
 				return TYPE_FLOAT;
 			}
