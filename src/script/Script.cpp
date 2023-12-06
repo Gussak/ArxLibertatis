@@ -1016,6 +1016,14 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				}
 				return TYPE_FLOAT;
 			}
+			if(boost::starts_with(name, "^life_max_")) {
+				Entity * target = entities.getById(name.substr(10));
+				*fcontent = 0;
+				if(target && (target->ioflags & IO_NPC)) {
+					*fcontent = target->_npcdata->lifePool.max;
+				}
+				return TYPE_FLOAT;
+			}
 			
 			if(boost::starts_with(name, "^last_spawned")) {
 				txtcontent = idString(LASTSPAWNED);
