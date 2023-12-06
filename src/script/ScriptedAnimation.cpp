@@ -435,7 +435,7 @@ public:
 		float fContextDist = 0.f;
 		char cDistMode = 'n'; //NearDist
 		
-		HandleFlags("fl") {
+		HandleFlags("flsp") {
 			if(flg & flag('f')) {
 				bAbsPosFrom = true;
 			}
