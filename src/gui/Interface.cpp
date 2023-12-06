@@ -170,7 +170,7 @@ bool MAGICMODE = false;
 static PlatformInstant COMBAT_MODE_ON_START_TIME = 0;
 static long SPECIAL_DRAW_WEAPON = 0;
 bool bGCroucheToggle = false;
-
+bool bCombineItemsSingleKeyPressed = false;
 
 bool bInverseInventory = false;
 bool lOldTruePlayerMouseLook = TRUE_PLAYER_MOUSELOOK_ON;
@@ -884,6 +884,11 @@ void ArxGame::managePlayerControls() {
 		}
 		
 		g_moveto = player.pos + tm;
+	}
+	
+	bCombineItemsSingleKeyPressed = false;
+	if(GInput->actionNowPressed(CONTROLS_CUST_COMBINE)) {
+		bCombineItemsSingleKeyPressed = true;
 	}
 	
 	// Checks CROUCH Key Status.
@@ -1767,7 +1772,8 @@ void ArxGame::manageEditorControls() {
 				COMBINE = nullptr;
 		}
 		
-		if(eeMouseDown1() && (COMBINE || COMBINEGOLD)) {
+		if((eeMouseDown1() || bCombineItemsSingleKeyPressed) && (COMBINE || COMBINEGOLD)) {
+			bCombineItemsSingleKeyPressed = false;
 			
 			updateCombineFlags(nullptr);
 			
@@ -1840,7 +1846,7 @@ void ArxGame::manageEditorControls() {
 		}
 		
 		// Double Clicked and not already combining.
-		if(eeMouseDoubleClick1() && !COMBINE && FlyingOverIO && (FlyingOverIO->ioflags & IO_ITEM)) {
+		if((eeMouseDoubleClick1() || bCombineItemsSingleKeyPressed) && !COMBINE && FlyingOverIO && (FlyingOverIO->ioflags & IO_ITEM)) {
 			
 			bool accept_combine = true;
 			Entity * container = locateInInventories(FlyingOverIO).container;
