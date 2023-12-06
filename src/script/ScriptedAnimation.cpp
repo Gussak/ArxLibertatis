@@ -413,12 +413,14 @@ public:
 	}
 	
 	/**
-	 * INTERPOLATE [-fl] <EntityToMove> <f?FromLocation> <TargetLocation|TargetEntity> <NearTargetDistance>
+	 * INTERPOLATE [-flsp] <EntityToMove> <f?FromLocation> <TargetLocation|TargetEntity> <NearDist|PercentDist|StepDist>
 	 *  <EntityToMove>: (entityID) is who will be moved
 	 *  [-l]: no limits, allows negative distance and distance bigger than max distance
 	 *  [-f]: FromLocation: x,y,z is the absolute position to move from ignoring EntityToMove position
-	 *  <TargetLocation|TargetEntity> TargetLocation: x,y,z is the absolute target position; TargetEntity: (entityID) is the target entity to get the position
-	 *  <NearTargetDistance>: (float) from 0.0 to 1.0 will be a percent of the distance between them. So 0.0 means at target location while 1.0 means at EntityToMove location. If bigger than dist between from/target allows moving farer instead of nearer, and if negative it can move past the target location.
+	 *  [-s]: StepDist: will move this distance from where it is towards target. if negative, will move away instead.
+	 *  [-p]: PercentDist: Near dist but as percent. From 1.0 to 0.0 will be a percent of the distance between them, where 0.0 is at target. A negative percent will move past the target. A positive will move away the target.
+	 *  NearDist: if not -p and not -s. If bigger than the distance between the from and target location, allows moving farer instead of nearer, and if negative it can move past the target location.
+	 *  <TargetLocation|TargetEntity>: TargetLocation: x,y,z is the absolute target position; TargetEntity: (entityID) is the target entity to get the position
 	 * TODO: put this comment on wiki instead (keep here too would be better tho, but then it would be easier to format here how it would be required on wiki, so we could just copy/paste there)
 	 */
 	Result execute(Context & context) override {
@@ -426,18 +428,25 @@ public:
 		Entity * entTarget = nullptr;
 		Vec3f posTarget = Vec3f(0.f);
 		Vec3f posFrom = Vec3f(0.f);
-		Vec3f posNew = Vec3f(0.f);
+		Vec3f posRequested = Vec3f(0.f);
 		bool bLimitDist = true;
 		bool bAbsPosFrom = false;
 		bool bPosTarget = false;
-		float fNearDist = 0.f;
+		float fContextDist = 0.f;
+		char cDistMode = 'n'; //NearDist
 		
-		HandleFlags("fl") {
+		HandleFlags("flsp") {
 			if(flg & flag('f')) {
 				bAbsPosFrom = true;
 			}
 			if(flg & flag('l')) {
 				bLimitDist=false;
+			}
+			if(flg & flag('s')) {
+				cDistMode = 's';
+			}
+			if(flg & flag('p')) {
+				cDistMode = 'p';
 			}
 		}
 		
@@ -467,9 +476,8 @@ public:
 			}
 		}
 		
-		//param:NearTargetDistance
-		fNearDist = context.getFloat();
-		
+		//param: NearTargetDistance or StepDistance or PercentDistance
+		fContextDist = context.getFloat();
 		
 		///////////////////////////////////////////////////////////////
 		// !!! ATTENTION !!!
@@ -500,45 +508,129 @@ public:
 			return Success;
 		}
 		
-		if(fNearDist == 1.0f){ //wont move at all, is 100% far away
-			return Success;
+		float fDistMax = fdist(posFrom, posTarget);
+		if(fDistMax < 0.f) { //TODO explain how fdist() negative can happen
+			fDistMax = 0.f;
 		}
 		
-		if(bLimitDist && (fNearDist < 0.0f)){
-			ScriptWarning << "has limit but distance is negative " << fNearDist << ", so won't move";
-			return Failed;
-		}
-		
-		float fDist = 0.f;
-		if(fNearDist == 0.f) { //to be there
-			posNew = posTarget;
-		}else{
-			fDist = fdist(posFrom, posTarget);
-			
-			if(bLimitDist && (fNearDist > fDist)) {
-				ScriptWarning << "has limit and got past beyond it " << fNearDist << " > " << fDist << ", so limit it to max dist";
-				fNearDist = fDist;
-				posNew = posTarget;
-			} else {
-				if(fNearDist > 0.f && fNearDist < 1.0f){ //calc dist from percent. ==1.0f returned already. >1.0f is absolute distance
-					fDist = fDist * fNearDist;
+		float fDistRequested = 0.f;
+		switch(cDistMode) {
+			case 's':
+				if(fContextDist == 0.f){ //wont move at all
+					ScriptWarning << "step distance is 0, wont move at all";
+					return Failed; //because some movement should be happening, it is a step after all.
 				}
 				
-				//TODO compare results with LegacyMath.h:interpolatePos() ? this below is easier to maintain tho.
+				if(bLimitDist) {
+					if(fContextDist < 0.f) {
+						return Success; //limit requested so just accept it, wont move at all
+					}
+					if(fContextDist > fDistMax) {
+						posRequested = posTarget;
+					}
+				}
+				
+				fDistRequested = fDistMax - fContextDist;
+				
+				break;
+				
+			case 'p':
+				if(fContextDist == 1.0f){ //wont move at all, is 100% far away
+					return Success;
+				}
+				if(bLimitDist) {
+					if(fContextDist > 1.0f){
+						return Success; //limit requested so just accept it, wont move at all, is limited to max perc dist
+					} else if(fContextDist < 0.f){
+						fContextDist = 0.f;
+					}
+				}
+				
+				fDistRequested = fDistMax * fContextDist;
+				
+				if(fDistRequested == 0) {
+					posRequested = posTarget;
+				}
+				
+				break;
+				
+			case 'n':
+				if(fContextDist == fDistMax) { //wont move at all, is at max dist
+					return Success;
+				}
+				
+				if(bLimitDist) {
+					if(fContextDist > fDistMax){
+						//ScriptWarning << "limit was requested but distance is bigger than max dist " << fContextDist;
+						//return Failed;
+						return Success; //limit requested so just accept it, wont move at all, is limited to max dist
+					}
+					if(fContextDist < 0.f){
+						fContextDist = 0.f; //fix the dist by limit request
+						//ScriptWarning << "limit was requested but distance is negative " << fContextDist;
+						//return Failed;
+						//return Success; //limit requested so just accept it
+					}
+					//else if(fContextDist > fDistMax){
+						//ScriptWarning << "limit was requested but distance is bigger than max dist " << fContextDist;
+						//return Failed;
+					//}
+				}
+				//if(bLimitDist && (fContextDist < 0.0f)){ //but is invalid
+					//ScriptWarning << "limit was requested but distance is negative " << fContextDist << ", so won't move";
+					//return Failed;
+				//}
+				
+				fDistRequested = fContextDist;
+				
+				break;
+				
+		}
+		
+		if((cDistMode=='p' || cDistMode=='n') && (fContextDist == 0.f)) { //NearTargetDistance: will just be placed at target location
+			posRequested = posTarget;
+		}
+		
+		//float fDist = 0.f;
+		//if(!bStepDistanceMode && (fContextDist == 0.f)) { //NearTargetDistance: will just be placed at target location
+		//if((cDistMode=='p' || cDistMode=='n') && (fContextDist == 0.f)) { //NearTargetDistance: will just be placed at target location
+			//posRequested = posTarget;
+		//} else {
+		if(posRequested != posTarget) {
+			//fDist = fdist(posFrom, posTarget);
+			//if(fDist < 0.f) { //TODO explain how fdist() negative can happen
+				//fDist = 0.f;
+			//}
+			
+			//if(bLimitDist && (fContextDist > fDist)) { todoa
+				////this is not a warning: ScriptWarning << "has limit and got past beyond it " << fContextDist << " > " << fDist << ", so limit it to max dist";
+				//posRequested = posTarget;
+			//} else {
+				//float fDistRequested = 0.f;
+				//if(!bStepDistanceMode && (fContextDist > 0.f) && (fContextDist < 1.0f)) { //PercentDistance: calc dist from percent. ==1.0f returned already. >1.0f is absolute distance
+					//fDistRequested = fDistMax * fContextDist;
+				//} else {
+					//if(bStepDistanceMode){ //StepDistance
+						//fDistRequested = fDistMax - fContextDist;
+					//}else{
+						//fDistRequested = fContextDist; //NearTargetDistance
+					//}
+				//}
+				
 				Vec3f delta = posFrom - posTarget;
-				float fDeltaNorm = ffsqrt( //std::sqrt
+				float fDeltaNorm = ffsqrt( //TODO compare results with LegacyMath.h:interpolatePos() ?
 					arx::pow2(posFrom.x - posTarget.x) + //glm::pow(
 					arx::pow2(posFrom.y - posTarget.y) + 
 					arx::pow2(posFrom.z - posTarget.z)   );
-				float fDistPerc=fDist/fDeltaNorm;
-				posNew = posTarget + (fDistPerc*delta);
-			}
+				float fDistPerc=fDistRequested/fDeltaNorm;
+				posRequested = posTarget + (fDistPerc*delta);
+			//}
 		}
 		
-		DebugScript("posNew=" << vec3fToStr(posNew) << ", fNearDist=" << fNearDist);
-		MYDBG("INTERPOLATE: strEntityToMove="<<strEntityToMove <<",strTarget="<<strTarget <<",entToMoveId="<<entToMove->idString() <<",entTargetId="<<(entTarget?entTarget->idString():"null") <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",fDist="<<fDist<<",posNew="<< vec3fToStr(posNew)<<",bLimitDist="<< bLimitDist<<",bAbsPosFrom="<<bAbsPosFrom <<",bPosTarget="<< bPosTarget<<",fNearDist="<< fNearDist);
+		DebugScript("posRequested=" << vec3fToStr(posRequested) << ", fContextDist=" << fContextDist);
+		MYDBG("INTERPOLATE: strEntityToMove="<<strEntityToMove <<",strTarget="<<strTarget <<",entToMoveId="<<entToMove->idString() <<",entTargetId="<<(entTarget?entTarget->idString():"null") <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",fDistMax="<<fDistMax<<",posRequested="<< vec3fToStr(posRequested)<<",bLimitDist="<< bLimitDist<<",bAbsPosFrom="<<bAbsPosFrom <<",bPosTarget="<< bPosTarget<<",fContextDist="<< fContextDist);
 		
-		entToMove->pos = posNew;
+		ARX_INTERACTIVE_TeleportSafe(entToMove, posRequested);
 		
 		return Success;
 	}

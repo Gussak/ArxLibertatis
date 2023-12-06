@@ -1076,6 +1076,16 @@ void ComputeVVPos(Entity * io) {
 	}
 }
 
+void ARX_INTERACTIVE_TeleportSafe(Entity * io, const Vec3f & target, bool flag) {
+	if(!(io->ioflags & IO_NPC) || io->_npcdata->lifePool.current > 0) {
+		io->setOwner(nullptr);
+		if(io->show != SHOW_FLAG_HIDDEN && io->show != SHOW_FLAG_MEGAHIDE) {
+			io->show = SHOW_FLAG_IN_SCENE;
+		}
+		ARX_INTERACTIVE_Teleport(io, target, flag);
+	}
+}
+
 void ARX_INTERACTIVE_Teleport(Entity * io, const Vec3f & target, bool flag) {
 	
 	if(!io)
