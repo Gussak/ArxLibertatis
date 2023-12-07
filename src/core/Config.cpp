@@ -180,6 +180,7 @@ constexpr const ActionKey actions[NUM_ACTION_KEY] = {
 	ActionKey(Keyboard::Key_Grave), // CONSOLE
 	ActionKey(Keyboard::Key_ScrollLock, Keyboard::Key_Backslash), // DEBUG
 	ActionKey(Keyboard::Key_N), // COMBINE
+	ActionKey(Keyboard::Key_O), // TAKEALLITEMS
 };
 
 } // namespace Default
@@ -321,6 +322,8 @@ constexpr const std::string_view actions[NUM_ACTION_KEY] = {
 	"toggle_fullscreen",
 	"console",
 	"debug",
+	"combine",
+	"take_all_items"
 };
 
 // Misc options

@@ -891,6 +891,10 @@ void ArxGame::managePlayerControls() {
 		bCombineItemsSingleKeyPressed = true;
 	}
 	
+	if(GInput->actionNowPressed(CONTROLS_CUST_TAKEALLITEMS) && g_secondaryInventoryHud.isOpen()) {
+		g_secondaryInventoryHud.takeAllItems();
+	}
+	
 	// Checks CROUCH Key Status.
 	if(GInput->actionNowPressed(CONTROLS_CUST_CROUCHTOGGLE)) {
 		bGCroucheToggle = !bGCroucheToggle;

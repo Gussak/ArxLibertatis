@@ -1660,6 +1660,8 @@ public:
 		
 		addControlRow(CONTROLS_CUST_COMBINE,      "system_menus_options_input_customize_controls_combine");
 		
+		addControlRow(CONTROLS_CUST_TAKEALLITEMS, "system_menus_options_input_customize_controls_take_all_items");
+		
 		if(config.input.allowConsole) {
 			addControlRow(CONTROLS_CUST_CONSOLE, "system_menus_options_input_customize_controls_console");
 		}
