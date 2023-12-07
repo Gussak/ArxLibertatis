@@ -323,7 +323,7 @@ constexpr const std::string_view actions[NUM_ACTION_KEY] = {
 	"console",
 	"debug",
 	"combine",
-	"take_all_items"
+	"take_all_items",
 };
 
 // Misc options
