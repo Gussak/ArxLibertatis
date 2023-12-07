@@ -521,6 +521,32 @@ static float getLocation(const std::string_view & name, const char xyz) {
 	return f;
 }
 
+static float getLife(const std::string_view & name, char cType, const int offset, Entity * entOverride = nullptr) {
+	Entity * ent = entOverride ? entOverride : entities.getById(name.substr(offset));
+	
+	if( !ent ) {
+		return 0.f;
+	}
+	
+	if(ent == entities.player()) {
+		switch(cType) {
+			case 'c': return player.Full_life; break; //current
+			case 'm': return player.m_lifeMaxWithoutMods; break; //max
+			case 'M': return player.lifePool.max; break; //ModMax
+			default: arx_assert_msg(false, "invalid life type for player: '%c'", cType);
+		}
+	} else
+	if(ent->ioflags & IO_NPC) {
+		switch(cType) {
+			case 'c': return ent->_npcdata->lifePool.current; break; //current
+			case 'm': return ent->_npcdata->lifePool.max; break; //max
+			default: arx_assert_msg(false, "invalid life type for NPC: '%c'", cType);
+		}
+	}
+	
+	return 0.f;
+}
+
 ValueType getSystemVar(const script::Context & context, std::string_view name,
                        std::string & txtcontent, float * fcontent, long * lcontent) {
 	
@@ -1002,26 +1028,19 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 		case 'l': {
 			
 			if(name == "^life") {
-				*fcontent = 0;
-				if(context.getEntity() && (context.getEntity()->ioflags & IO_NPC)) {
-					*fcontent = context.getEntity()->_npcdata->lifePool.current;
-				}
+				*fcontent = getLife(name, 'c', 0, context.getEntity());
 				return TYPE_FLOAT;
 			}
 			if(boost::starts_with(name, "^life_")) {
-				Entity * target = entities.getById(name.substr(6));
-				*fcontent = 0;
-				if(target && (target->ioflags & IO_NPC)) {
-					*fcontent = target->_npcdata->lifePool.current;
-				}
+				*fcontent = getLife(name, 'c', 6);
 				return TYPE_FLOAT;
 			}
-			if(boost::starts_with(name, "^life_max_")) {
-				Entity * target = entities.getById(name.substr(10));
-				*fcontent = 0;
-				if(target && (target->ioflags & IO_NPC)) {
-					*fcontent = target->_npcdata->lifePool.max;
-				}
+			if(boost::starts_with(name, "^lifemax_")) {
+				*fcontent = getLife(name, 'm', 9);
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^lifemodmax_")) {
+				*fcontent = getLife(name, 'M', 12);
 				return TYPE_FLOAT;
 			}
 			
