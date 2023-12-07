@@ -321,6 +321,7 @@ constexpr const std::string_view actions[NUM_ACTION_KEY] = {
 	"toggle_fullscreen",
 	"console",
 	"debug",
+	"combine",
 };
 
 // Misc options
