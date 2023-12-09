@@ -132,7 +132,7 @@ public:
 	
 	size_t getPosition() const { return m_pos; }
 	
-	std::string getGoToGoSubCallStack() const;
+	std::string getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const;
 	
 };
 
@@ -183,7 +183,7 @@ bool isBlockEndSuprressed(const Context & context, std::string_view command);
 
 size_t initSuppressions();
 
-#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPosition() << (context).getGoToGoSubCallStack() << "] "
+#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPosition() << (context).getGoToGoSubCallStack(" (CallStack:",")") << "] "
 #define ScriptPrefix ScriptContextPrefix(context) << getName() <<
 #define DebugScript(args) LogDebug(ScriptPrefix args)
 #define ScriptInfo(args) LogInfo << ScriptPrefix args

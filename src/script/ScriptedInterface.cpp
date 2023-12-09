@@ -213,7 +213,8 @@ public:
 		DebugScript("");
 		
 		LogInfo << "Local variables for " << context.getEntity()->idString() << ":\n"
-		        << PrintLocalVariables(context.getEntity());
+						<< context.getGoToGoSubCallStack("(At Script GoTo/GoSub call stack ",")\n")
+						<< PrintLocalVariables(context.getEntity());
 		
 		return Success;
 	}
@@ -231,7 +232,8 @@ public:
 		DebugScript("");
 		
 		LogInfo << "Local variables for " << context.getEntity()->idString() << ":\n"
-		        << PrintLocalVariables(context.getEntity());
+						<< context.getGoToGoSubCallStack("(At Script GoTo/GoSub call stack ",")\n")
+						<< PrintLocalVariables(context.getEntity());
 		LogInfo << "Global variables:\n" << PrintGlobalVariables();
 		
 		return Success;
