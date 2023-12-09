@@ -1017,6 +1017,11 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_LONG;
 			}
 			
+			if(name == "^ininventory") {
+				txtcontent = idString(locateInInventories(context.getEntity()).container);
+				return TYPE_TEXT;
+			}
+			
 			if(boost::starts_with(name, "^inplayerinventory")) {
 				*lcontent = IsInPlayerInventory(context.getEntity()) ? 1 : 0;
 				return TYPE_LONG;
