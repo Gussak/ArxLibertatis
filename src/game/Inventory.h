@@ -339,6 +339,8 @@ public:
 	
 	bool insertAtNoEvent(Entity * item, InventoryPos pos = { });
 	
+	bool insertIntoNewSlot(Entity * item);
+	
 	void remove(Entity & item);
 	
 	//! Sort the inventory and stack duplicate items

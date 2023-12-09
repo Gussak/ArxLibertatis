@@ -181,6 +181,7 @@ constexpr const ActionKey actions[NUM_ACTION_KEY] = {
 	ActionKey(Keyboard::Key_ScrollLock, Keyboard::Key_Backslash), // DEBUG
 	ActionKey(Keyboard::Key_N), // COMBINE
 	ActionKey(Keyboard::Key_O), // TAKEALLITEMS
+	ActionKey(Keyboard::Key_U), // UNSTACK
 };
 
 } // namespace Default
@@ -324,6 +325,7 @@ constexpr const std::string_view actions[NUM_ACTION_KEY] = {
 	"debug",
 	"combine",
 	"take_all_items",
+	"unstack",
 };
 
 // Misc options

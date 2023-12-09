@@ -438,6 +438,10 @@ bool Inventory::insertAt(Entity * item, s16 bag, Vec2f pos, InventoryPos fallbac
 	return false;
 }
 
+bool Inventory::insertIntoNewSlot(Entity * item) {
+	return insertIntoNewSlot(*item);
+}
+
 bool Inventory::insertAtNoEvent(Entity * item, InventoryPos pos) {
 	
 	if(insertGold(item)) {
