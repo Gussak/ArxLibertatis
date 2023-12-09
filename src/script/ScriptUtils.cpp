@@ -125,6 +125,22 @@ std::string Context::getCommand(bool skipNewlines) {
 	return word;
 }
 
+std::string Context::getGoToGoSubCallStack() const {
+	std::stringstream s;
+	
+	if(m_stackId.size() > 0) {
+		s << ", ";
+		
+		for(std::string func : m_stackId) {
+			s << func << "/";
+		}
+		
+		return s.str(); 
+	}
+	
+	return "";
+}
+
 std::string Context::getWord() {
 	
 	std::string_view esdat = m_script->data;
@@ -343,6 +359,8 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
 	if(substack) {
 		m_stack.push_back(m_pos);
+		std::string stackTarget{ target }; //explicit conversion from string_view to string
+		m_stackId.push_back(stackTarget);
 	}
 	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
@@ -362,6 +380,7 @@ bool Context::returnToCaller() {
 	
 	m_pos = m_stack.back();
 	m_stack.pop_back();
+	m_stackId.pop_back();
 	return true;
 }
 
