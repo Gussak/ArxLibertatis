@@ -191,15 +191,17 @@ std::string Context::getPositionAndLineNumber() const {
 	return s.str(); 
 }
 
-std::string Context::getGoToGoSubCallStack() const {
+std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const {
 	std::stringstream s;
 	
 	if(m_stackId.size() > 0) {
-		s << ", ";
+		s << prepend;
 		
 		for(std::string func : m_stackId) {
 			s << func << "/";
 		}
+		
+		s << append;
 		
 		return s.str(); 
 	}
