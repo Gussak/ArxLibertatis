@@ -1658,6 +1658,8 @@ public:
 		
 		addControlRow(CONTROLS_CUST_MINIMAP,      "system_menus_options_input_customize_controls_minimap");
 		
+		addControlRow(CONTROLS_CUST_UNSTACK,      "system_menus_options_input_customize_controls_unstack");
+		
 		if(config.input.allowConsole) {
 			addControlRow(CONTROLS_CUST_CONSOLE, "system_menus_options_input_customize_controls_console");
 		}
