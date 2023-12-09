@@ -205,7 +205,9 @@ std::ostream & operator<<(std::ostream & os, const PrintLocalVariables & data) {
 static std::string getEventAndStackInfo(Context & context) {
 	std::stringstream s;
 	
-	s << " at Event " << ScriptEvent::name(context.getMessage());
+	if(context.getMessage() < SM_MAXCMD) {
+		s << " at Event " << ScriptEvent::name(context.getMessage());
+	}
 	
 	if(context.getSender()){
 		s << " sent from " << context.getSender()->idString();
