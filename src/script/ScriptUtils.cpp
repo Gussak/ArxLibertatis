@@ -197,16 +197,14 @@ std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string
 	if(m_stackId.size() > 0) {
 		s << prepend;
 		
-		for(std::string func : m_stackId) {
-			s << func << "/";
+		for(std::string s2 : m_stackId) {
+			s << s2 << "/";
 		}
 		
 		s << append;
-		
-		return s.str(); 
 	}
 	
-	return "";
+	return s.str();
 }
 
 void Context::seekToPosition(size_t pos) { 

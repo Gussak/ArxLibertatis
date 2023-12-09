@@ -202,6 +202,28 @@ std::ostream & operator<<(std::ostream & os, const PrintLocalVariables & data) {
 	return os;
 }
 
+static std::string getEventAndStackInfo(Context & context) {
+	std::stringstream s;
+	
+	s << " at Event " << ScriptEvent::name(context.getMessage());
+	
+	if(context.getSender()){
+		s << " sent from " << context.getSender()->idString();
+	}
+	
+	if(context.getParameters().size() > 0) {
+		s << " with parameters (";
+		for(std::string s2 : context.getParameters()) {
+			s << s2 << " ";
+		}
+		s << ")";
+	}
+	
+	s << context.getGoToGoSubCallStack(" at GoTo/GoSub callStack ","");
+	
+	return s.str();
+}
+
 class ShowLocalsCommand : public Command {
 	
 public:
@@ -212,8 +234,7 @@ public:
 		
 		DebugScript("");
 		
-		LogInfo << "Local variables for " << context.getEntity()->idString() << ":\n"
-						<< context.getGoToGoSubCallStack("(At Script GoTo/GoSub call stack ",")\n")
+		LogInfo << "Local variables for " << context.getEntity()->idString() << getEventAndStackInfo(context) << ":\n"
 						<< PrintLocalVariables(context.getEntity());
 		
 		return Success;
@@ -231,8 +252,7 @@ public:
 		
 		DebugScript("");
 		
-		LogInfo << "Local variables for " << context.getEntity()->idString() << ":\n"
-						<< context.getGoToGoSubCallStack("(At Script GoTo/GoSub call stack ",")\n")
+		LogInfo << "Local variables for " << context.getEntity()->idString() << getEventAndStackInfo(context) << ":\n"
 						<< PrintLocalVariables(context.getEntity());
 		LogInfo << "Global variables:\n" << PrintGlobalVariables();
 		
