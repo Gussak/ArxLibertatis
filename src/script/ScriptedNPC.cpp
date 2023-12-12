@@ -86,8 +86,9 @@ public:
 		
 		Behaviour behavior = 0;
 		HandleFlags("elsdmfa012") {
-			if(flg & flag('e')) {
+			if(flg & flag('e')) { 
 				strEntId = context.getWord();
+				if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
 				io = entities.getById(strEntId);
 			}
 			behavior |= (flg & flag('l')) ? BEHAVIOUR_LOOK_AROUND : Behaviour(0);
@@ -430,6 +431,7 @@ public:
 		HandleFlags("e") {
 			if(flg & flag('e')) {
 				strEntId = context.getWord();
+				if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
 			}
 		}
 		
@@ -514,6 +516,7 @@ public:
 			if(flg & flag('n')) bFlagN=true;
 			if(flg & flag('e')) {
 				strEntId = context.getWord();
+				if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
 				io = entities.getById(strEntId);
 			}
 		}
