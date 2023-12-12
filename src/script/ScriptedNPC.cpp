@@ -86,7 +86,7 @@ public:
 		
 		Behaviour behavior = 0;
 		HandleFlags("elsdmfa012") {
-			if(flg & flag('e')) {
+			if(flg & flag('e')) { 
 				strEntId = context.getWord();
 				io = entities.getById(strEntId);
 			}
