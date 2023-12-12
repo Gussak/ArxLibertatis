@@ -127,6 +127,7 @@ public:
 	Fade m_fadeDirection;
 	float m_fadePosition;
 	
+	Entity * getEntity() { return m_container; }
 };
 
 extern SecondaryInventoryHud g_secondaryInventoryHud;

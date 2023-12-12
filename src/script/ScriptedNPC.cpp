@@ -422,24 +422,28 @@ public:
 	SetMoveModeCommand() : Command("setmovemode", IO_NPC) { }
 	
 	Result execute(Context & context) override {
-		std::string mode;
 		std::string strEntId;
 		
-		std::string strOpt = context.getWord();
-		if(strOpt == "-e") {
-			strEntId = context.getWord();
-			mode = context.getWord();
-		} else {
-			mode = strOpt;
+		HandleFlags("e") {
+			if(flg & flag('e')) {
+				strEntId = context.getWord();
+			}
 		}
 		
+		std::string mode = context.getWord();
+		
 		Entity * io = nullptr;
-		if(strEntId.size() > 0) {
-			io = entities.getById(strEntId);
-		} else {
+		if(strEntId == "") {
 			io = context.getEntity();
+		} else {
+			io = entities.getById(strEntId);
 		}
-
+		
+		if(!io) {
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
+		}
+		
 		DebugScript(' ' << mode);
 		
 		if(mode == "walk") {

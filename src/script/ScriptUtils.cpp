@@ -89,7 +89,7 @@ std::string Context::formatString(std::string format, std::string var) const {
 }
 #pragma GCC diagnostic pop
 
-std::string Context::getStringVar(std::string_view name) const {
+std::string Context::getStringVar(std::string_view name, Entity * entOverride) const {
 	
 	if(name.empty()) {
 		return std::string();
@@ -114,19 +114,19 @@ std::string Context::getStringVar(std::string_view name) const {
 		long lv = GETVarValueLong(svar, name);
 		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
 	} else if(name[0] == '\xA7') {
-		long lv = GETVarValueLong(getEntity()->m_variables, name);
+		long lv = GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name);
 		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
 	} else if(name[0] == '&') {
 		float fv = GETVarValueFloat(svar, name);
 		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
 	} else if(name[0] == '@') {
-		float fv = GETVarValueFloat(getEntity()->m_variables, name);
+		float fv = GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
 		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
 	} else if(name[0] == '$') {
 		const SCRIPT_VAR * var = GetVarAddress(svar, name);
 		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
 	} else if(name[0] == '\xA3') {
-		const SCRIPT_VAR * var = GetVarAddress(getEntity()->m_variables, name);
+		const SCRIPT_VAR * var = GetVarAddress((entOverride ? entOverride : getEntity())->m_variables, name);
 		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
 	}
 	
@@ -371,7 +371,7 @@ bool Context::getBool() {
 	return (word == "on" || word == "yes");
 }
 
-float Context::getFloatVar(std::string_view name) const {
+float Context::getFloatVar(std::string_view name, Entity * entOverride) const {
 	
 	if(name.empty()) {
 		return 0.f;
@@ -390,11 +390,11 @@ float Context::getFloatVar(std::string_view name) const {
 	} else if(name[0] == '#') {
 		return float(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return float(GETVarValueLong(getEntity()->m_variables, name));
+		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name));
 	} else if(name[0] == '&') {
 		return GETVarValueFloat(svar, name);
 	} else if(name[0] == '@') {
-		return GETVarValueFloat(getEntity()->m_variables, name);
+		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
 	}
 	
 	return util::parseFloat(name);

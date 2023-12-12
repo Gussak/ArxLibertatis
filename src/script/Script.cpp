@@ -44,6 +44,9 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 //
 // Copyright (c) 1999-2000 ARKANE Studios SA. All rights reserved
 
+#include <iostream> //del
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
+
 #include "script/Script.h"
 
 #include <stddef.h>
@@ -77,6 +80,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "gui/Dragging.h"
 #include "gui/Interface.h"
 #include "gui/Speech.h"
+#include "gui/hud/SecondaryInventory.h"
 
 #include "graphics/particle/ParticleEffects.h"
 #include "graphics/Math.h"
@@ -576,6 +580,15 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_TEXT;
 			}
 			
+			if(boost::starts_with(name, "^$objontop_")) {
+				float extraBoundaryXZ = util::parseFloat(name.substr(11));;
+				txtcontent = "none";
+				if(context.getEntity()) {
+					MakeTopObjString(context.getEntity(), txtcontent, extraBoundaryXZ);
+				}
+				return TYPE_TEXT;
+			}
+			
 			break;
 		}
 		
@@ -1065,6 +1078,14 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^locationz_")) {
 				*fcontent = getLocation(name, 'z');
 				return TYPE_FLOAT;
+			}
+			
+			if(name == "^lootinventory") {
+				//MYDBG("^lootinventory ent=" << g_secondaryInventoryHud.getEntity());
+				txtcontent = idString(
+					(g_secondaryInventoryHud.isVisible() && g_secondaryInventoryHud.isOpen()) ? 
+					g_secondaryInventoryHud.getEntity() : nullptr );
+				return TYPE_TEXT;
 			}
 			
 			break;

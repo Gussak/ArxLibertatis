@@ -577,25 +577,31 @@ public:
 	 */
 	Result execute(Context & context) override {
 		
-		std::string strMesh;
 		std::string strEntId;
 		
-		std::string strOpt = context.getWord();
-		if(strOpt == "-e") {
-			strEntId = context.getWord();
-			strMesh = context.getWord();
-		} else {
-			strMesh = strOpt;
+		HandleFlags("e") {
+			if(flg & flag('e')) {
+				strEntId = context.getWord();
+			}
 		}
+		
+		std::string strMesh = context.getWord();
+		
 		DebugScript("strEntId=" << strEntId << ",strMesh=" << strMesh);
 		//MYDBG("strEntId=" << strEntId << ",strMesh=" << strMesh);
 		
 		Entity * ent = nullptr;
-		if(strEntId.size() > 0) {
-			ent = entities.getById(strEntId);
-		} else {
+		if(strEntId == "") {
 			ent = context.getEntity();
+		} else {
+			ent = entities.getById(strEntId);
 		}
+		
+		if(!ent) {
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
+		}
+		
 		res::path mesh = res::path::load(strMesh);
 		DebugScript(" mesh=" << mesh << " entity=" << ent);
 		//MYDBG("strEntId=" << strEntId << ",strMesh=" << " mesh=" << mesh << " entity=" << ent);

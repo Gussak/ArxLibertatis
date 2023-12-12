@@ -17,6 +17,9 @@
  * along with Arx Libertatis.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <iostream> //del
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
+
 #include "game/npc/Dismemberment.h"
 
 #include <string_view>
@@ -384,6 +387,7 @@ void ARX_NPC_TryToCutSomething(Entity * target, const Vec3f * pos) {
 	
 	VertexSelectionId numsel;
 	for(VertexSelectionId selection : target->obj->selections.handles()) {
+		MYDBG("dismember" << target->obj->selections[selection].name);
 		
 		if(target->obj->selections[selection].selected.empty() ||
 		   !boost::contains(target->obj->selections[selection].name, "cut_")) {
