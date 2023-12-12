@@ -96,7 +96,7 @@ public:
 	explicit Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entity * entity,
 	                 ScriptMessage msg, ScriptParameters parameters);
 	
-	std::string getStringVar(std::string_view name) const;
+	std::string getStringVar(std::string_view name, Entity * entOverride = nullptr) const;
 	std::string getFlags();
 	std::string getWord();
 	void skipWord();
@@ -114,7 +114,7 @@ public:
 	
 	float getFloat();
 	
-	float getFloatVar(std::string_view name) const;
+	float getFloatVar(std::string_view name, Entity * entOverride = nullptr) const;
 	
 	/*!
 	 * Skip input until the end of the current line.

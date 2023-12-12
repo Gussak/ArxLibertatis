@@ -56,7 +56,7 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_parameters(std::move(parameters))
 { }
 
-std::string Context::getStringVar(std::string_view name) const {
+std::string Context::getStringVar(std::string_view name, Entity * entOverride) const {
 	
 	if(name.empty()) {
 		return std::string();
@@ -72,16 +72,16 @@ std::string Context::getStringVar(std::string_view name) const {
 	} else if(name[0] == '#') {
 		return std::to_string(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return std::to_string(GETVarValueLong(getEntity()->m_variables, name));
+		return std::to_string(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name));
 	} else if(name[0] == '&') {
 		return boost::lexical_cast<std::string>(GETVarValueFloat(svar, name));
 	} else if(name[0] == '@') {
-		return boost::lexical_cast<std::string>(GETVarValueFloat(getEntity()->m_variables, name));
+		return boost::lexical_cast<std::string>(GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name));
 	} else if(name[0] == '$') {
 		const SCRIPT_VAR * var = GetVarAddress(svar, name);
 		return var ? var->text : "void";
 	} else if(name[0] == '\xA3') {
-		const SCRIPT_VAR * var = GetVarAddress(getEntity()->m_variables, name);
+		const SCRIPT_VAR * var = GetVarAddress((entOverride ? entOverride : getEntity())->m_variables, name);
 		return var ? var->text : "void";
 	}
 	
@@ -285,7 +285,7 @@ bool Context::getBool() {
 	return (word == "on" || word == "yes");
 }
 
-float Context::getFloatVar(std::string_view name) const {
+float Context::getFloatVar(std::string_view name, Entity * entOverride) const {
 	
 	if(name.empty()) {
 		return 0.f;
@@ -304,11 +304,11 @@ float Context::getFloatVar(std::string_view name) const {
 	} else if(name[0] == '#') {
 		return float(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return float(GETVarValueLong(getEntity()->m_variables, name));
+		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name));
 	} else if(name[0] == '&') {
 		return GETVarValueFloat(svar, name);
 	} else if(name[0] == '@') {
-		return GETVarValueFloat(getEntity()->m_variables, name);
+		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
 	}
 	
 	return util::parseFloat(name);
