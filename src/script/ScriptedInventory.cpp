@@ -477,21 +477,20 @@ public:
 	Result execute(Context & context) override {
 		bool draw = false;
 		std::string strEntId;
-		size_t positionBeforeWord = context.getPosition();
+		Entity * io = context.getEntity();
 		
-		std::string strOpt = context.getWord();
-		if(strOpt == "-e") {
-			strEntId = context.getWord();
-		} else {
-			context.seekToPosition(positionBeforeWord);
+		HandleFlags("e") {
+			if(flg & flag('e')) {
+				strEntId = context.getWord();
+				io = entities.getById(strEntId);
+			}
 		}
+		
 		draw = context.getBool();
 		
-		Entity * io = nullptr;
-		if(strEntId.size() > 0) {
-			io = entities.getById(strEntId);
-		} else {
-			io = context.getEntity();
+		if(!io) { //after collecting all params
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
 		}
 		
 		DebugScript(' ' << draw);
