@@ -22,6 +22,8 @@
 #include <algorithm>
 #include <sstream>
 #include <cctype>
+#include <fstream>
+#include <iostream>     // std::ios, std::istream, std::cout
 
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -37,6 +39,8 @@
 #include "gui/Interface.h"
 #include "gui/Text.h"
 #include "input/Input.h"
+#include "io/fs/Filesystem.h"
+#include "io/fs/SystemPaths.h"
 #include "io/log/Logger.h"
 #include "math/Rectangle.h"
 #include "script/ScriptEvent.h"
@@ -44,6 +48,20 @@
 #include "window/RenderWindow.h"
 
 // TODO Share some of this with the save name entry field
+
+std::string strFlConsoleHistory; // fs::path flHistory;
+void ScriptConsole::loadHistoryFile() {
+	//flHistory = fs::getUserDir() / "consolehistory.txt";
+	strFlConsoleHistory = "./arxLiberatisConsolehistory.txt";
+	std::ifstream flHistoryLoad(strFlConsoleHistory); //flHistory.string());
+	if (flHistoryLoad.is_open()) {
+		std::string line;
+		while (std::getline(flHistoryLoad, line)) {
+			m_history.push_back(line.c_str());
+		}
+		flHistoryLoad.close();
+	}
+}
 
 void ConsoleBuffer::append(std::string_view text) {
 	
@@ -397,6 +415,13 @@ void ScriptConsole::execute() {
 	if(!text().empty()) {
 		m_history.erase(std::remove(m_history.begin(), m_history.end(), text()), m_history.end());
 		m_history.push_back(text());
+		
+		static std::ofstream flConsoleHistory;
+		flConsoleHistory.open(strFlConsoleHistory, std::ios_base::app);
+		flConsoleHistory << text() << "\n";
+		flConsoleHistory.flush();
+		flConsoleHistory.close();
+		
 		if(m_history.size() > MaxHistorySize) {
 			m_history.pop_front();
 		}

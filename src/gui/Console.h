@@ -86,7 +86,7 @@ class ScriptConsole final : protected BasicTextInput {
 	static const size_t MaxVisibleSuggestions = 20;
 	static const size_t ScrollbackLines = 10;
 	static const size_t ScrollbackColumns = 100;
-	static const size_t MaxHistorySize = 100;
+	static const size_t MaxHistorySize = 1000;
 	
 	bool m_enabled;
 	bool m_wasPaused;
@@ -149,7 +149,9 @@ public:
 		, m_contextEnd(0)
 		, m_commandBegin(0)
 		, m_suggestionPos(0)
-	{ }
+	{ loadHistoryFile(); }
+	
+	void loadHistoryFile();
 	
 	//! Show the console and unlock the hotkey
 	void open();
