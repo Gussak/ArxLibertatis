@@ -76,6 +76,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "gui/Dragging.h"
 #include "gui/Interface.h"
 #include "gui/Speech.h"
+#include "gui/hud/SecondaryInventory.h"
 
 #include "graphics/particle/ParticleEffects.h"
 #include "graphics/Math.h"
@@ -960,6 +961,13 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^maxdurability")) {
 				*fcontent = (context.getEntity()) ? context.getEntity()->max_durability : 0.f;
 				return TYPE_FLOAT;
+			}
+			
+			if(name == "^lootinventory") {
+				txtcontent = idString(
+					(g_secondaryInventoryHud.isVisible() && g_secondaryInventoryHud.isOpen()) ? 
+					g_secondaryInventoryHud.getEntity() : nullptr );
+				return TYPE_TEXT;
 			}
 			
 			break;
