@@ -1139,6 +1139,13 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_FLOAT;
 			}
 			
+			if(name == "^lootinventory") {
+				txtcontent = idString(
+					(g_secondaryInventoryHud.isVisible() && g_secondaryInventoryHud.isOpen()) ? 
+					g_secondaryInventoryHud.getEntity() : nullptr );
+				return TYPE_TEXT;
+			}
+			
 			break;
 		}
 		
