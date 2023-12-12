@@ -498,15 +498,22 @@ public:
 	
 	Result execute(Context & context) override {
 		bool draw = false;
+		std::string strEntId;
 		Entity * io = context.getEntity();
 		
 		HandleFlags("e") {
 			if(flg & flag('e')) {
-				io = entities.getById(context.getWord());
+				strEntId = context.getWord();
+				io = entities.getById(strEntId);
 			}
 		}
 		
 		draw = context.getBool();
+		
+		if(!io) { //after collecting all params
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
+		}
 		
 		DebugScript(' ' << draw);
 		
