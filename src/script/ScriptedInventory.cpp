@@ -298,11 +298,29 @@ class InventoryCommand : public Command {
 		
 		Result execute(Context & context) override {
 			
-			res::path file = res::path::load(context.getWord());
+			Entity * entInventory = context.getEntity();
+			std::string strEntityId;
 			
-			Entity * io = context.getEntity();
+			HandleFlags("e") {
+				if(flg & flag('e')) {
+					strEntityId = context.getWord();
+					entInventory = entities.getById(strEntityId);
+				}
+			}
 			
-			if(FORBID_SCRIPT_IO_CREATION || !io->inventory) {
+			std::string strItem = context.getWord();
+			
+			if(!entInventory) {
+				ScriptWarning << "Invalid target entity " << strEntityId;
+				if(multi) {
+					context.skipWord();
+				}
+				return Failed;
+			}
+			
+			res::path file = res::path::load(strItem);
+			
+			if(FORBID_SCRIPT_IO_CREATION || !entInventory->inventory) {
 				if(multi) {
 					context.skipWord();
 				}
@@ -346,8 +364,12 @@ class InventoryCommand : public Command {
 				}
 			}
 			
-			if(!context.getEntity()->inventory || !context.getEntity()->inventory->insert(item)) {
-				PutInFrontOfPlayer(item);
+			if(!entInventory->inventory || !entInventory->inventory->insert(item)) {
+				if(entities.player() == entInventory) {
+					PutInFrontOfPlayer(item);
+				} else {
+					PutInFrontOfEntity(item, entInventory);
+				}
 			}
 			
 			return Success;
