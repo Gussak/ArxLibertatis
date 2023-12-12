@@ -102,7 +102,6 @@ public:
 			}
 			
 			word = array.substr(posWordStart, posWordEnd - posWordStart);
-			MYDBG("getWordAtIndex: word=" << word << ", array=" << array << ", indexAsked=" << indexAsked << ", indexCurrent=" << indexCurrent);
 			if(indexCurrent == indexAsked) { //success
 				break;
 			}
@@ -206,16 +205,13 @@ public:
 					std::string indexVarName = context.getWord();
 					long index = long(context.getFloatVar(indexVarName,entReadFrom));
 					val = getWordAtIndex(array, index); 
-					MYDBG("SetCommand: " << mode << ": var=" << var << ", val=" << val << ", array=" << array << ", index=" << index << ";");
 				}; break;
 				case 'i': { // item count at inventory mode
 					std::string itemPrefix = context.getWord();
 					val = getItemCountAtInventory(entReadFrom, itemPrefix); 
-					MYDBG("SetCommand: " << mode << ": var=" << var << ", val=" << val << ", itemPrefix=" << itemPrefix << ";");
 				}; break;
 				default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
 			}
-			MYDBG("SetCommand: " << mode << ": var=" << var << ", val=" << val << ";");
 		} else {
 			val = context.getWord();
 		}
