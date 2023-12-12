@@ -292,9 +292,6 @@ private:
 			case Remainder:  return (right == 0.f) ? 0.f : static_cast<int> (left) % static_cast<int> (right);
 			case Power:      return static_cast<float> ( std::pow(left,right) );
 			case NthRoot:
-				//if(right == 2.0f) return static_cast<float> ( std::sqrt(left) );
-				//if(right == 3.0f) return static_cast<float> ( std::cbrt(left) );
-				//if(right == 6.0f) return static_cast<float> ( std::sqrt(std::cbtr(left)) );
 				if(left < 0.f) return -(static_cast<float> ( std::pow(-left,1.0f/right) )); // pow only works with positive left, this avoids being limited by sqtr/cbrt nesting
 				return static_cast<float> ( std::pow(left,1.0f/right) );
 		}
