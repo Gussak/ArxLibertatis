@@ -81,12 +81,14 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		Entity * io = nullptr;
+		std::string strEntId;
+		Entity * io = context.getEntity();
 		
 		Behaviour behavior = 0;
 		HandleFlags("elsdmfa012") {
-			if(flg & flag('e')) {
-				io = entities.getById(context.getWord());
+			if(flg & flag('e')) { 
+				strEntId = context.getWord();
+				io = entities.getById(strEntId);
 			}
 			behavior |= (flg & flag('l')) ? BEHAVIOUR_LOOK_AROUND : Behaviour(0);
 			behavior |= (flg & flag('s')) ? BEHAVIOUR_SNEAK : Behaviour(0);
@@ -96,11 +98,12 @@ public:
 			behavior |= (flg & flag('a')) ? BEHAVIOUR_STARE_AT : Behaviour(0);
 		}
 		
-		if(!io) {
-			io = context.getEntity();
-		}
-		
 		std::string command = context.getWord();
+		
+		if(!io) { //after collecting all params
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
+		}
 		
 		if(options.empty()) {
 			if(command == "stack") {
@@ -432,14 +435,9 @@ public:
 		
 		std::string mode = context.getWord();
 		
-		Entity * io = nullptr;
-		if(strEntId == "") {
-			io = context.getEntity();
-		} else {
-			io = entities.getById(strEntId);
-		}
+		Entity * io = strEntId == "" ? context.getEntity() : entities.getById(strEntId);
 		
-		if(!io) {
+		if(!io) { //after collecting all params
 			ScriptWarning << "invalid entity id " << strEntId;
 			return Failed;
 		}
@@ -504,25 +502,30 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		Entity * io = nullptr;
+		std::string strEntId;
+		Entity * io = context.getEntity();
 		
 		bool bFlagS = false;
 		bool bFlagA = false;
 		bool bFlagN = false;
-		bool bFlagE = false;
 		HandleFlags("sane") {
 			if(flg & flag('s')) bFlagS=true;
 			if(flg & flag('a')) bFlagA=true;
 			if(flg & flag('n')) bFlagN=true;
-			if(flg & flag('e')) bFlagE=true;
+			if(flg & flag('e')) {
+				strEntId = context.getWord();
+				io = entities.getById(strEntId);
+			}
 		}
 		
-		if( bFlagE ) {
-			io = entities.getById(context.getWord());
+		std::string target = context.getWord();
+		if(target == "object") {
+			target = context.getWord();
 		}
 		
-		if( !io ) {
-			io = context.getEntity();
+		if(!io) { //after collecting all params
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
 		}
 		
 		if(io->ioflags & IO_NPC) {
@@ -549,10 +552,6 @@ public:
 			}
 		}
 		
-		std::string target = context.getWord();
-		if(target == "object") {
-			target = context.getWord();
-		}
 		target = context.getStringVar(target);
 		Entity * entTarget = entities.getById(target, io);
 		
