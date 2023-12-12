@@ -76,6 +76,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "gui/Dragging.h"
 #include "gui/Interface.h"
 #include "gui/Speech.h"
+#include "gui/hud/SecondaryInventory.h"
 
 #include "graphics/particle/ParticleEffects.h"
 #include "graphics/Math.h"
@@ -500,6 +501,15 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				txtcontent = "none";
 				if(context.getEntity()) {
 					MakeTopObjString(context.getEntity(), txtcontent);
+				}
+				return TYPE_TEXT;
+			}
+			
+			if(boost::starts_with(name, "^$objontop_")) {
+				float extraBoundaryXZ = util::parseFloat(name.substr(11));;
+				txtcontent = "none";
+				if(context.getEntity()) {
+					MakeTopObjString(context.getEntity(), txtcontent, extraBoundaryXZ);
 				}
 				return TYPE_TEXT;
 			}

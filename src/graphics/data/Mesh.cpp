@@ -149,7 +149,7 @@ bool RayCollidingPoly(const Vec3f & orgn, const Vec3f & dest, const EERIEPOLY & 
 	return false;
 }
 
-long MakeTopObjString(Entity * entity, std::string & dest) {
+long MakeTopObjString(Entity * entity, std::string & dest, float distExtraBoundaryXZ) {
 	
 	if(!entity) {
 		return -1;
@@ -167,7 +167,7 @@ long MakeTopObjString(Entity * entity, std::string & dest) {
 	
 	for(const Entity & other : entities.inScene(IO_NPC | IO_ITEM)) {
 		if(&other != entity) {
-			if(other.pos.x > box.min.x && other.pos.x < box.max.x && other.pos.z > box.min.z && other.pos.z < box.max.z) {
+			if(other.pos.x > (box.min.x - distExtraBoundaryXZ) && other.pos.x < (box.max.x + distExtraBoundaryXZ) && other.pos.z > (box.min.z - distExtraBoundaryXZ) && other.pos.z < (box.max.z + distExtraBoundaryXZ)) {
 				float offset = (&other == entities.player() ? 10.f : 0.f);
 				if(glm::abs(other.pos.y - offset - box.min.y) < 40.f + offset) {
 					if(!dest.empty()) {
