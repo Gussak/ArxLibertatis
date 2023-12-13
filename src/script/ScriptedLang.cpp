@@ -811,8 +811,8 @@ public:
 		while(true){
 			if(res != Success) {return res;}; // in case of errors found in the script.
 			iCount++;
-			positionBeforeWord = context.getPosition();
 			context.skipWhitespace(true);
+			positionBeforeWord = context.getPosition(); //Put after skip new lines.
 			wordCheck = context.getWord();
 			
 			if( boost::equals(wordCheck, "{") ) { //block begin detected, end recursive logic
@@ -860,10 +860,10 @@ public:
 	}
 	Result execute(Context & context) override {
 		Result res; //this overrides processing condition result, in case of Failed
-		size_t positionBeforeWord = context.getPosition(); //this is used to undo the wordCkeck position
 		bool condition = false; //this will be set by the function calls
 		bool bJustConsumeTheWords = false; //when a multi nested condition can quickly end, this will be set to true so all words (related to logic operations and comparisons) are consumed and the block/command can be safely reached and processed or skipped.
 		context.skipWhitespace(true);
+		size_t positionBeforeWord = context.getPosition(); //this is used to undo the wordCkeck position. Put after skip new lines.
 		std::string wordCheck = context.getWord();
 		if(recursiveLogicOperationByWord(context, wordCheck, condition, res, bJustConsumeTheWords)){
 			// all work already done at recursiveLogicOperationByWord(...)
