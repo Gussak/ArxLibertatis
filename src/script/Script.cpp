@@ -44,9 +44,6 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 //
 // Copyright (c) 1999-2000 ARKANE Studios SA. All rights reserved
 
-#include <iostream> //del
-#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
-
 #include "script/Script.h"
 
 #include <stddef.h>
@@ -585,10 +582,10 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				Entity * ent = context.getEntity();
 				float extraBoundaryXZ = 0.f;
 				
-				std::string str = name.substr(11);
-				size_t posEntityID = str.find('_', start);
+				std::string_view strCheck = name.substr(11);
+				size_t posEntityID = strCheck.find('_');
 				if(posEntityID == std::string_view::npos) {
-					posEntityID = str.length();
+					posEntityID = strCheck.length();
 				} else {
 					ent = entities.getById(name.substr(++posEntityID)); //++ to skip the '_' before the entityID
 				}
@@ -1094,7 +1091,6 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			}
 			
 			if(name == "^lootinventory") {
-				//MYDBG("^lootinventory ent=" << g_secondaryInventoryHud.getEntity());
 				txtcontent = idString(
 					(g_secondaryInventoryHud.isVisible() && g_secondaryInventoryHud.isOpen()) ? 
 					g_secondaryInventoryHud.getEntity() : nullptr );

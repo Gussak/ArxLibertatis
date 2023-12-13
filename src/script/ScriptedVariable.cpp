@@ -74,7 +74,7 @@ public:
 		std::string list;
 		if(ent && ent->inventory) {
 			for(auto slot : ent->inventory->slots()) {
-				if(slot.entity && boost::starts_with(slot.entity->idString(), prefix)) {
+				if(slot.entity && (boost::starts_with(slot.entity->idString(), prefix) || prefix == "*")) {
 					if(list != "") {
 						list += " ";
 					}
@@ -87,7 +87,7 @@ public:
 				}
 			}
 		}
-		return count;
+		return list;
 	}
 	
 	int getItemCountAtInventory(Entity * ent, std::string prefix) {
@@ -162,6 +162,8 @@ public:
 	 * 
 	 ** <-m> Mode: List2D: assigns to var a bi-dimentional list containing the item ID (beggining with entityIdPrefix) and it's count like: "itemIDa 2 itemIDb 78"
 	 * Set -m[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
+	 * 
+	 * Obs.: if <entityIdPrefix> is "*" it will match all entities.
 	 * 
 	 * Usage examples:
 	 * Set <var> <val>
