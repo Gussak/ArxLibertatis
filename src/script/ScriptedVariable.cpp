@@ -70,6 +70,26 @@ public:
 	
 	SetCommand() : Command("set") { }
 	
+	std::string getItemListAtInventory(Entity * ent, std::string prefix, bool getCountToo=false) {
+		std::string list;
+		if(ent && ent->inventory) {
+			for(auto slot : ent->inventory->slots()) {
+				if(slot.entity && boost::starts_with(slot.entity->idString(), prefix)) {
+					if(list != "") {
+						list += " ";
+					}
+					
+					list += slot.entity->idString();
+					
+					if(getCountToo) {
+						list += " " + slot.entity->_itemdata->count;
+					}
+				}
+			}
+		}
+		return count;
+	}
+	
 	int getItemCountAtInventory(Entity * ent, std::string prefix) {
 		int count = 0;
 		if(ent && ent->inventory) {
@@ -123,25 +143,37 @@ public:
 	}
 	
 	/**
-	 * usage examples:
+	 * Set [-rw] <w?entWriteTo> <r?entReadFrom> <var> <val>
+	 * 		<entReadFrom> entity to read 'val' from
+	 * 		<entWriteTo> entity to write 'var' at
 	 * 
+	 * The Modes below are exclusive. Use only one.
+	 * 
+	 ** <-a> Mode: Array: assigns to var the array entry at index
+	 * Set -a[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?array> <a?index>
+	 * 		<array> is a string that contains words separated by spaces ' '
+	 * 		<index> array index that begins in 0
+	 * 
+	 ** <-i> Mode: Item count at inventory: assigns to var the count of items beggining with entityIdPrefix
+	 * Set -i[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
+	 * 
+	 ** <-l> Mode: List: assigns to var an array of item IDs that begin with entityIdPrefix
+	 * Set -l[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
+	 * 
+	 ** <-m> Mode: List2D: assigns to var a bi-dimentional list containing the item ID (beggining with entityIdPrefix) and it's count like: "itemIDa 2 itemIDb 78"
+	 * Set -m[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
+	 * 
+	 * Usage examples:
 	 * Set <var> <val>
 	 * Set -r <entReadFrom> <var> <val>
 	 * Set -w <entWriteTo> <var> <val>
-	 * Set -rw <entReadFrom> <entWriteTo> <var> <val>
-	 * Set -wr <entWriteTo> <entReadFrom> <var> <val> //attention, w r order matters!
-	 * <entReadFrom> entity to read 'val' from
-	 * <entWriteTo> entity to write 'var' at
-	 * 
-	 ** Mode: Array:
+	 * Set -rw <entWriteTo> <entReadFrom> <var> <val> //with both rw, first w then r, matching var val order
 	 * Set -a <var> <array> <index>
-	 * <array> is a string that contains words separated by spaces ' '
-	 * <index> array index that begins in 0
-	 * Set -rwa <entReadFrom> <entWriteTo> <var> <array> <index>
-	 * 
-	 ** Mode: Item count at inventory:
+	 * Set -rwa <entWriteTo> <entReadFrom> <var> <array> <index>
 	 * Set -i <var> <entityIdPrefix>
-	 * Set -rwi <entReadFrom> <entWriteTo> <var> <entityIdPrefix>
+	 * Set -rwi <entWriteTo> <entReadFrom> <var> <entityIdPrefix>
+	 * Set -l <var> <entityIdPrefix>
+	 * Set -m <var> <entityIdPrefix>
 	 */
 	Result execute(Context & context) override {
 		
@@ -149,15 +181,15 @@ public:
 		Entity * entWriteTo  = context.getEntity();
 		std::string strEntityCheck;
 		char mode = '.';
+		bool bReadFrom=false;
+		bool bWriteTo=false;
 		
-		HandleFlags("rwai") {
+		HandleFlags("mailrw") {
 			if(flg & flag('r')) {
-				strEntityCheck = context.getWord();
-				entReadFrom = entities.getById(strEntityCheck);
+				bReadFrom=true;
 			}
 			if(flg & flag('w')) {
-				strEntityCheck = context.getWord();
-				entWriteTo = entities.getById(strEntityCheck);
+				bWriteTo=true;
 			}
 			if(flg & flag('a')) {
 				mode = 'a';
@@ -165,6 +197,19 @@ public:
 			if(flg & flag('i')) {
 				mode = 'i';
 			}
+			if(flg & flag('l')) {
+				mode = 'l';
+			}
+		}
+		
+		//keep this order: WriteTo ReadFrom, to match this order: var val
+		if(bWriteTo) {
+			strEntityCheck = context.getWord();
+			entWriteTo = entities.getById(strEntityCheck);
+		}
+		if(bReadFrom) {
+			strEntityCheck = context.getWord();
+			entReadFrom = entities.getById(strEntityCheck);
 		}
 		
 		bool bFail=false;
@@ -176,7 +221,8 @@ public:
 			ScriptWarning << "Invalid entity to write variable to " << strEntityCheck;
 			bFail=true;
 		}
-		if(bFail) {
+		
+		if(bFail) { //discards following words coherently
 			context.skipWord(); //var
 			if(mode != '.') {
 				switch(mode) {
@@ -185,8 +231,11 @@ public:
 						context.skipWord(); //array
 						context.skipWord(); //index
 						break;
-					// item count at inventory mode
-					case 'i': context.skipWord(); break; //item prefix
+					case 'i': // item count at inventory mode
+					case 'l': // item list mode
+					case 'm': // bi-dimentional item list mode
+						context.skipWord(); //item prefix
+						break;
 					default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
 				}
 			} else {
@@ -198,22 +247,29 @@ public:
 		std::string var = context.getWord();
 		
 		std::string val;
-		if(mode != '.') {
-			switch(mode) {
-				case 'a': {// array mode
-					std::string array = context.getWord();
-					std::string indexVarName = context.getWord();
-					long index = long(context.getFloatVar(indexVarName,entReadFrom));
-					val = getWordAtIndex(array, index); 
-				}; break;
-				case 'i': { // item count at inventory mode
-					std::string itemPrefix = context.getWord();
-					val = getItemCountAtInventory(entReadFrom, itemPrefix); 
-				}; break;
-				default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
-			}
-		} else {
-			val = context.getWord();
+		switch(mode) {
+			case '.': { // simple value mode
+				val = context.getWord();
+			}; break;
+			case 'a': { // array mode
+				std::string array = context.getWord();
+				std::string indexVarName = context.getWord();
+				long index = long(context.getFloatVar(indexVarName,entReadFrom));
+				val = getWordAtIndex(array, index); 
+			}; break;
+			case 'i': { // item count at inventory mode
+				std::string itemPrefix = context.getWord();
+				val = getItemCountAtInventory(entReadFrom, itemPrefix); 
+			}; break;
+			case 'l': { // item list at inventory mode
+				std::string itemPrefix = context.getWord();
+				val = getItemListAtInventory(entReadFrom, itemPrefix); 
+			}; break;
+			case 'm': { // bi-dimentional list mode
+				std::string itemPrefix = context.getWord();
+				val = getItemListAtInventory(entReadFrom, itemPrefix, true); 
+			}; break;
+			default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
 		}
 		
 		DebugScript(' ' << var << " \"" << val << '"');
