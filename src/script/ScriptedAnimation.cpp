@@ -81,19 +81,40 @@ public:
 	
 	RotateCommand() : Command("rotate", AnyEntity) { }
 	
+	/**
+	 * Rotate [-ea] <e?strEntID> x y z
+	 * -a is absolute rotation
+	 */
 	Result execute(Context & context) override {
 		
 		Entity * io = context.getEntity();
+		std::string strEntID;
+		bool bAbs=false;
+		
+		HandleFlags("ea") {
+			if(flg & flag('a')) {
+				bAbs=true;
+			}
+			if(flg & flag('e')) {
+				strEntID = context.getWord();
+				io = entities.getById(strEntID);
+			}
+		}
 		
 		float pitch = context.getFloat();
 		float yaw   = context.getFloat();
 		float roll  = context.getFloat();
 		
+		if(!io) { //after consume params
+			ScriptWarning << "invalid entity ID: " << strEntID;
+			return Failed;
+		}
+		
 		DebugScript(' ' << pitch << ' ' << yaw << ' ' << roll);
 		
-		io->angle.setPitch(io->angle.getPitch() + pitch);
-		io->angle.setYaw(io->angle.getYaw() + yaw);
-		io->angle.setRoll(io->angle.getRoll() + roll);
+		io->angle.setPitch(bAbs ? pitch : io->angle.getPitch() + pitch);
+		io->angle.setYaw  (bAbs ? yaw   : io->angle.getYaw  () + yaw  );
+		io->angle.setRoll (bAbs ? roll  : io->angle.getRoll () + roll );
 		
 		io->animBlend.lastanimtime = 0;
 		
