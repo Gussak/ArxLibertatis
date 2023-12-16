@@ -205,23 +205,22 @@ public:
 		}
 		
 		//keep this order: WriteTo ReadFrom, to match this order: var val
+		bool bFail=false;
 		if(bWriteTo) {
 			strEntityCheck = context.getWord();
 			entWriteTo = entities.getById(strEntityCheck);
+			if(!entWriteTo) {
+				ScriptWarning << "Invalid entity to write variable to " << strEntityCheck;
+				bFail=true;
+			}
 		}
 		if(bReadFrom) {
 			strEntityCheck = context.getWord();
 			entReadFrom = entities.getById(strEntityCheck);
-		}
-		
-		bool bFail=false;
-		if(!entReadFrom) {
-			ScriptWarning << "Invalid entity to read variable from " << strEntityCheck;
-			bFail=true;
-		}
-		if(!entWriteTo) {
-			ScriptWarning << "Invalid entity to write variable to " << strEntityCheck;
-			bFail=true;
+			if(!entReadFrom) {
+				ScriptWarning << "Invalid entity to read variable from " << strEntityCheck;
+				bFail=true;
+			}
 		}
 		
 		if(bFail) { //discards following words coherently
