@@ -172,7 +172,7 @@ std::string Context::getCommand(bool skipNewlines) {
 
 std::string Context::getPositionAndLineNumber() const {
 	std::stringstream s;
-	s << m_pos;
+	s << "Position " << m_pos;
 	
 	int iLine=0;
 	int iColumn=1;
