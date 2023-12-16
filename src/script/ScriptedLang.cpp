@@ -785,16 +785,13 @@ public:
 	
 	bool recursiveLogicOperationByWord(Context & context, std::string & wordCheck, bool & condition, Result & res, bool & bJustConsumeTheWords) {
 		if(boost::equals(wordCheck, "and")) {
-			res = recursiveLogicOperation(context, condition, false, bJustConsumeTheWords, false);
-		} else
-		if(boost::equals(wordCheck, "nand")) {
-			res = recursiveLogicOperation(context, condition, false, bJustConsumeTheWords, true);
+			res = recursiveLogicOperation(context, condition, 'a', bJustConsumeTheWords);
 		} else
 		if(boost::equals(wordCheck, "or")) {
-			res = recursiveLogicOperation(context, condition,  true, bJustConsumeTheWords, false);
+			res = recursiveLogicOperation(context, condition, 'o', bJustConsumeTheWords);
 		} else
-		if(boost::equals(wordCheck, "nor")) {
-			res = recursiveLogicOperation(context, condition,  true, bJustConsumeTheWords, true);
+		if(boost::equals(wordCheck, "not")) {
+			res = recursiveLogicOperation(context, condition, 'n', bJustConsumeTheWords);
 		}else{
 			return false;
 		}
@@ -804,7 +801,7 @@ public:
 	 * it is always 'if(and(...))' or 'if(or(...))' or the default 'if(SomeComparison)'
 	 * so all nested 'and()' or 'or()' or 'comparison' must be inside a initial abrangent/top 'and()' or 'or()' 
 	 */
-	Result recursiveLogicOperation(Context & context, bool & condition, bool bLogicModeIsOr, bool & bJustConsumeTheWords, bool bInvertCondition) {
+	Result recursiveLogicOperation(Context & context, bool & condition, char logicOp, bool & bJustConsumeTheWords) {
 		Result res = Success;
 		size_t positionBeforeWord;
 		std::string wordCheck;
@@ -826,6 +823,10 @@ public:
 			// iCount%2             1     0       1     0      1       0
 			if(iCount%2 == 1){ //comparison or recursive logic nesting
 				if(recursiveLogicOperationByWord(context, wordCheck, condition, res, bJustConsumeTheWords)){
+					if(logicOp == 'n') { //not
+						condition = !condition;
+						break; //this break breaks the loop. logic NOT accepts only one comparison or nested logical operator
+					}
 					continue;
 				} else { //check for normal comparison
 					//recursive logic operators or blanks were not detected. undo the wordCheck position
@@ -833,12 +834,18 @@ public:
 					// it needs to determine if the next thing is a comparison as the block begin char was not detected
 					bool comparisonDetected = false;
 					res = compare(context, condition, comparisonDetected, bJustConsumeTheWords);
-					if(bInvertCondition) condition = !condition; //NAND NOR
 					if(comparisonDetected){
-						if( bLogicModeIsOr &&  condition) {bJustConsumeTheWords=true;} //logic OR  is ready to let it try to process the block
-						if(!bLogicModeIsOr && !condition) {bJustConsumeTheWords=true;} //logic AND is ready to let it try to skip    the block 
+						if( logicOp == 'n') { //not
+							condition = !condition; 
+							break; //this break breaks the loop. logic NOT accepts only one comparison or nested logical operator
+						}
+						switch(logicOp) {
+							case 'a': if(!condition) bJustConsumeTheWords=true; break; //logic AND is ready to let it try to skip    the block 
+							case 'o': if( condition) bJustConsumeTheWords=true; break; //logic OR  is ready to let it try to process the block
+							default: arx_assert_msg(false, "Invalid logical operator mode: %c", logicOp); break;
+						}
 						continue;
-					}else{
+					} else {
 						// it is not a comparison, this is a command outside of a block, so restore position and end the loop
 						context.seekToPosition(positionBeforeWord);
 						break;
@@ -846,17 +853,31 @@ public:
 				}
 			}
 			
-			// logic connector say the next thing is a logical result to process. They also make reading the script more clear. they are always in-between, 2nd word on.
+			// logic connector say the next thing is a logical result to process. They also make reading the script more clear. they are always in-between, 2nd 4th 6th... word on.
 			if(iCount%2 == 0){
-				if( boost::equals(wordCheck,  ",")                    ) {continue;}
-				if( boost::equals(wordCheck, "||") &&  bLogicModeIsOr ) {continue;}
-				if( boost::equals(wordCheck, "&&") && !bLogicModeIsOr ) {continue;}
+				if(logicOp == 'n') { //not
+					ScriptError << "the not() logical operator only accepts one comparison or nested logic operator";
+					return Failed;
+				}
 				
-				// the absense of a coherent logic connector is expected and means the end of a nesting ex.: if(AND(... && or(...) && nand(...))){...} //at '){' or some command like 'Set' also ends the logic
+				switch(logicOp) {
+					case 'a': //and
+						if( boost::equals(wordCheck, "&&") ) continue; 
+						if( boost::equals(wordCheck, "," ) ) continue;
+						break;
+					case 'o': //or
+						if( boost::equals(wordCheck, "||") ) continue;
+						if( boost::equals(wordCheck, "," ) ) continue;
+						break;
+					default: arx_assert_msg(false, "Invalid logical operator mode: %c", logicOp); break;
+				}
+				
+				// the absense of a coherent logic connector is expected and means the end of a nesting ex.: if( AND( ... && or(...) && not(and(...)) ) ){...} //at '){' or some command like 'Set' also ends the logic
 				context.seekToPosition(positionBeforeWord);
 				break;
 			}
-		}
+			
+		} //end while
 		
 		return Success;
 	}
