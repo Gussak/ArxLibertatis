@@ -41,6 +41,9 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 ===========================================================================
 */
 
+#include <iostream> //del
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
+
 #include "script/ScriptedLang.h"
 
 #include <memory>
@@ -782,18 +785,16 @@ public:
 	
 	bool recursiveLogicOperationByWord(Context & context, std::string & wordCheck, bool & condition, Result & res, bool & bJustConsumeTheWords) {
 		if(boost::equals(wordCheck, "and")) {
-			res = recursiveLogicOperation(context, condition, false, bJustConsumeTheWords);
+			res = recursiveLogicOperation(context, condition, false, bJustConsumeTheWords, false);
 		} else
-		if(boost::equals(wordCheck, "!and")) {
-			res = recursiveLogicOperation(context, condition, false, bJustConsumeTheWords);
-			condition=!condition;
+		if(boost::equals(wordCheck, "nand")) {
+			res = recursiveLogicOperation(context, condition, false, bJustConsumeTheWords, true);
 		} else
 		if(boost::equals(wordCheck, "or")) {
-			res = recursiveLogicOperation(context, condition,  true, bJustConsumeTheWords);
+			res = recursiveLogicOperation(context, condition,  true, bJustConsumeTheWords, false);
 		} else
-		if(boost::equals(wordCheck, "!or")) {
-			res = recursiveLogicOperation(context, condition,  true, bJustConsumeTheWords);
-			condition=!condition;
+		if(boost::equals(wordCheck, "nor")) {
+			res = recursiveLogicOperation(context, condition,  true, bJustConsumeTheWords, true);
 		}else{
 			return false;
 		}
@@ -803,7 +804,7 @@ public:
 	 * it is always 'if(and(...))' or 'if(or(...))' or the default 'if(SomeComparison)'
 	 * so all nested 'and()' or 'or()' or 'comparison' must be inside a initial abrangent/top 'and()' or 'or()' 
 	 */
-	Result recursiveLogicOperation(Context & context, bool & condition, bool bLogicModeIsOr, bool & bJustConsumeTheWords) {
+	Result recursiveLogicOperation(Context & context, bool & condition, bool bLogicModeIsOr, bool & bJustConsumeTheWords, bool bInvertCondition) {
 		Result res = Success;
 		size_t positionBeforeWord;
 		std::string wordCheck;
@@ -832,6 +833,7 @@ public:
 					// it needs to determine if the next thing is a comparison as the block begin char was not detected
 					bool comparisonDetected = false;
 					res = compare(context, condition, comparisonDetected, bJustConsumeTheWords);
+					if(bInvertCondition) condition = !condition; //NAND NOR
 					if(comparisonDetected){
 						if( bLogicModeIsOr &&  condition) {bJustConsumeTheWords=true;} //logic OR  is ready to let it try to process the block
 						if(!bLogicModeIsOr && !condition) {bJustConsumeTheWords=true;} //logic AND is ready to let it try to skip    the block 
@@ -850,7 +852,7 @@ public:
 				if( boost::equals(wordCheck, "||") &&  bLogicModeIsOr ) {continue;}
 				if( boost::equals(wordCheck, "&&") && !bLogicModeIsOr ) {continue;}
 				
-				// the absense of a coherent logic connector is expected and means the end of a nesting ex.: if(AND(... && or(...) && !and(...))){...} //at '){' or some command like 'Set' also ends the logic
+				// the absense of a coherent logic connector is expected and means the end of a nesting ex.: if(AND(... && or(...) && nand(...))){...} //at '){' or some command like 'Set' also ends the logic
 				context.seekToPosition(positionBeforeWord);
 				break;
 			}
