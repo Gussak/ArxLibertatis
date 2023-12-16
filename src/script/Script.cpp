@@ -505,12 +505,25 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_TEXT;
 			}
 			
+			// ^$objontop_<extraBoundaryXZ>[_<entityID>]
 			if(boost::starts_with(name, "^$objontop_")) {
-				float extraBoundaryXZ = util::parseFloat(name.substr(11));;
-				txtcontent = "none";
-				if(context.getEntity()) {
-					MakeTopObjString(context.getEntity(), txtcontent, extraBoundaryXZ);
+				Entity * ent = context.getEntity();
+				float extraBoundaryXZ = 0.f;
+				
+				std::string_view strCheck = name.substr(11);
+				size_t posEntityID = strCheck.find('_');
+				if(posEntityID == std::string_view::npos) {
+					posEntityID = strCheck.length();
+				} else {
+					ent = entities.getById(name.substr(++posEntityID)); //++ to skip the '_' before the entityID
 				}
+				extraBoundaryXZ = util::parseFloat(name.substr(11,posEntityID-11));
+				
+				txtcontent = "none";
+				if(ent) {
+					MakeTopObjString(ent, txtcontent, extraBoundaryXZ);
+				}
+				
 				return TYPE_TEXT;
 			}
 			
