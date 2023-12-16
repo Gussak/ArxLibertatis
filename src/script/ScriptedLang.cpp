@@ -862,12 +862,10 @@ public:
 				
 				switch(logicOp) {
 					case 'a': //and
-						if( boost::equals(wordCheck, "&&") ) continue; 
-						if( boost::equals(wordCheck, "," ) ) continue;
+						if( wordCheck[0] == ',' ) || boost::equals(wordCheck, "&&") ) continue; 
 						break;
 					case 'o': //or
-						if( boost::equals(wordCheck, "||") ) continue;
-						if( boost::equals(wordCheck, "," ) ) continue;
+						if( wordCheck[0] == ',' ) || boost::equals(wordCheck, "||") ) continue;
 						break;
 					default: arx_assert_msg(false, "Invalid logical operator mode: %c", logicOp); break;
 				}
