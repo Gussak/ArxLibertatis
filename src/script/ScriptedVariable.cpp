@@ -40,8 +40,6 @@ If you have questions concerning this license or the applicable additional terms
 ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 ===========================================================================
 */
-#include <iostream> //del
-#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
 
 #include "script/ScriptedVariable.h"
 
@@ -208,6 +206,7 @@ public:
 		bool bFail=false;
 		if(bWriteTo) {
 			strEntityCheck = context.getWord();
+			if(strEntityCheck[0] == '$' || strEntityCheck[0] == '\xA3') strEntityCheck = context.getStringVar(strEntityCheck);
 			entWriteTo = entities.getById(strEntityCheck);
 			if(!entWriteTo) {
 				ScriptWarning << "Invalid entity to write variable to " << strEntityCheck;
@@ -216,6 +215,7 @@ public:
 		}
 		if(bReadFrom) {
 			strEntityCheck = context.getWord();
+			if(strEntityCheck[0] == '$' || strEntityCheck[0] == '\xA3') strEntityCheck = context.getStringVar(strEntityCheck);
 			entReadFrom = entities.getById(strEntityCheck);
 			if(!entReadFrom) {
 				ScriptWarning << "Invalid entity to read variable from " << strEntityCheck;

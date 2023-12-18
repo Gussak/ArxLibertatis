@@ -609,6 +609,8 @@ public:
 		
 		ARX_INTERACTIVE_TeleportSafe(entToMove, posRequested);
 		
+		LogDebug("INTERPOLATE(): strEntityToMove="<<strEntityToMove <<",strTarget="<<strTarget <<",entToMoveId="<<entToMove->idString() <<",entTargetId="<<(entTarget?entTarget->idString():"null") <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",fDistMax="<<fDistMax<<",posRequested="<< vec3fToStr(posRequested)<<",bLimitDist="<< bLimitDist<<",bAbsPosFrom="<<bAbsPosFrom <<",bPosTarget="<< bPosTarget<<",fContextDist="<< fContextDist);
+		
 		return Success;
 	}
 

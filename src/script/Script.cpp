@@ -505,6 +505,8 @@ static float getDegrees(const script::Context & context, const std::string_view 
 	
 	degrees = MAKEANGLE(degrees);
 	
+	LogDebug("name="<<name<<",xyz="<<xyz<<",deg="<<degrees<<",pitch="<<entity->angle.getPitch()<<",yaw="<<entity->angle.getYaw()<<",roll="<<entity->angle.getRoll()<<",Ppitch="<<player.angle.getPitch()<<",Pyaw="<<player.angle.getYaw()<<",Proll="<<player.angle.getRoll()<<",Cpitch="<<context.getEntity()->angle.getPitch()<<",Cyaw="<<context.getEntity()->angle.getYaw()<<",Croll="<<context.getEntity()->angle.getRoll()); //<<",fixedDeg="<<(*fcontent)
+	
 	return degrees;
 }
 
@@ -544,6 +546,8 @@ static float getLife(const std::string_view & name, char cType, const int offset
 			default: arx_assert_msg(false, "invalid life type for NPC: '%c'", cType);
 		}
 	}
+	
+	LogDebug("player.Full_life="<<player.Full_life<<"," <<"player.m_lifeMaxWithoutMods="<<player.m_lifeMaxWithoutMods<<"," <<"player.lifePool.max="<<player.lifePool.max<<"," <<"cType="<<cType<<"," <<"ent="<<ent<<"," <<"name="<<name<<"," <<"offset="<<offset<<"," <<"entOverride="<<entOverride<<"," );
 	
 	return 0.f;
 }

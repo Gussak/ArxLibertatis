@@ -580,13 +580,13 @@ public:
 		HandleFlags("e") {
 			if(flg & flag('e')) {
 				strEntId = context.getWord();
+				if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
 			}
 		}
 		
 		std::string strMesh = context.getWord();
 		
 		DebugScript("strEntId=" << strEntId << ",strMesh=" << strMesh);
-		//MYDBG("strEntId=" << strEntId << ",strMesh=" << strMesh);
 		
 		Entity * ent = nullptr;
 		if(strEntId == "") {

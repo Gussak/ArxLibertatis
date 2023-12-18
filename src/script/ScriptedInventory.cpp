@@ -299,19 +299,20 @@ class InventoryCommand : public Command {
 		Result execute(Context & context) override {
 			
 			Entity * entInventory = context.getEntity();
-			std::string strEntityId;
+			std::string strEntId;
 			
 			HandleFlags("e") {
 				if(flg & flag('e')) {
-					strEntityId = context.getWord();
-					entInventory = entities.getById(strEntityId);
+					strEntId = context.getWord();
+					if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
+					entInventory = entities.getById(strEntId);
 				}
 			}
 			
 			std::string strItem = context.getWord();
 			
 			if(!entInventory) {
-				ScriptWarning << "Invalid target entity " << strEntityId;
+				ScriptWarning << "Invalid target entity " << strEntId;
 				if(multi) {
 					context.skipWord();
 				}
@@ -504,6 +505,7 @@ public:
 		HandleFlags("e") {
 			if(flg & flag('e')) {
 				strEntId = context.getWord();
+				if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
 				io = entities.getById(strEntId);
 			}
 		}
