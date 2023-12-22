@@ -469,6 +469,7 @@ public:
 		}
 		
 		std::string strEntityToMove = context.getWord();
+		if(strEntityToMove[0] == '$' || strEntityToMove[0] == '\xA3') strEntityToMove = context.getStringVar(strEntityToMove);
 		entToMove = strEntityToMove=="self" ? context.getEntity() : entities.getById(strEntityToMove);
 		
 		//optional from absolute position
@@ -488,6 +489,7 @@ public:
 			bPosTarget = true;
 		}else{
 			//param:TargetEntity
+			if(entTarget[0] == '$' || entTarget[0] == '\xA3') entTarget = context.getStringVar(entTarget);
 			entTarget = strTarget=="self" ? context.getEntity() : entities.getById(strTarget);
 			if(entTarget) {
 				posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
