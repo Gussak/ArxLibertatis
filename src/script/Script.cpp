@@ -503,6 +503,8 @@ static float getDegrees(const script::Context & context, const std::string_view 
 	
 	degrees = MAKEANGLE(degrees);
 	
+	LogDebug("name="<<name<<",xyz="<<xyz<<",deg="<<degrees<<",pitch="<<entity->angle.getPitch()<<",yaw="<<entity->angle.getYaw()<<",roll="<<entity->angle.getRoll()<<",Ppitch="<<player.angle.getPitch()<<",Pyaw="<<player.angle.getYaw()<<",Proll="<<player.angle.getRoll()<<",Cpitch="<<context.getEntity()->angle.getPitch()<<",Cyaw="<<context.getEntity()->angle.getYaw()<<",Croll="<<context.getEntity()->angle.getRoll()); //<<",fixedDeg="<<(*fcontent)
+	
 	return degrees;
 }
 
