@@ -436,11 +436,16 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
 #ifdef ARX_DEBUG
 	/* implementation suggestion:
-		>>to_callstack_debug_conditional_breakpoint { showvars GoSub callstack_debug_conditional_breakpoint RETURN } >>callstack_debug_conditional_breakpoint { RETURN }
-		* call this inside a script like: GoSub to_callstack_debug_conditional_breakpoint
+		>>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
+		* call this inside a script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
 	*/
-	if(target == "callstack_debug_conditional_breakpoint") {
-		throw std::invalid_argument( "callstack_debug_conditional_breakpoint" ); //this triggers the intentional debug/crash for debug builds.
+	//if(target == "callstack_debug_conditional_breakpoint") {
+	if(boost::contains(target,"debugbreakpoint") {
+#pragma optimize("", off)
+		static int iDbgBrkPCount=0;
+		iDbgBrkPCount++; //put breakpoint here
+#pragma optimize("", on)
+		//throw std::invalid_argument( "callstack_debug_conditional_breakpoint" ); //this triggers the intentional debug/crash for debug builds.
 	}
 #endif
 	
