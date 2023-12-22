@@ -575,19 +575,19 @@ public:
 	 */
 	Result execute(Context & context) override {
 		
-		std::string strMesh;
 		std::string strEntId;
 		
 		HandleFlags("e") {
 			if(flg & flag('e')) {
 				strEntId = context.getWord();
+				if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
 			}
 		}
 		
 		std::string strMesh = context.getWord();
 		
 		DebugScript("strEntId=" << strEntId << ",strMesh=" << strMesh);
-		MYDBG("strEntId=" << strEntId << ",strMesh=" << strMesh);
+		LogDebug("strEntId=" << strEntId << ",strMesh=" << strMesh);
 		
 		Entity * ent = nullptr;
 		if(strEntId == "") {
@@ -603,7 +603,7 @@ public:
 		
 		res::path mesh = res::path::load(strMesh);
 		DebugScript(" mesh=" << mesh << " entity=" << ent);
-		MYDBG("strEntId=" << strEntId << ",strMesh=" << " mesh=" << mesh << " entity=" << ent);
+		LogDebug("strEntId=" << strEntId << ",strMesh=" << " mesh=" << mesh << " entity=" << ent);
 		
 		if(ent) {
 			ARX_INTERACTIVE_MEMO_TWEAK(ent, TWEAK_TYPE_MESH, mesh, res::path());
