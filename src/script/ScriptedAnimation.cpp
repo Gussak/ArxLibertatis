@@ -448,6 +448,7 @@ public:
 		}
 		
 		std::string strEntityToMove = context.getWord();
+		if(strEntityToMove[0] == '$' || strEntityToMove[0] == '\xA3') strEntityToMove = context.getStringVar(strEntityToMove);
 		entToMove = strEntityToMove=="self" ? context.getEntity() : entities.getById(strEntityToMove);
 		
 		//optional from absolute position
@@ -467,6 +468,7 @@ public:
 			bPosTarget = true;
 		}else{
 			//param:TargetEntity
+			if(entTarget[0] == '$' || entTarget[0] == '\xA3') entTarget = context.getStringVar(entTarget);
 			entTarget = strTarget=="self" ? context.getEntity() : entities.getById(strTarget);
 			if(entTarget) {
 				posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
@@ -587,6 +589,8 @@ public:
 		DebugScript("posRequested=" << vec3fToStr(posRequested) << ", fContextDist=" << fContextDist);
 		
 		ARX_INTERACTIVE_TeleportSafe(entToMove, posRequested);
+		
+		LogDebug("INTERPOLATE(): strEntityToMove="<<strEntityToMove <<",strTarget="<<strTarget <<",entToMoveId="<<entToMove->idString() <<",entTargetId="<<(entTarget?entTarget->idString():"null") <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",fDistMax="<<fDistMax<<",posRequested="<< vec3fToStr(posRequested)<<",bLimitDist="<< bLimitDist<<",bAbsPosFrom="<<bAbsPosFrom <<",bPosTarget="<< bPosTarget<<",fContextDist="<< fContextDist);
 		
 		return Success;
 	}
