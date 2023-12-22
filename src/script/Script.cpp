@@ -498,6 +498,8 @@ static float getLife(const std::string_view & name, char cType, const int offset
 		}
 	}
 	
+	LogDebug("player.Full_life="<<player.Full_life<<"," <<"player.m_lifeMaxWithoutMods="<<player.m_lifeMaxWithoutMods<<"," <<"player.lifePool.max="<<player.lifePool.max<<"," <<"cType="<<cType<<"," <<"ent="<<ent<<"," <<"name="<<name<<"," <<"offset="<<offset<<"," <<"entOverride="<<entOverride<<"," );
+	
 	return 0.f;
 }
 
