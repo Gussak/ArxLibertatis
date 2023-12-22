@@ -20,6 +20,7 @@
 #include "script/ScriptUtils.h"
 
 #include <set>
+#include <stdexcept>
 #include <utility>
 
 #include <boost/lexical_cast.hpp>
@@ -432,6 +433,16 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 		std::string stackTarget{ target }; //explicit conversion from string_view to string
 		m_stackId.push_back(stackTarget);
 	}
+	
+#ifdef ARX_DEBUG
+	/* implementation suggestion:
+		>>to_callstack_debug_conditional_breakpoint { showvars GoSub callstack_debug_conditional_breakpoint RETURN } >>callstack_debug_conditional_breakpoint { RETURN }
+		* call this inside a script like: GoSub to_callstack_debug_conditional_breakpoint
+	*/
+	if(target == "callstack_debug_conditional_breakpoint") {
+		throw std::invalid_argument( "callstack_debug_conditional_breakpoint" ); //this triggers the intentional debug/crash for debug builds.
+	}
+#endif
 	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
 	if(targetpos == size_t(-1)) {
