@@ -482,6 +482,7 @@ public:
 		HandleFlags("e") {
 			if(flg & flag('e')) {
 				strEntId = context.getWord();
+				if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
 				io = entities.getById(strEntId);
 			}
 		}
