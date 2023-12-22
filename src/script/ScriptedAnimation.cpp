@@ -468,7 +468,7 @@ public:
 			bPosTarget = true;
 		}else{
 			//param:TargetEntity
-			if(entTarget[0] == '$' || entTarget[0] == '\xA3') entTarget = context.getStringVar(entTarget);
+			if(strTarget[0] == '$' || strTarget[0] == '\xA3') strTarget = context.getStringVar(strTarget);
 			entTarget = strTarget=="self" ? context.getEntity() : entities.getById(strTarget);
 			if(entTarget) {
 				posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
