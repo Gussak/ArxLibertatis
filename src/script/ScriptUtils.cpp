@@ -20,10 +20,10 @@
 #include "script/ScriptUtils.h"
 
 #include <set>
-#include <stdexcept>
 #include <utility>
 
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 
 #include "game/Entity.h"
 #include "graphics/data/Mesh.h"
@@ -426,6 +426,22 @@ size_t Context::skipCommand() {
 	return oldpos;
 }
 
+#ifdef ARX_DEBUG
+#pragma GCC push_options
+#pragma GCC optimize ("O0") //required to let the breakpoint work
+/* implementation suggestion:
+	>>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
+	* call this inside the .asl script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
+*/
+static void DebugBreakpoint(std::string_view target) {
+	if(boost::contains(target,"debugbreakpoint")) { //this must be on the script function's name
+		static int iDbgBrkPCount=0;
+		iDbgBrkPCount++; //put breakpoint here
+	}
+}
+#pragma GCC pop_options
+#endif
+
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
 	if(substack) {
@@ -435,18 +451,7 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	}
 	
 #ifdef ARX_DEBUG
-	/* implementation suggestion:
-		>>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
-		* call this inside a script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
-	*/
-	//if(target == "callstack_debug_conditional_breakpoint") {
-	if(boost::contains(target,"debugbreakpoint") {
-#pragma optimize("", off)
-		static int iDbgBrkPCount=0;
-		iDbgBrkPCount++; //put breakpoint here
-#pragma optimize("", on)
-		//throw std::invalid_argument( "callstack_debug_conditional_breakpoint" ); //this triggers the intentional debug/crash for debug builds.
-	}
+	DebugBreakpoint(target);
 #endif
 	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
