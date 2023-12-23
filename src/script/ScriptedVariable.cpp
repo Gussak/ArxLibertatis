@@ -185,11 +185,8 @@ public:
 		bool bWriteTo=false;
 		
 		HandleFlags("mailrw") {
-			if(flg & flag('r')) {
-				bReadFrom=true;
-			}
-			if(flg & flag('w')) {
-				bWriteTo=true;
+			if(flg & flag('m')) {
+				mode = 'm';
 			}
 			if(flg & flag('a')) {
 				mode = 'a';
@@ -199,6 +196,12 @@ public:
 			}
 			if(flg & flag('l')) {
 				mode = 'l';
+			}
+			if(flg & flag('r')) {
+				bReadFrom=true;
+			}
+			if(flg & flag('w')) {
+				bWriteTo=true;
 			}
 		}
 		
