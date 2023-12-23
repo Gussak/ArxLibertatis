@@ -41,9 +41,6 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 ===========================================================================
 */
 
-#include <iostream> //del
-#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
-
 #include "script/ScriptedLang.h"
 
 #include <memory>
