@@ -429,9 +429,12 @@ size_t Context::skipCommand() {
 #ifdef ARX_DEBUG
 #pragma GCC push_options
 #pragma GCC optimize ("O0") //required to let the breakpoint work
-/* implementation suggestion:
-	>>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
-	* call this inside the .asl script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
+/*
+ * implementation suggestion:
+ >>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
+ * call this inside the .asl script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
+ * 
+ * if using nemiver to debug, just Shift+Ctrl+B and paste DebugBreakpoint at function name field.
 */
 static void DebugBreakpoint(std::string_view target) {
 	if(boost::contains(target,"debugbreakpoint")) { //this must be on the script function's name
