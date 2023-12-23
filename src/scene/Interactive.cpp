@@ -952,6 +952,8 @@ Entity * CloneIOItem(Entity * src) {
 		dest->obj->pbox->vert = src->obj->pbox->vert;
 	}
 	
+	SendIOScriptEvent(src, dest, SM_CLONE); //to let the script perform extra initializations independent of the local vars values cloned from src
+	
 	return dest;
 }
 

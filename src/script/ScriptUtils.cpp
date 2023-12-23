@@ -171,16 +171,21 @@ std::string Context::getCommand(bool skipNewlines) {
 	return word;
 }
 
-std::string Context::getPositionAndLineNumber() const {
+std::string Context::getPositionAndLineNumber(bool compact, size_t pos) const {
 	std::stringstream s;
-	s << "Position " << m_pos;
+	
+	if( pos == (static_cast<size_t>(-1)) ) {
+		pos = m_pos;
+	}
+	
+	s << "[" << (compact?"p=":"Position ") << pos;
 	
 	int iLine=0;
 	int iColumn=1;
 	for(size_t i=0;i<m_vNewLineAt.size();i++) {
-		if(m_pos > m_vNewLineAt[i]){
+		if(pos > m_vNewLineAt[i]){
 			iLine=i+1;
-			iColumn = m_pos - m_vNewLineAt[i];
+			iColumn = pos - m_vNewLineAt[i];
       iLine++;
       iColumn--;
 		}else{
@@ -188,7 +193,7 @@ std::string Context::getPositionAndLineNumber() const {
 		}
 	}
 	
-	s << ", Line " << iLine << ", Column " << iColumn << "";
+	s << (compact?",l=":", Line ") << iLine << (compact?",c=":", Column ") << iColumn << "]";
 	return s.str(); 
 }
 
@@ -198,8 +203,10 @@ std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string
 	if(m_stackId.size() > 0) {
 		s << prepend;
 		
+		size_t index=0;
 		for(std::string s2 : m_stackId) {
-			s << s2 << "/";
+			s << s2 << getPositionAndLineNumber(true,m_stackCallFrom[index]) << "/";
+			index++;
 		}
 		
 		s << append;
@@ -450,6 +457,7 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	if(substack) {
 		m_stack.push_back(m_pos);
 		std::string stackTarget{ target }; //explicit conversion from string_view to string
+		m_stackCallFrom.push_back(m_pos);
 		m_stackId.push_back(stackTarget);
 	}
 	
@@ -474,6 +482,7 @@ bool Context::returnToCaller() {
 	
 	m_pos = m_stack.back();
 	m_stack.pop_back();
+	m_stackCallFrom.pop_back();
 	m_stackId.pop_back();
 	return true;
 }
