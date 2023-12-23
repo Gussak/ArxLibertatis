@@ -897,7 +897,7 @@ void ArxGame::managePlayerControls() {
 	
 	if(   GInput->actionNowPressed(CONTROLS_CUST_UNSTACK) 
 		 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())
-		 && FlyingOverIO->_itemdata->count > 1
+		 && FlyingOverIO && FlyingOverIO->_itemdata->count > 1
 	) {
 		Entity * unstackedEntity = CloneIOItem(FlyingOverIO);
 		unstackedEntity->scriptload = 1;
