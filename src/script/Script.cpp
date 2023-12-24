@@ -620,6 +620,11 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_LONG;
 			}
 			
+			if(name == "^arxtime") {
+				*lcontent = static_cast<long>(toMsi(g_gameTime.now()));
+				return TYPE_LONG;
+			}
+			
 			if(name == "^arxtime_hours") {
 				*lcontent = static_cast<long>(toMsi(g_gameTime.now()) * 6 / 3600000) % 12;
 				if(*lcontent == 0) {
