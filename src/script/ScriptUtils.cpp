@@ -395,37 +395,14 @@ size_t Context::skipCommand() {
 	return oldpos;
 }
 
-#ifdef ARX_DEBUG
-#pragma GCC push_options
-#pragma GCC optimize ("O0") //required to let the breakpoint work
-/*
- * implementation suggestion:
- >>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
- * call this inside the .asl script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
- * 
- * if using nemiver to debug, just Shift+Ctrl+B and paste DebugBreakpoint at function name field.
-*/
-static void DebugBreakpoint(std::string_view target) {
-	if(boost::contains(target,"debugbreakpoint")) { //this must be on the script function's name
-		static int iDbgBrkPCount=0;
-		iDbgBrkPCount++; //put breakpoint here
-	}
-}
-#pragma GCC pop_options
-#endif
-
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
 	if(substack) {
 		m_stack.push_back(m_pos);
-		std::string stackTarget{ target }; //explicit conversion from string_view to string
 		m_stackCallFrom.push_back(m_pos);
+		std::string stackTarget{ target }; //explicit conversion from string_view to string
 		m_stackId.push_back(stackTarget);
 	}
-	
-#ifdef ARX_DEBUG
-	DebugBreakpoint(target);
-#endif
 	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
 	if(targetpos == size_t(-1)) {
