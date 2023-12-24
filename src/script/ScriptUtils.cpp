@@ -343,8 +343,7 @@ size_t Context::skipCommand() {
 #ifdef ARX_DEBUG
 #pragma GCC push_options
 #pragma GCC optimize ("O0") //required to let the breakpoint work
-/*
- * implementation suggestion:
+/* implementation suggestion:
  >>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
  * call this inside the .asl script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
  * 
