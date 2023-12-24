@@ -90,6 +90,7 @@ std::string_view ScriptEvent::name(ScriptMessage event) {
 		case SM_CHAT:                   return "on chat";
 		case SM_CINE_END:               return "on cine_end";
 		case SM_CLICKED:                return "on clicked";
+		case SM_CLONE:                  return "on clone";
 		case SM_COLLIDE_DOOR:           return "on collide_door";
 		case SM_COLLIDE_FIELD:          return "on collide_field";
 		case SM_COLLIDE_NPC:            return "on collide_npc";
