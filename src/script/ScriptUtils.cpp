@@ -136,6 +136,23 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
 
+void Context::skipWhitespaceAndComment() {
+	skipWhitespace(true);
+	
+	std::string_view esdat = m_script->data;
+	char c = esdat[m_pos];
+	if(c == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
+		m_pos = esdat.find('\n', m_pos + 2);
+		if(m_pos == std::string::npos) {
+			m_pos = esdat.size();
+		} else {
+			m_pos++;
+		}
+	}
+	
+	skipWhitespace(true);
+}
+
 std::string Context::getCommand(bool skipNewlines) {
 	
 	std::string_view esdat = m_script->data;
