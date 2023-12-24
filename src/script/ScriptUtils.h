@@ -90,7 +90,9 @@ class Context {
 	ScriptMessage m_message;
 	ScriptParameters m_parameters;
 	std::vector<size_t> m_stack;
+	std::vector<size_t> m_stackCallFrom;
 	std::vector<std::string> m_stackId;
+	std::vector<size_t> m_vNewLineAt;
 	
 public:
 	
@@ -132,6 +134,7 @@ public:
 	
 	size_t getPosition() const { return m_pos; }
 	
+	std::string getPositionAndLineNumber( bool compact = false, size_t pos = static_cast<size_t>(-1) ) const;
 	std::string getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const;
 	
 };

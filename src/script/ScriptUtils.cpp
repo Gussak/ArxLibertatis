@@ -23,6 +23,7 @@
 #include <utility>
 
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 
 #include "game/Entity.h"
 #include "graphics/data/Mesh.h"
@@ -54,7 +55,18 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_entity(entity)
 	, m_message(msg)
 	, m_parameters(std::move(parameters))
-{ }
+{
+	size_t posNL=0;
+	while(true){
+		posNL = m_script->data.find('\n', posNL);
+		if(posNL == std::string::npos) {
+			break;
+		}else{
+			m_vNewLineAt.push_back(posNL);
+			posNL++;
+		}
+	}
+}
 
 std::string Context::getStringVar(std::string_view name) const {
 	
@@ -125,14 +137,42 @@ std::string Context::getCommand(bool skipNewlines) {
 	return word;
 }
 
+std::string Context::getPositionAndLineNumber(bool compact, size_t pos) const {
+	std::stringstream s;
+	
+	if( pos == (static_cast<size_t>(-1)) ) {
+		pos = m_pos;
+	}
+	
+	s << "[" << (compact?"p=":"Position ") << pos;
+	
+	int iLine=0;
+	int iColumn=1;
+	for(size_t i=0;i<m_vNewLineAt.size();i++) {
+		if(pos > m_vNewLineAt[i]){
+			iLine=i+1;
+			iColumn = pos - m_vNewLineAt[i];
+      iLine++;
+      iColumn--;
+		}else{
+			break;
+		}
+	}
+	
+	s << (compact?",l=":", Line ") << iLine << (compact?",c=":", Column ") << iColumn << "]";
+	return s.str(); 
+}
+
 std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const {
 	std::stringstream s;
 	
 	if(m_stackId.size() > 0) {
 		s << prepend;
 		
+		size_t index=0;
 		for(std::string s2 : m_stackId) {
-			s << s2 << "/";
+			s << s2 << getPositionAndLineNumber(true,m_stackCallFrom[index]) << "/";
+			index++;
 		}
 		
 		s << append;
@@ -355,13 +395,37 @@ size_t Context::skipCommand() {
 	return oldpos;
 }
 
+#ifdef ARX_DEBUG
+#pragma GCC push_options
+#pragma GCC optimize ("O0") //required to let the breakpoint work
+/*
+ * implementation suggestion:
+ >>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
+ * call this inside the .asl script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
+ * 
+ * if using nemiver to debug, just Shift+Ctrl+B and paste DebugBreakpoint at function name field.
+*/
+static void DebugBreakpoint(std::string_view target) {
+	if(boost::contains(target,"debugbreakpoint")) { //this must be on the script function's name
+		static int iDbgBrkPCount=0;
+		iDbgBrkPCount++; //put breakpoint here
+	}
+}
+#pragma GCC pop_options
+#endif
+
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
 	if(substack) {
 		m_stack.push_back(m_pos);
 		std::string stackTarget{ target }; //explicit conversion from string_view to string
+		m_stackCallFrom.push_back(m_pos);
 		m_stackId.push_back(stackTarget);
 	}
+	
+#ifdef ARX_DEBUG
+	DebugBreakpoint(target);
+#endif
 	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
 	if(targetpos == size_t(-1)) {
@@ -380,6 +444,7 @@ bool Context::returnToCaller() {
 	
 	m_pos = m_stack.back();
 	m_stack.pop_back();
+	m_stackCallFrom.pop_back();
 	m_stackId.pop_back();
 	return true;
 }
