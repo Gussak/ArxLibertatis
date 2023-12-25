@@ -113,10 +113,10 @@ public:
 		}
 		
 		DebugScript(' ' << pitch << ' ' << yaw << ' ' << roll);
-		
 		io->angle.setPitch(bAbs ? pitch : io->angle.getPitch() + pitch);
 		io->angle.setYaw  (bAbs ? yaw   : io->angle.getYaw  () + yaw  );
 		io->angle.setRoll (bAbs ? roll  : io->angle.getRoll () + roll );
+		io->angle.normalize();
 		
 		io->animBlend.lastanimtime = 0;
 		
