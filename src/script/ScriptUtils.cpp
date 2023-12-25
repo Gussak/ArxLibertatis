@@ -56,8 +56,8 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_message(msg)
 	, m_parameters(std::move(parameters))
 {
-	size_t posNL=0;
-	while(true){
+	size_t posNL = 0;
+	while(true) {
 		posNL = m_script->data.find('\n', posNL);
 		if(posNL == std::string::npos) {
 			break;
@@ -140,27 +140,27 @@ std::string Context::getCommand(bool skipNewlines) {
 std::string Context::getPositionAndLineNumber(bool compact, size_t pos) const {
 	std::stringstream s;
 	
-	if( pos == (static_cast<size_t>(-1)) ) {
+	if(pos == static_cast<size_t>(-1)) {
 		pos = m_pos;
 	}
 	
-	s << "[" << (compact?"p=":"Position ") << pos;
+	s << "[" << (compact ? "p=" : "Position ") << pos;
 	
-	int iLine=0;
-	int iColumn=1;
-	for(size_t i=0;i<m_vNewLineAt.size();i++) {
-		if(pos > m_vNewLineAt[i]){
-			iLine=i+1;
+	int iLine = 0;
+	int iColumn = 1;
+	for(size_t i = 0; i < m_vNewLineAt.size(); i++) {
+		if(pos > m_vNewLineAt[i]) {
+			iLine = i + 1;
 			iColumn = pos - m_vNewLineAt[i];
-      iLine++;
-      iColumn--;
-		}else{
+			iLine++;
+			iColumn--;
+		} else {
 			break;
 		}
 	}
 	
-	s << (compact?",l=":", Line ") << iLine << (compact?",c=":", Column ") << iColumn << "]";
-	return s.str(); 
+	s << (compact ? ",l=" : ", Line ") << iLine << (compact ? ",c=" : ", Column ") << iColumn << "]";
+	return s.str();
 }
 
 std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const {
@@ -169,9 +169,9 @@ std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string
 	if(m_stackId.size() > 0) {
 		s << prepend;
 		
-		size_t index=0;
+		size_t index = 0;
 		for(std::string s2 : m_stackId) {
-			s << s2 << getPositionAndLineNumber(true,m_stackCallFrom[index]) << "/";
+			s << s2 << getPositionAndLineNumber(true, m_stackCallFrom[index]) << "/";
 			index++;
 		}
 		
@@ -400,8 +400,7 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	if(substack) {
 		m_stack.push_back(m_pos);
 		m_stackCallFrom.push_back(m_pos);
-		std::string stackTarget{ target }; //explicit conversion from string_view to string
-		m_stackId.push_back(stackTarget);
+		m_stackId.push_back(std::string() += target);
 	}
 	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
