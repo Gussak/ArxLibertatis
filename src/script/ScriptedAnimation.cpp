@@ -97,7 +97,6 @@ public:
 			}
 			if(flg & flag('e')) {
 				strEntID = context.getWord();
-				io = entities.getById(strEntID);
 			}
 		}
 		
@@ -105,9 +104,12 @@ public:
 		float yaw   = context.getFloat();
 		float roll  = context.getFloat();
 		
-		if(!io) { //after consume params
-			ScriptWarning << "invalid entity ID: " << strEntID;
-			return Failed;
+		if(strEntID != "") {
+			io = entities.getById(context.getStringVar(strEntID));
+			if(!io) { //after consume params
+				ScriptWarning << "invalid entity ID: " << strEntID;
+				return Failed;
+			}
 		}
 		
 		DebugScript(' ' << pitch << ' ' << yaw << ' ' << roll);
