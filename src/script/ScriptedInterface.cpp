@@ -209,7 +209,7 @@ static std::string getEventAndStackInfo(Context & context) {
 		s << " at Event " << ScriptEvent::name(context.getMessage());
 	}
 	
-	if(context.getSender()){
+	if(context.getSender()) {
 		s << " sent from " << context.getSender()->idString();
 	}
 	
@@ -221,7 +221,7 @@ static std::string getEventAndStackInfo(Context & context) {
 		s << ")";
 	}
 	
-	s << context.getGoToGoSubCallStack( " at GoTo/GoSub callStack ", ", "+context.getPositionAndLineNumber() );
+	s << context.getGoToGoSubCallStack(" at GoTo/GoSub callStack ", ", " + context.getPositionAndLineNumber());
 	
 	return s.str();
 }
@@ -237,7 +237,7 @@ public:
 		DebugScript("");
 		
 		LogInfo << "Local variables for " << context.getEntity()->idString() << getEventAndStackInfo(context) << ":\n"
-						<< PrintLocalVariables(context.getEntity());
+			<< PrintLocalVariables(context.getEntity());
 		
 		return Success;
 	}
@@ -255,7 +255,7 @@ public:
 		DebugScript("");
 		
 		LogInfo << "Local variables for " << context.getEntity()->idString() << getEventAndStackInfo(context) << ":\n"
-						<< PrintLocalVariables(context.getEntity());
+			<< PrintLocalVariables(context.getEntity());
 		LogInfo << "Global variables:\n" << PrintGlobalVariables();
 		
 		return Success;
