@@ -389,14 +389,30 @@ public:
 	MoveCommand() : Command("move", AnyEntity) { }
 	
 	Result execute(Context & context) override {
+		std::string strEntId;
+		
+		HandleFlags("e") {
+			if(flg & flag('e')) {
+				strEntId = context.getStringVar(context.getWord());
+			}
+		}
 		
 		float dx = context.getFloat();
 		float dy = context.getFloat();
 		float dz = context.getFloat();
 		
-		DebugScript(' ' << dx << ' ' << dy << ' ' << dz);
+		DebugScript(' ' << strEntId << ' ' << dx << ' ' << dy << ' ' << dz);
 		
-		context.getEntity()->pos += Vec3f(dx, dy, dz);
+		Entity * entity = context.getEntity();
+		if(strEntId != "") {
+			entity = entities.getById(strEntId);
+			if(!entity) {
+				ScriptWarning << "invalid entity id " << strEntId;
+				return Failed;
+			}
+		}
+		
+		entity->pos += Vec3f(dx, dy, dz);
 		
 		return Success;
 	}
