@@ -171,7 +171,8 @@ std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string
 		
 		size_t index = 0;
 		for(std::string s2 : m_stackId) {
-			s << s2 << getPositionAndLineNumber(true, m_stackCallFrom[index]) << "/";
+			if(index >= 1) s << " -> ";
+			s << s2 << getPositionAndLineNumber(true, m_stackCallFrom[index]);
 			index++;
 		}
 		
