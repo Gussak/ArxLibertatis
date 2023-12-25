@@ -906,20 +906,26 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^dist_")) {
 				if(context.getEntity()) {
 					if( name[6] == '{' ) {
+						*fcontent = 99999999999.f;
 						Vec3f pos = Vec3f(0.f);
 						int iStrPosNext = 6;
 						
 						int iStrPosIni=iStrPosNext+1; //skip '{'
 						iStrPosNext=name.find(',',iStrPosIni);
+						if(iStrPosNext == std::string::npos) return TYPE_FLOAT; //TODO warn message
 						pos.x = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
 						
 						iStrPosIni=iStrPosNext+1; //skip ','
 						iStrPosNext=name.find(',',iStrPosIni);
+						if(iStrPosNext == std::string::npos) return TYPE_FLOAT; //TODO warn message
 						pos.y = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
 						
 						iStrPosIni=iStrPosNext+1; //skip ','
 						iStrPosNext=name.find('}',iStrPosIni);
+						if(iStrPosNext == std::string::npos) return TYPE_FLOAT; //TODO warn message
 						pos.z = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						LogDebug(' ' << pos.x <<' ' << pos.y <<' ' << pos.z);
 						
 						*fcontent = fdist(context.getEntity()->pos, pos);
 					} else {
