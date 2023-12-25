@@ -476,6 +476,10 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 		m_stackId.push_back(std::string() += target);
 	}
 	
+#ifdef ARX_DEBUG
+	DebugBreakpoint(target);
+#endif
+
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
 	if(targetpos == size_t(-1)) {
 		return false;
