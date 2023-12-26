@@ -190,11 +190,16 @@ public:
 				
 				switch(cOperation) {
 					case '+': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Add); break;
-					case '-': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Sub); break;
+					case '-': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Subtract); break;
 					case '*': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Multiply); break;
 					case '/': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Divide); break;
 					case '%': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Remainder); break;
-					case '^': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::NthRoot); break; // val=10 work=3 ex.: pow 10^3=1000, CubicRoot 10^(1/3)=2.15
+					case '^':
+						if(fWorkWithValue >= 1.0f) { // val=10 work=3 ex.: pow 10^3=1000, CubicRoot 10^(1/3)=2.15
+							fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Power); break; 
+						} else {
+							fCalc = calculate(fCalc, 1.0f/fWorkWithValue, ArithmeticCommand::NthRoot); break;
+						}
 					default:
 						ScriptWarning << "malformed calc " << strCalcMsg;
 						return 99999999999.f;
