@@ -62,6 +62,102 @@ namespace script {
 
 namespace {
 
+class ArithmeticCommand : public Command {
+	
+public:
+	
+	enum Operator {
+		Add,
+		Subtract,
+		Multiply,
+		Divide,
+		Remainder,
+		Power,
+		NthRoot,
+	};
+	
+private:
+	
+	float calculate(float left, float right) {
+		return calculate(left, right, op);
+	}
+	
+	Operator op;
+	
+public:
+	
+	ArithmeticCommand(std::string_view name, Operator _op) : Command(name), op(_op) { }
+	
+	static float calculate(float left, float right, Operator op) {
+		switch(op) {
+			case Add:        return left + right;
+			case Subtract:   return left - right;
+			case Multiply:   return left * right;
+			case Divide:     return (right == 0.f) ? 0.f : left / right;
+			case Remainder:  return (right == 0.f) ? 0.f : std::fmod(left, right);
+			case Power:      return static_cast<float> ( std::pow(left,right) );
+			case NthRoot:
+				if(left < 0.f) return -( static_cast<float> (std::pow(-left, 1.0f/right)) ); // pow only works with positive left, this avoids being limited by sqtr/cbrt nesting
+				return static_cast<float> ( std::pow(left, 1.0f/right) );
+		}
+		arx_assert_msg(false, "Invalid op used in ArithmeticCommand: %d", int(op));
+		return 0.f;
+	}	
+	
+	Result execute(Context & context) override {
+		
+		std::string var = context.getWord();
+		float val = context.getFloat();
+		
+		DebugScript(' ' << var << ' ' << val);
+		
+		if(var.empty()) {
+			ScriptWarning << "Missing variable name";
+			return Failed;
+		}
+		
+		SCRIPT_VARIABLES & variables = isLocalVariable(var) ? context.getEntity()->m_variables : svar;
+		
+		SCRIPT_VAR * sv = nullptr;
+		switch(var[0]) {
+			
+			case '$':      // global text
+			case '\xA3': { // local text
+				ScriptWarning << "Cannot calculate with text variables";
+				return Failed;
+			}
+			
+			case '#':      // global long
+			case '\xA7': { // local long
+				long old = GETVarValueLong(variables, var);
+				sv = SETVarValueLong(variables, var, long(calculate(float(old), val)));
+				break;
+			}
+			
+			case '&':   // global float
+			case '@': { // local float
+				float old = GETVarValueFloat(variables, var);
+				sv = SETVarValueFloat(variables, var, calculate(old, val));
+				break;
+			}
+			
+			default: {
+				ScriptWarning << "Unknown variable type: " << var;
+				return Failed;
+			}
+			
+		}
+		
+		if(!sv) {
+			ScriptWarning << "Unable to set variable " << var;
+			return Failed;
+		}
+		
+		return Success;
+	}
+	
+};
+
 class SetCommand : public Command {
 	
 public:
@@ -150,7 +246,7 @@ public:
 		std::string strCalcMsg = "[ ";
 		std::string strWord;
 		char cOperation = '.'; //dummy
-		float fWorkWithValue = 0.f
+		float fWorkWithValue = 0.f;
 		
 		while(true) {
 			context.skipWhitespaceAndComment();
@@ -189,16 +285,16 @@ public:
 				}
 				
 				switch(cOperation) {
-					case '+': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Add); break;
-					case '-': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Subtract); break;
-					case '*': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Multiply); break;
-					case '/': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Divide); break;
-					case '%': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Remainder); break;
+					case '+': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Add); break;
+					case '-': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Subtract); break;
+					case '*': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Multiply); break;
+					case '/': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Divide); break;
+					case '%': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Remainder); break;
 					case '^':
 						if(fWorkWithValue >= 1.0f) { // val=10 work=3 ex.: pow 10^3=1000, CubicRoot 10^(1/3)=2.15
-							fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Power); break; 
+							fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Power); break; 
 						} else {
-							fCalc = calculate(fCalc, 1.0f/fWorkWithValue, ArithmeticCommand::NthRoot); break;
+							fCalc = ArithmeticCommand::calculate(fCalc, 1.0f/fWorkWithValue, ArithmeticCommand::NthRoot); break;
 						}
 					default:
 						ScriptWarning << "malformed calc " << strCalcMsg;
@@ -370,117 +466,13 @@ public:
 			
 			case '#':      // global long
 			case '\xA7': { // local long
-				if(val == "[") {
-					sv = SETVarValueLong(variablesWriteTo, var, long(calc(context,entReadFrom)));
-				} else {
-					sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val,entReadFrom)));
-				}
+				sv = SETVarValueLong(variablesWriteTo, var, long(val == "[" ? calc(context,entReadFrom) : context.getFloatVar(val,entReadFrom) ));
 				break;
 			}
 			
 			case '&':      // global float
 			case '@': {    // local float
-				if(val == "[") {
-					sv = SETVarValueLong(variablesWriteTo, var, calc(context,entReadFrom));
-				} else {
-					sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val,entReadFrom));
-				}
-				break;
-			}
-			
-			default: {
-				ScriptWarning << "Unknown variable type: " << var;
-				return Failed;
-			}
-			
-		}
-		
-		if(!sv) {
-			ScriptWarning << "Unable to set variable " << var;
-			return Failed;
-		}
-		
-		return Success;
-	}
-	
-};
-
-static float calculate(float left, float right, Operator op) {
-	switch(op) {
-		case Add:        return left + right;
-		case Subtract:   return left - right;
-		case Multiply:   return left * right;
-		case Divide:     return (right == 0.f) ? 0.f : left / right;
-		case Remainder:  return (right == 0.f) ? 0.f : std::fmod(left, right);
-		case Power:      return static_cast<float> ( std::pow(left,right) );
-		case NthRoot:
-			if(left < 0.f) return -( static_cast<float> (std::pow(-left, 1.0f/right)) ); // pow only works with positive left, this avoids being limited by sqtr/cbrt nesting
-			return static_cast<float> ( std::pow(left, 1.0f/right) );
-	}
-	arx_assert_msg(false, "Invalid op used in ArithmeticCommand: %d", int(op));
-	return 0.f;
-}
-
-class ArithmeticCommand : public Command {
-	
-public:
-	
-	enum Operator {
-		Add,
-		Subtract,
-		Multiply,
-		Divide,
-		Remainder,
-		Power,
-		NthRoot,
-	};
-	
-private:
-	
-	float calculate(float left, float right) {
-		return calculate(left, right, op);
-	}
-	
-	Operator op;
-	
-public:
-	
-	ArithmeticCommand(std::string_view name, Operator _op) : Command(name), op(_op) { }
-	
-	Result execute(Context & context) override {
-		
-		std::string var = context.getWord();
-		float val = context.getFloat();
-		
-		DebugScript(' ' << var << ' ' << val);
-		
-		if(var.empty()) {
-			ScriptWarning << "Missing variable name";
-			return Failed;
-		}
-		
-		SCRIPT_VARIABLES & variables = isLocalVariable(var) ? context.getEntity()->m_variables : svar;
-		
-		SCRIPT_VAR * sv = nullptr;
-		switch(var[0]) {
-			
-			case '$':      // global text
-			case '\xA3': { // local text
-				ScriptWarning << "Cannot calculate with text variables";
-				return Failed;
-			}
-			
-			case '#':      // global long
-			case '\xA7': { // local long
-				long old = GETVarValueLong(variables, var);
-				sv = SETVarValueLong(variables, var, long(calculate(float(old), val)));
-				break;
-			}
-			
-			case '&':   // global float
-			case '@': { // local float
-				float old = GETVarValueFloat(variables, var);
-				sv = SETVarValueFloat(variables, var, calculate(old, val));
+				sv = SETVarValueFloat(variablesWriteTo, var, val == "[" ? calc(context,entReadFrom) : context.getFloatVar(val,entReadFrom));
 				break;
 			}
 			
