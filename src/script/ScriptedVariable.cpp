@@ -411,11 +411,11 @@ static float calculate(float left, float right, Operator op) {
 		case Subtract:   return left - right;
 		case Multiply:   return left * right;
 		case Divide:     return (right == 0.f) ? 0.f : left / right;
-		case Remainder:  return (right == 0.f) ? 0.f : static_cast<int> (left) % static_cast<int> (right);
+		case Remainder:  return (right == 0.f) ? 0.f : std::fmod(left, right);
 		case Power:      return static_cast<float> ( std::pow(left,right) );
 		case NthRoot:
-			if(left < 0.f) return -(static_cast<float> ( std::pow(-left,1.0f/right) )); // pow only works with positive left, this avoids being limited by sqtr/cbrt nesting
-			return static_cast<float> ( std::pow(left,1.0f/right) );
+			if(left < 0.f) return -( static_cast<float> (std::pow(-left, 1.0f/right)) ); // pow only works with positive left, this avoids being limited by sqtr/cbrt nesting
+			return static_cast<float> ( std::pow(left, 1.0f/right) );
 	}
 	arx_assert_msg(false, "Invalid op used in ArithmeticCommand: %d", int(op));
 	return 0.f;
