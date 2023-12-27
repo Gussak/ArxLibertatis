@@ -909,9 +909,9 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 						*fcontent = 99999999999.f;
 						
 						Vec3f pos = Vec3f(0.f);
-						int iStrPosNext = 6;
+						size_t iStrPosNext = 6;
 						
-						int iStrPosIni=iStrPosNext+1; //skip '['
+						size_t iStrPosIni=iStrPosNext+1; //skip '['
 						iStrPosNext=name.find(',',iStrPosIni);
 						if(iStrPosNext == std::string::npos) return TYPE_FLOAT; //TODO warn message
 						pos.x = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
@@ -2154,7 +2154,10 @@ void ManageCasseDArme(Entity * io) {
 	
 }
 
-void loadScript(EERIE_SCRIPT & script, PakFile * file) {
+#include <iostream>
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n"
+
+void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 	
 	if(!file) {
 		return;
@@ -2162,6 +2165,11 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file) {
 	
 	script.valid = true;
 	
+	if(pathScript) {
+		MYDBG("SCRIPT FILE LOADED: " << pathScript->filename());
+		res::path pathModFile = std::string() + "mods/00010_customModName/" + std::string(pathScript->filename());
+		MYDBG("SCRIPT FILE MOD: " << pathModFile);
+	}
 	script.data = util::toLowercase(file->read());
 	
 	ARX_SCRIPT_ComputeShortcuts(script);
