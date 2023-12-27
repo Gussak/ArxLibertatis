@@ -2167,7 +2167,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 	
 	if(pathScript) {
 		MYDBG("SCRIPT FILE LOADED: " << pathScript->filename());
-		res::path pathModFile = std::string() + "mods/00010_customModName/" + std::string(pathScript->filename());
+		res::path pathModFile = std::string() + "mods/00010_customModName/" + pathScript->string();
 		MYDBG("SCRIPT FILE MOD: " << pathModFile);
 	}
 	script.data = util::toLowercase(file->read());
