@@ -74,12 +74,114 @@ public:
 		Remainder,
 		Power,
 		NthRoot,
+		Calc,
 	};
 	
 private:
 	
-	float calculate(float left, float right) {
-		return calculate(left, right, op);
+	/**
+	 * if a var is expanded like ~@test1~ (at getWord()), it will NOT be read from entReadFrom, but from current/self entity
+	 */
+	float calc(Context & context, Entity * entReadFrom) {
+		float fCalc = 0.f;
+		
+		std::string strCalcMsg;
+		std::string strWord = context.getWord();
+		char cOperator = '.'; // init to invalid
+		float fWorkWithValue = 0.f;
+		size_t positionBeforeWord;
+		
+		if(strWord != "[") {
+			ScriptWarning << "Malformed calculation: calc must start with '[' " << strCalcMsg;
+			return 99999999999.f;
+		}
+		
+		int iWordCount = 0;
+		char cMode = 'v';
+		while(true) {
+			context.skipWhitespaceAndComment();
+			positionBeforeWord = context.getPosition(); //Put after skip new lines.
+			strWord = context.getWord();
+			strCalcMsg += strWord + " ";
+			
+			switch(cMode) {
+				case 'v': // value
+					if(strWord == "[") { // calc value from nested
+						context.seekToPosition(positionBeforeWord);
+						fWorkWithValue = calc(context, entReadFrom);
+					} else {
+						fWorkWithValue = context.getFloatVar(strWord,entReadFrom);
+					}
+					
+					if(iWordCount == 0) {
+						fCalc = fWorkWithValue;
+					} else {
+						switch(cOperator) { // the previous word was operator
+							case '+': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Add,       context, entReadFrom); break;
+							case '-': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Subtract,  context, entReadFrom); break;
+							case '*': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Multiply,  context, entReadFrom); break;
+							case '/': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Divide,    context, entReadFrom); break;
+							case '%': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Remainder, context, entReadFrom); break;
+							case '^':
+								fCalc = calculate(
+									fCalc,
+									fWorkWithValue >= 1.0f ? fWorkWithValue : 1.0f/fWorkWithValue,
+									fWorkWithValue >= 1.0f ? ArithmeticCommand::Power : ArithmeticCommand::NthRoot,
+									context,
+									entReadFrom);
+								break;
+							default:
+								ScriptWarning << "Unexpected calculation operator '" << cOperator << "' at " << strCalcMsg; // TODO use arx_assert_msg as below `case 'o'` should grant this?
+								return 99999999999.f;
+						}
+						
+						cOperator = '.'; // reset to invalid
+					}
+					
+					cMode = 'o';
+					break;
+				
+				case 'o': // operation
+					if(strWord == "]") {
+						return fCalc;
+					}
+					
+					switch(strWord[0]) {
+						case '+': case '-': case '*': case '/': case '%': case '^':
+							cOperator = strWord[0];
+							break;
+							
+						default:
+							ScriptWarning << "Invalid calculation operator '" << strWord << "' at " << strCalcMsg;
+							return 99999999999.f;
+					}
+					
+					cMode = 'v';
+					break;
+			}
+			
+			iWordCount++;
+		}
+		
+		return fCalc;
+	}
+	
+	float calculate(float left, float right, Operator opOverride, Context & context, Entity * entReadFrom) {
+		switch(opOverride) {
+			case Add:        return left + right;
+			case Subtract:   return left - right;
+			case Multiply:   return left * right;
+			case Divide:     return (right == 0.f) ? 0.f : left / right;
+			case Remainder:  return (right == 0.f) ? 0.f : std::fmod(left, right);
+			case Power:      return static_cast<float> ( std::pow(left,right) );
+			case NthRoot:
+				// pow only works with positive left, this avoids being limited by sqtr/cbrt nesting
+				if(left < 0.f) return -( static_cast<float> (std::pow(-left, 1.0f/right)) );
+				return static_cast<float> ( std::pow(left, 1.0f/right) );
+			case Calc:       return calc(context, entReadFrom);
+		}
+		arx_assert_msg(false, "Invalid op used in ArithmeticCommand: %d", int(op));
+		return 0.f;
 	}
 	
 	Operator op;
@@ -88,26 +190,10 @@ public:
 	
 	ArithmeticCommand(std::string_view name, Operator _op) : Command(name), op(_op) { }
 	
-	static float calculate(float left, float right, Operator op) {
-		switch(op) {
-			case Add:        return left + right;
-			case Subtract:   return left - right;
-			case Multiply:   return left * right;
-			case Divide:     return (right == 0.f) ? 0.f : left / right;
-			case Remainder:  return (right == 0.f) ? 0.f : std::fmod(left, right);
-			case Power:      return static_cast<float> ( std::pow(left,right) );
-			case NthRoot:
-				if(left < 0.f) return -( static_cast<float> (std::pow(-left, 1.0f/right)) ); // pow only works with positive left, this avoids being limited by sqtr/cbrt nesting
-				return static_cast<float> ( std::pow(left, 1.0f/right) );
-		}
-		arx_assert_msg(false, "Invalid op used in ArithmeticCommand: %d", int(op));
-		return 0.f;
-	}	
-	
 	Result execute(Context & context) override {
 		
 		std::string var = context.getWord();
-		float val = context.getFloat();
+		float val = op == ArithmeticCommand::Calc ? 0.f : context.getFloatVar(context.getWord(), context.getEntity());
 		
 		DebugScript(' ' << var << ' ' << val);
 		
@@ -130,14 +216,14 @@ public:
 			case '#':      // global long
 			case '\xA7': { // local long
 				long old = GETVarValueLong(variables, var);
-				sv = SETVarValueLong(variables, var, long(calculate(float(old), val)));
+				sv = SETVarValueLong(variables, var, long(calculate(float(old), val, op, context, context.getEntity())));
 				break;
 			}
 			
 			case '&':   // global float
 			case '@': { // local float
 				float old = GETVarValueFloat(variables, var);
-				sv = SETVarValueFloat(variables, var, calculate(old, val));
+				sv = SETVarValueFloat(variables, var, calculate(old, val, op, context, context.getEntity()));
 				break;
 			}
 			
@@ -234,80 +320,6 @@ public:
 		}
 		
 		return word;
-	}
-	
-	/**
-	 * if a var is expanded like ~@test1~ (at getWord()), it will NOT be read from entReadFrom, but from current/self entity
-	 */
-	float calc(Context & context, Entity * entReadFrom) {
-		float fCalc = 0.f;
-		
-		int iWordCount=0;
-		std::string strCalcMsg = "[ ";
-		std::string strWord;
-		char cOperation = '.'; //dummy
-		float fWorkWithValue = 0.f;
-		
-		while(true) {
-			context.skipWhitespaceAndComment();
-			strWord = context.getWord();
-			strCalcMsg += strWord + " ";
-			
-			if(strWord.size() == 1) {
-				
-				cOperation = '.';
-				switch(strWord[0]) {
-					case '[': fWorkWithValue = calc(context, entReadFrom); break; //nested calc
-					case ']': return fCalc; break;
-					
-					case '+': case '-': case '*': case '/': case '%': case '^':
-						cOperation = strWord[0];
-						break;
-					
-					// just to not fail
-					case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': 
-						break;
-					
-					default:
-						ScriptWarning << "malformed calc " << strCalcMsg;
-						return 99999999999.f;
-				}
-				
-				if(iWordCount == 0 && cOperation == '.') {
-					fCalc = fWorkWithValue;
-				}
-				
-			} else {
-				
-				fWorkWithValue = context.getFloatVar(strWord,entReadFrom); 
-				if(iWordCount == 0) {
-					fCalc = fWorkWithValue;
-				}
-				
-				switch(cOperation) {
-					case '+': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Add); break;
-					case '-': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Subtract); break;
-					case '*': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Multiply); break;
-					case '/': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Divide); break;
-					case '%': fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Remainder); break;
-					case '^':
-						if(fWorkWithValue >= 1.0f) { // val=10 work=3 ex.: pow 10^3=1000, CubicRoot 10^(1/3)=2.15
-							fCalc = ArithmeticCommand::calculate(fCalc, fWorkWithValue, ArithmeticCommand::Power); break; 
-						} else {
-							fCalc = ArithmeticCommand::calculate(fCalc, 1.0f/fWorkWithValue, ArithmeticCommand::NthRoot); break;
-						}
-					default:
-						ScriptWarning << "malformed calc " << strCalcMsg;
-						return 99999999999.f;
-				}
-				cOperation = '.'; // reset to grant wont be reused
-				
-			}
-			
-			iWordCount++;
-		}
-		
-		return fCalc;
 	}
 	
 	/**
@@ -466,13 +478,13 @@ public:
 			
 			case '#':      // global long
 			case '\xA7': { // local long
-				sv = SETVarValueLong(variablesWriteTo, var, long(val == "[" ? calc(context,entReadFrom) : context.getFloatVar(val,entReadFrom) ));
+				sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val,entReadFrom)));
 				break;
 			}
 			
 			case '&':      // global float
 			case '@': {    // local float
-				sv = SETVarValueFloat(variablesWriteTo, var, val == "[" ? calc(context,entReadFrom) : context.getFloatVar(val,entReadFrom));
+				sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val,entReadFrom));
 				break;
 			}
 			
@@ -605,6 +617,7 @@ void setupScriptedVariable() {
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("mod", ArithmeticCommand::Remainder));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("pow", ArithmeticCommand::Power));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("nthroot", ArithmeticCommand::NthRoot));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("calc", ArithmeticCommand::Calc));
 	ScriptEvent::registerCommand(std::make_unique<UnsetCommand>());
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("++", 1));
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("--", -1));
