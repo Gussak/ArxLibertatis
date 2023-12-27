@@ -2165,12 +2165,57 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 	
 	script.valid = true;
 	
-	if(pathScript) {
-		MYDBG("SCRIPT FILE LOADED: " << pathScript->filename());
-		res::path pathModFile = std::string() + "mods/00010_customModName/" + pathScript->string();
-		MYDBG("SCRIPT FILE MOD: " << pathModFile);
-	}
 	script.data = util::toLowercase(file->read());
+	MYDBG("SCRIPT FILE LOADED: " << pathScript->string());
+	
+	if(pathScript) {
+		static std::vector<std::string> vMod;
+		if(vMod.size() == 0) { //the last in the list wins.
+			std::string strFlModLoadOrder = "mods/modloadorder.cfg";
+			std::ifstream flLoadOrder(strFlModLoadOrder);
+			if (flLoadOrder.is_open()) {
+				std::string line;
+				while (std::getline(flLoadOrder, line)) {
+					if(line.size() == 0) continue; //empty lines are ignored
+					if(line[0] == "#") continue; //lines beggining with # are comments and will be ignored
+					vMod.push_back(line.c_str());
+				}
+				flLoadOrder.close();
+			}
+		}
+		
+		size_t modApplyCount = 0;
+		for(std::string strMod : vMod) {
+			res::path pathModOverride = std::string() + "mods/" + strMod + "/" + pathScript->string();
+			res::path pathModPatch = pathModOverride + ".patch";
+			
+			// apply diff patch
+			PakFile * fileModPatch = g_resources->getFile(pathModOverride);
+			if(fileModPatch) {
+				//TODO apply patch (from diff) by capturing patch sys command stdout into script.data, before the simple prepended override.
+				MYDBG("SCRIPT FILE MOD PATCH: " << pathModPatch);
+				modApplyCount++;
+			}
+			
+			// apply simple override
+			PakFile * fileModOverride = g_resources->getFile(pathModOverride);
+			if(fileModOverride) { //prepends an override that can contain events and functions (call targets)
+				script.data = util::toLowercase(pathModOverride->read()) + script.data; //prepends. The last prepended wins.
+				MYDBG("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
+				modApplyCount++;
+			}
+		}
+		
+		if(modApplyCount > 0) {
+			res::path pathModdedDump = std::string() + "modsdump/" + pathScript->string();
+			static std::ofstream flModdedDump;
+			flModdedDump.open(pathModdedDump.string(), std::ios_base::app);
+			flModdedDump << script.data << "\n";
+			flModdedDump.flush();
+			flModdedDump.close();
+			MYDBG("SCRIPT FILE MODDED DUMP: " << pathModdedDump);
+		}
+	}
 	
 	ARX_SCRIPT_ComputeShortcuts(script);
 	
