@@ -44,6 +44,9 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 //
 // Copyright (c) 1999-2000 ARKANE Studios SA. All rights reserved
 
+#include <iostream>
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n"
+
 #include "script/Script.h"
 
 #include <stddef.h>
@@ -53,6 +56,9 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <limits>
 #include <sstream>
 #include <chrono>
+#include <fstream>
+#include <sstream>
+#include <filesystem>
 
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -2154,9 +2160,6 @@ void ManageCasseDArme(Entity * io) {
 	
 }
 
-#include <iostream>
-#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n"
-
 void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 	
 	if(!file) {
@@ -2166,57 +2169,93 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 	script.valid = true;
 	
 	script.data = util::toLowercase(file->read());
-	MYDBG("SCRIPT FILE LOADED: " << pathScript->string());
 	
 	if(pathScript) {
+		//MYDBG("SCRIPT FILE LOADED: " << pathScript->string());
+		
 		static std::vector<std::string> vMod;
-		if(vMod.size() == 0) { //the last in the list wins.
+		if(vMod.size() == 0) {
+			//the last in the list wins.
 			std::string strFlModLoadOrder = "mods/modloadorder.cfg";
 			std::ifstream flLoadOrder(strFlModLoadOrder);
 			if (flLoadOrder.is_open()) {
 				std::string line;
 				while (std::getline(flLoadOrder, line)) {
 					if(line.size() == 0) continue; //empty lines are ignored
-					if(line[0] == "#") continue; //lines beggining with # are comments and will be ignored
+					if(line[0] == '#') continue; //lines beggining with # are comments and will be ignored
 					vMod.push_back(line.c_str());
+					MYDBG("LOAD ORDER: " << line);
+					DebugScript("LOAD ORDER: " << line);
 				}
 				flLoadOrder.close();
 			}
 		}
 		
+		/**
+		 * Patches are meant to be applyed at originals (of other mods) and vanilla scripts.
+		 * Overrides are prepended script code.
+		 * Patches are applied before overrides.
+		 * To apply a patch in a script code override, create a new folder containing it and being called after.
+		 */
 		size_t modApplyCount = 0;
+		static bool usePakFileMode = false; //TODO if possible
+		std::stringstream fileData;
 		for(std::string strMod : vMod) {
-			res::path pathModOverride = std::string() + "mods/" + strMod + "/" + pathScript->string();
+			res::path pathModOverride = std::string() + "mods/" + strMod + "/" + pathScript->string() + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
 			res::path pathModPatch = pathModOverride + ".patch";
 			
 			// apply diff patch
-			PakFile * fileModPatch = g_resources->getFile(pathModOverride);
-			if(fileModPatch) {
-				//TODO apply patch (from diff) by capturing patch sys command stdout into script.data, before the simple prepended override.
-				MYDBG("SCRIPT FILE MOD PATCH: " << pathModPatch);
-				modApplyCount++;
+			//MYDBG("SCRIPT FILE MOD PATCH (TRY): " << pathModPatch.string());
+			if(usePakFileMode) {
+				PakFile * fileModPatch = g_resources->getFile(pathModPatch);
+				if(fileModPatch) {
+					//TODO apply patch (from diff) by capturing patch sys command stdout into script.data, before the simple prepended override.
+					MYDBG("SCRIPT FILE MOD PATCH: " << pathModPatch);
+					DebugScript("SCRIPT FILE MOD PATCH: " << pathModPatch);
+					modApplyCount++;
+				}
+			} else {
+				//TODO
 			}
 			
 			// apply simple override
-			PakFile * fileModOverride = g_resources->getFile(pathModOverride);
-			if(fileModOverride) { //prepends an override that can contain events and functions (call targets)
-				script.data = util::toLowercase(pathModOverride->read()) + script.data; //prepends. The last prepended wins.
-				MYDBG("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
-				modApplyCount++;
+			//MYDBG("SCRIPT FILE MOD OVERRIDE (TRY): " << pathModOverride.string());
+			if(usePakFileMode) {
+				PakFile * fileModOverride = g_resources->getFile(pathModOverride);
+				if(fileModOverride) { //prepends an override that can contain events and functions (call targets)
+					script.data = util::toLowercase(fileModOverride->read()) + "\n" + script.data; //prepends. The last prepended wins.
+					MYDBG("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
+					DebugScript("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
+					modApplyCount++;
+				}
+			} else {
+				std::ifstream fileModOverride(pathModOverride.string());
+				if (fileModOverride.is_open()) {
+					fileData << fileModOverride.rdbuf();
+					script.data = util::toLowercase(fileData.str()) + "\n" + script.data; //prepends. The last prepended wins.
+					fileModOverride.close();
+					MYDBG("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
+					DebugScript("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
+					modApplyCount++;
+				}
 			}
 		}
 		
 		if(modApplyCount > 0) {
 			res::path pathModdedDump = std::string() + "modsdump/" + pathScript->string();
+			res::path folder = pathModdedDump.parent();
+			std::filesystem::create_directories(folder.string());
 			static std::ofstream flModdedDump;
-			flModdedDump.open(pathModdedDump.string(), std::ios_base::app);
+			flModdedDump.open(pathModdedDump.string(), std::ios_base::trunc); //std::ios_base::app);
 			flModdedDump << script.data << "\n";
 			flModdedDump.flush();
 			flModdedDump.close();
 			MYDBG("SCRIPT FILE MODDED DUMP: " << pathModdedDump);
+			DebugScript("SCRIPT FILE MODDED DUMP: " << pathModdedDump);
+			MYDBG("SCRIPT MOD APPLY COUNT: " << modApplyCount);
+			DebugScript("SCRIPT MOD APPLY COUNT: " << modApplyCount);
 		}
 	}
 	
 	ARX_SCRIPT_ComputeShortcuts(script);
-	
 }
