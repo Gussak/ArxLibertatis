@@ -2218,7 +2218,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 				//TODO
 			}
 			
-			// apply simple override
+			// apply simple override. prepends script code. The last prepended wins.
 			//MYDBG("SCRIPT FILE MOD OVERRIDE (TRY): " << pathModOverride.string());
 			if(usePakFileMode) {
 				PakFile * fileModOverride = g_resources->getFile(pathModOverride);
@@ -2232,7 +2232,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 				std::ifstream fileModOverride(pathModOverride.string());
 				if (fileModOverride.is_open()) {
 					fileData << fileModOverride.rdbuf();
-					script.data = util::toLowercase(fileData.str()) + "\n" + script.data; //prepends. The last prepended wins.
+					script.data = util::toLowercase(fileData.str()) + "\n" + script.data;
 					fileModOverride.close();
 					MYDBG("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
 					DebugScript("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
