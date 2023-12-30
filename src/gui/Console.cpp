@@ -23,7 +23,7 @@
 #include <sstream>
 #include <cctype>
 #include <fstream>
-#include <iostream>     // std::ios, std::istream, std::cout
+#include <iostream>
 
 #include <boost/algorithm/string/predicate.hpp>
 

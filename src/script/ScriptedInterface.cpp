@@ -53,6 +53,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "gui/Menu.h"
 #include "gui/MiniMap.h"
 #include "gui/hud/SecondaryInventory.h"
+#include "gui/widget/TextInputWidget.h"
 #include "scene/GameSound.h"
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
@@ -100,6 +101,53 @@ public:
 		return Success;
 	}
 	
+};
+
+class TextInputCommand : public Command {
+	
+	public:
+	
+		TextInputCommand() : Command("ask") { }
+		
+		/**
+		 * ask "<question>" <stringVar>
+		 */
+		Result execute(Context & context) override {
+			
+			std::string strQuestion = context.getWord();
+			std::string strVar = context.getWord();
+			
+			std::string strVal = context.getStringVar(strVar);
+			
+			if(strVal == "void") {
+				if(!SETVarValueText(context.getEntity()->m_variables, strVar, "")) {
+					ScriptWarning << "Unable to create variable " << strVar;
+					return Failed;
+				}
+			}
+			
+			ARX_UNICODE_DrawTextInRect(hFontMenu, Vec2f(200,200), 999999, strQuestion, Color(255,255,255));
+			
+			TextInputWidget textbox(hFontMenu, strVal, Rectf(200,220,300,20));
+			//textbox.setText(strVal);
+			if(!textbox.click()) {
+				ScriptWarning << "Unable create text input " << strQuestion << ", " << strVar << ", " << strVal;
+				return Failed;
+			}
+			
+			//todoa wait enter or esc key ? or is it automatic?
+			
+			if(!textbox.text().empty()) {
+				if(!SETVarValueText(context.getEntity()->m_variables, strVar, context.getStringVar(textbox.text(), context.getEntity()))) {
+					ScriptWarning << "Unable to set variable " << strVar;
+					return Failed;
+				}
+			}
+			
+			textbox.unfocus();
+			
+			return Success;
+		}
 };
 
 class CloseStealBagCommand : public Command {
@@ -434,7 +482,7 @@ void setupScriptedInterface() {
 	ScriptEvent::registerCommand(std::make_unique<EndGameCommand>());
 	ScriptEvent::registerCommand(std::make_unique<MapMarkerCommand>());
 	ScriptEvent::registerCommand(std::make_unique<DrawSymbolCommand>());
-	
+	ScriptEvent::registerCommand(std::make_unique<TextInputCommand>());
 }
 
 } // namespace script
