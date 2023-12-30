@@ -44,9 +44,6 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 //
 // Copyright (c) 1999-2000 ARKANE Studios SA. All rights reserved
 
-#include <iostream>
-#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n"
-
 #include "script/Script.h"
 
 #include <stddef.h>
@@ -2171,8 +2168,6 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 	script.data = util::toLowercase(file->read());
 	
 	if(pathScript) {
-		//MYDBG("SCRIPT FILE LOADED: " << pathScript->string());
-		
 		static std::vector<std::string> vMod;
 		if(vMod.size() == 0) {
 			//the last in the list wins.
@@ -2180,14 +2175,15 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 			std::ifstream flLoadOrder(strFlModLoadOrder);
 			if (flLoadOrder.is_open()) {
 				std::string line;
+				LogInfo << "Mod load order file found: " << strFlModLoadOrder;
 				while (std::getline(flLoadOrder, line)) {
 					if(line.size() == 0) continue; //empty lines are ignored
 					if(line[0] == '#') continue; //lines beggining with # are comments and will be ignored
 					vMod.push_back(line.c_str());
-					MYDBG("LOAD ORDER: " << line);
-					DebugScript("LOAD ORDER: " << line);
+					LogInfo << " ├─ Mod: " << line;
 				}
 				flLoadOrder.close();
+				LogInfo << " └─ END";
 			}
 		}
 		
@@ -2198,20 +2194,18 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 		 * To apply a patch in a script code override, create a new folder containing it and being called after.
 		 */
 		size_t modApplyCount = 0;
-		static bool usePakFileMode = false; //TODO if possible
+		static bool usePakFileMode = false; //TODO if possible, and remove the alternative.
 		std::stringstream fileData;
 		for(std::string strMod : vMod) {
 			res::path pathModOverride = std::string() + "mods/" + strMod + "/" + pathScript->string() + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
 			res::path pathModPatch = pathModOverride + ".patch";
 			
 			// apply diff patch
-			//MYDBG("SCRIPT FILE MOD PATCH (TRY): " << pathModPatch.string());
 			if(usePakFileMode) {
 				PakFile * fileModPatch = g_resources->getFile(pathModPatch);
 				if(fileModPatch) {
 					//TODO apply patch (from diff) by capturing patch sys command stdout into script.data, before the simple prepended override.
-					MYDBG("SCRIPT FILE MOD PATCH: " << pathModPatch);
-					DebugScript("SCRIPT FILE MOD PATCH: " << pathModPatch);
+					LogInfo << "Mod: apply patch: " << pathModPatch;
 					modApplyCount++;
 				}
 			} else {
@@ -2219,13 +2213,11 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 			}
 			
 			// apply simple override. prepends script code. The last prepended wins.
-			//MYDBG("SCRIPT FILE MOD OVERRIDE (TRY): " << pathModOverride.string());
 			if(usePakFileMode) {
 				PakFile * fileModOverride = g_resources->getFile(pathModOverride);
 				if(fileModOverride) { //prepends an override that can contain events and functions (call targets)
 					script.data = util::toLowercase(fileModOverride->read()) + "\n" + script.data; //prepends. The last prepended wins.
-					MYDBG("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
-					DebugScript("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
+					LogInfo << "Mod: apply overrides: " << pathModOverride;
 					modApplyCount++;
 				}
 			} else {
@@ -2234,8 +2226,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 					fileData << fileModOverride.rdbuf();
 					script.data = util::toLowercase(fileData.str()) + "\n" + script.data;
 					fileModOverride.close();
-					MYDBG("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
-					DebugScript("SCRIPT FILE MOD OVERRIDE: " << pathModOverride);
+					LogInfo << "Mod: apply overrides: " << pathModOverride;
 					modApplyCount++;
 				}
 			}
@@ -2250,10 +2241,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 			flModdedDump << script.data << "\n";
 			flModdedDump.flush();
 			flModdedDump.close();
-			MYDBG("SCRIPT FILE MODDED DUMP: " << pathModdedDump);
-			DebugScript("SCRIPT FILE MODDED DUMP: " << pathModdedDump);
-			MYDBG("SCRIPT MOD APPLY COUNT: " << modApplyCount);
-			DebugScript("SCRIPT MOD APPLY COUNT: " << modApplyCount);
+			LogInfo << "Mod: dump result of " << modApplyCount << " applied mods at: " << pathModdedDump;
 		}
 	}
 	
