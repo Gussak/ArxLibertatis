@@ -2246,4 +2246,5 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 	}
 	
 	ARX_SCRIPT_ComputeShortcuts(script);
+	
 }
