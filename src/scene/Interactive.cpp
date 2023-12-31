@@ -1242,7 +1242,7 @@ Entity * AddFix(const res::path & classPath, EntityInstance instance, AddInterac
 	io->ioflags = IO_FIX;
 	io->_fixdata->trapvalue = -1;
 	
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, g_resources->getFile(script), &script);
 	
 	if(!(flags & NO_ON_LOAD)) {
 		SendIOScriptEvent(nullptr, io, SM_LOAD);
@@ -1304,7 +1304,7 @@ static Entity * AddCamera(const res::path & classPath, EntityInstance instance) 
 	
 	Entity * io = new Entity(classPath, instance);
 	
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, g_resources->getFile(script), &script);
 	
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
@@ -1356,7 +1356,7 @@ static Entity * AddMarker(const res::path & classPath, EntityInstance instance) 
 	
 	Entity * io = new Entity(classPath, instance);
 	
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, g_resources->getFile(script), &script);
 	
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
@@ -1462,7 +1462,7 @@ Entity * AddNPC(const res::path & classPath, EntityInstance instance, AddInterac
 	io->_npcdata = new IO_NPCDATA;
 	io->ioflags = IO_NPC;
 	
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, g_resources->getFile(script), &script);
 	
 	io->spellcast_data.castingspell = SPELL_NONE;
 	io->_npcdata->manaPool.current = io->_npcdata->manaPool.max = 10.f;
@@ -1558,7 +1558,7 @@ Entity * AddItem(const res::path & classPath_, EntityInstance instance, AddInter
 
 	io->_itemdata->playerstacksize = 1;
 
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, g_resources->getFile(script), &script);
 	
 	if(!(flags & NO_ON_LOAD)) {
 		SendIOScriptEvent(nullptr, io, SM_LOAD);
