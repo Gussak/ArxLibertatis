@@ -723,7 +723,7 @@ public:
 		
 		DebugScript(' ' << type << ' ' << target);
 		
-		Entity * entity = entities.getById(target, context.getEntity());
+		Entity * entity = entities.getById(context.getStringVar(target), context.getEntity());
 		if(!entity) {
 			ScriptWarning << "unknown target: " << target;
 			return Failed;
