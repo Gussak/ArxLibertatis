@@ -180,11 +180,27 @@ public:
 	
 	Result execute(Context & context) override {
 		
+		std::string strEntId;
+		
+		HandleFlags("e") {
+			if(flg & flag('e')) {
+				strEntId = context.getStringVar(context.getWord());
+			}
+		}
+		
 		bool choice = context.getBool();
 		
-		DebugScript(' ' << choice);
+		DebugScript(" strEntId=" << strEntId << ",choice=" << choice);
+		LogDebug(" strEntId=" << strEntId << ",choice=" << choice);
 		
 		Entity * entity = context.getEntity();
+		if(strEntId != "") {
+			entity = entities.getById(strEntId);
+			if(!entity) {
+				ScriptWarning << "invalid entity id " << strEntId;
+				return Failed;
+			}
+		}
 		
 		if(!choice) {
 			entity->ioflags |= IO_NO_COLLISIONS;
