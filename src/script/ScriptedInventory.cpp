@@ -43,6 +43,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/ScriptedInventory.h"
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -533,40 +534,87 @@ class DropItemCommand : public Command {
 public:
 	
 	/**
-	 * dropitem [-f] <entityID> <"all"|itemID>
+	 * dropitem [-pe] <e?entityID> <"all"|*|itemID|itemIdList>
+	 * -e: to drop from chosen entity inventory instead of self
 	 * -p: drop in front of player (without it will drop in front of entityID)
 	 * entityID: entity ID to drop items from
-	 * "all": to drop all items from entityID
+	 * "all" or "*": to drop all items from entityID
 	 * itemID: item ID to be dropped
+	 * itemIdList: item IDs separated by " "
 	 */
 	DropItemCommand() : Command("dropitem") { }
 	
+	bool DropItem(Context & context, Entity * entDropFromInventory, std::string strItemID, bool bInFrontOfPlayer) { // context is used by ScriptWarning
+		Entity * entToDrop = entities.getById( strItemID );
+		
+		if(!entToDrop) {
+			ScriptWarning << " invalid " << strItemID;
+			return false;
+		}
+		
+		if(entToDrop->owner() != entDropFromInventory) {
+			ScriptWarning << entDropFromInventory->idString() << "is not owner of " << strItemID;
+			return false;
+		}
+		
+		PutInFrontOfEntity(entToDrop, bInFrontOfPlayer ? entities.player() : entDropFromInventory);
+		
+		return true;
+	}
+	
 	Result execute(Context & context) override {
+		
 		bool bInFrontOfPlayer = false;
-		HandleFlags("p") {
+		std::string strEntId;
+		
+		HandleFlags("ep") {
+			if(flg & flag('e')) {
+				strEntId = context.getStringVar(context.getWord());
+			}
 			if(flg & flag('p')) {
 				bInFrontOfPlayer = true;
 			}
 		}
 		
-		std::string strEntIDdropFrom  = context.getWord();
-		std::string strItemID = context.getWord();
-		Entity * entDropFromInventory = entities.getById( strEntIDdropFrom );
+		std::string strDropChoice = context.getWord();
 		
-		if(!entDropFromInventory) {
-			ScriptWarning << "null entity to drop from inventory";
-			return Failed;
-		}
+		DebugScript(' ' << strEntId << ' ' << strDropChoice);
 		
-		if(strItemID == "all") {
-			DropAllItemsInFrontOfEntity( entDropFromInventory, bInFrontOfPlayer ? entities.player() : entDropFromInventory );
-		} else {
-			Entity * entToDrop = entities.getById( strItemID );
-			if(entToDrop->owner() != entDropFromInventory) {
-				ScriptWarning << entDropFromInventory->idString() << "is not owner of " << strItemID;
+		Entity * entDropFromInventory = context.getEntity();
+		if(strEntId != "") {
+			entDropFromInventory = entities.getById(strEntId);
+			if(!entDropFromInventory) {
+				ScriptWarning << "invalid entity id to drop from inventory " << strEntId;
 				return Failed;
 			}
-			PutInFrontOfEntity(entToDrop, bInFrontOfPlayer ? entities.player() : entDropFromInventory);
+		}
+		
+		if(strDropChoice == "all" || strDropChoice == "*") {
+			DropAllItemsInFrontOfEntity( entDropFromInventory, bInFrontOfPlayer ? entities.player() : entDropFromInventory );
+		} else {
+			if(boost::contains(strDropChoice, " ")) {
+				size_t iStrPosIni = 0;
+				size_t iStrPosNext = 0;
+				std::string strItemID;
+				while(true) {
+					iStrPosNext = strDropChoice.find(' ', iStrPosIni);
+					if(iStrPosNext == std::string::npos) {
+						iStrPosNext = strDropChoice.size();
+					}
+					
+					strItemID = strDropChoice.substr(iStrPosIni, iStrPosNext-iStrPosIni);
+					if(!DropItem(context, entDropFromInventory, strItemID, bInFrontOfPlayer)) {
+						return Failed;
+					}
+					
+					if(iStrPosNext == strDropChoice.size()) break;
+					iStrPosIni = iStrPosNext+1; //skip ' '
+				}
+			} else {
+				if(!DropItem(context, entDropFromInventory, strDropChoice, bInFrontOfPlayer)) {
+					return Failed;
+				}
+			}
 		}
 		
 		return Success;
