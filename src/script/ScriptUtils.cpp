@@ -282,7 +282,7 @@ bool Context::getBool() {
 	
 	std::string word = getWord();
 	
-	return (word == "on" || word == "yes");
+	return (word == "on" || word == "yes" || word == "enable" || word == "true");
 }
 
 float Context::getFloatVar(std::string_view name) const {
