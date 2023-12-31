@@ -43,15 +43,20 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/ScriptedVariable.h"
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #include <cstring>
 #include <string>
 #include <string_view>
 
 #include "game/Entity.h"
+#include "game/EntityManager.h"
+#include "game/Item.h"
+#include "game/Inventory.h"
 #include "graphics/data/Mesh.h"
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
-
+#include "util/Number.h"
 
 namespace script {
 
@@ -123,17 +128,115 @@ public:
 		Add,
 		Subtract,
 		Multiply,
-		Divide
+		Divide,
+		Remainder,
+		Power,
+		NthRoot,
+		Calc,
 	};
 	
 private:
 	
-	float calculate(float left, float right) {
-		switch(op) {
-			case Add: return left + right;
-			case Subtract: return left - right;
-			case Multiply: return left * right;
-			case Divide: return (right == 0.f) ? 0.f : left / right;
+	/**
+	 * if a var is expanded like ~@test1~ (at getWord()), it will NOT be read from entReadFrom, but from current/self entity
+	 */
+	float calc(Context & context, Entity * entReadFrom) {
+		float fCalc = 0.f;
+		
+		std::string strCalcMsg;
+		std::string strWord = context.getWord();
+		char cOperator = '.'; // init to invalid
+		float fWorkWithValue = 0.f;
+		size_t positionBeforeWord;
+		
+		if(strWord != "[") {
+			ScriptWarning << "Malformed calculation: calc must start with '[' " << strCalcMsg;
+			return 99999999999.f;
+		}
+		
+		int iWordCount = 0;
+		char cMode = 'v';
+		while(true) {
+			context.skipWhitespaceAndComment();
+			positionBeforeWord = context.getPosition(); //Put after skip new lines.
+			strWord = context.getWord();
+			strCalcMsg += strWord + " ";
+			
+			switch(cMode) {
+				case 'v': // value
+					if(strWord == "[") { // calc value from nested
+						context.seekToPosition(positionBeforeWord);
+						fWorkWithValue = calc(context, entReadFrom);
+					} else {
+						fWorkWithValue = context.getFloatVar(strWord,entReadFrom);
+					}
+					
+					if(iWordCount == 0) {
+						fCalc = fWorkWithValue;
+					} else {
+						switch(cOperator) { // the previous word was operator
+							case '+': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Add,       context, entReadFrom); break;
+							case '-': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Subtract,  context, entReadFrom); break;
+							case '*': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Multiply,  context, entReadFrom); break;
+							case '/': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Divide,    context, entReadFrom); break;
+							case '%': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Remainder, context, entReadFrom); break;
+							case '^':
+								fCalc = calculate(
+									fCalc,
+									fWorkWithValue >= 1.0f ? fWorkWithValue : 1.0f/fWorkWithValue,
+									fWorkWithValue >= 1.0f ? ArithmeticCommand::Power : ArithmeticCommand::NthRoot,
+									context,
+									entReadFrom);
+								break;
+							default:
+								ScriptWarning << "Unexpected calculation operator '" << cOperator << "' at " << strCalcMsg; // TODO use arx_assert_msg as below `case 'o'` should grant this?
+								return 99999999999.f;
+						}
+						
+						cOperator = '.'; // reset to invalid
+					}
+					
+					cMode = 'o';
+					break;
+				
+				case 'o': // operation
+					if(strWord == "]") {
+						return fCalc;
+					}
+					
+					switch(strWord[0]) {
+						case '+': case '-': case '*': case '/': case '%': case '^':
+							cOperator = strWord[0];
+							break;
+							
+						default:
+							ScriptWarning << "Invalid calculation operator '" << strWord << "' at " << strCalcMsg;
+							return 99999999999.f;
+					}
+					
+					cMode = 'v';
+					break;
+			}
+			
+			iWordCount++;
+		}
+		
+		return fCalc;
+	}
+	
+	float calculate(float left, float right, Operator opOverride, Context & context, Entity * entReadFrom) {
+		switch(opOverride) {
+			case Add:        return left + right;
+			case Subtract:   return left - right;
+			case Multiply:   return left * right;
+			case Divide:     return (right == 0.f) ? 0.f : left / right;
+			case Remainder:  return (right == 0.f) ? 0.f : std::fmod(left, right);
+			case Power:      return static_cast<float> ( std::pow(left,right) );
+			case NthRoot:
+				// pow only works with positive left, this avoids being limited by sqtr/cbrt nesting
+				if(left < 0.f) return -( static_cast<float> (std::pow(-left, 1.0f/right)) );
+				return static_cast<float> ( std::pow(left, 1.0f/right) );
+			case Calc:       return calc(context, entReadFrom);
 		}
 		arx_assert_msg(false, "Invalid op used in ArithmeticCommand: %d", int(op));
 		return 0.f;
@@ -148,7 +251,7 @@ public:
 	Result execute(Context & context) override {
 		
 		std::string var = context.getWord();
-		float val = context.getFloat();
+		float val = op == ArithmeticCommand::Calc ? 0.f : context.getFloatVar(context.getWord(), context.getEntity());
 		
 		DebugScript(' ' << var << ' ' << val);
 		
@@ -171,14 +274,14 @@ public:
 			case '#':      // global long
 			case '\xA7': { // local long
 				long old = GETVarValueLong(variables, var);
-				sv = SETVarValueLong(variables, var, long(calculate(float(old), val)));
+				sv = SETVarValueLong(variables, var, long(calculate(float(old), val, op, context, context.getEntity())));
 				break;
 			}
 			
 			case '&':   // global float
 			case '@': { // local float
 				float old = GETVarValueFloat(variables, var);
-				sv = SETVarValueFloat(variables, var, calculate(old, val));
+				sv = SETVarValueFloat(variables, var, calculate(old, val, op, context, context.getEntity()));
 				break;
 			}
 			
@@ -303,9 +406,15 @@ void setupScriptedVariable() {
 	
 	ScriptEvent::registerCommand(std::make_unique<SetCommand>());
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("inc", ArithmeticCommand::Add));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("add", ArithmeticCommand::Add));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("dec", ArithmeticCommand::Subtract));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("sub", ArithmeticCommand::Subtract));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("mul", ArithmeticCommand::Multiply));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("div", ArithmeticCommand::Divide));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("mod", ArithmeticCommand::Remainder));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("pow", ArithmeticCommand::Power));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("nthroot", ArithmeticCommand::NthRoot));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("calc", ArithmeticCommand::Calc));
 	ScriptEvent::registerCommand(std::make_unique<UnsetCommand>());
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("++", 1));
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("--", -1));

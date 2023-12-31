@@ -104,6 +104,7 @@ public:
 	std::string getCommand(bool skipNewlines = true);
 	
 	void skipWhitespace(bool skipNewlines = false, bool warnNewlines = false);
+	void skipWhitespaceAndComment();
 	
 	Entity * getSender() const { return m_sender; }
 	Entity * getEntity() const { return m_entity; }
@@ -114,7 +115,7 @@ public:
 	
 	float getFloat();
 	
-	float getFloatVar(std::string_view name) const;
+	float getFloatVar(std::string_view name, Entity * entOverride = nullptr) const;
 	
 	/*!
 	 * Skip input until the end of the current line.
@@ -131,6 +132,7 @@ public:
 	
 	size_t getPosition() const { return m_pos; }
 	
+	void seekToPosition(size_t pos);
 	
 };
 

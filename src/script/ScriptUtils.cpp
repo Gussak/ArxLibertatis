@@ -90,6 +90,23 @@ std::string Context::getStringVar(std::string_view name) const {
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
 
+void Context::skipWhitespaceAndComment() {
+	skipWhitespace(true);
+	
+	std::string_view esdat = m_script->data;
+	char c = esdat[m_pos];
+	if(c == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
+		m_pos = esdat.find('\n', m_pos + 2);
+		if(m_pos == std::string::npos) {
+			m_pos = esdat.size();
+		} else {
+			m_pos++;
+		}
+	}
+	
+	skipWhitespace(true);
+}
+
 std::string Context::getCommand(bool skipNewlines) {
 	
 	std::string_view esdat = m_script->data;
@@ -123,6 +140,10 @@ std::string Context::getCommand(bool skipNewlines) {
 	}
 	
 	return word;
+}
+
+void Context::seekToPosition(size_t pos) { 
+	m_pos=pos; 
 }
 
 std::string Context::getWord() {
@@ -285,7 +306,7 @@ bool Context::getBool() {
 	return (word == "on" || word == "yes");
 }
 
-float Context::getFloatVar(std::string_view name) const {
+float Context::getFloatVar(std::string_view name, Entity * entOverride) const {
 	
 	if(name.empty()) {
 		return 0.f;
@@ -304,11 +325,11 @@ float Context::getFloatVar(std::string_view name) const {
 	} else if(name[0] == '#') {
 		return float(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return float(GETVarValueLong(getEntity()->m_variables, name));
+		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name));
 	} else if(name[0] == '&') {
 		return GETVarValueFloat(svar, name);
 	} else if(name[0] == '@') {
-		return GETVarValueFloat(getEntity()->m_variables, name);
+		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
 	}
 	
 	return util::parseFloat(name);
