@@ -45,6 +45,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include <utility>
 
+#include "core/GameTime.h"
 #include "game/Inventory.h"
 #include "game/Entity.h"
 #include "game/Player.h"
@@ -126,7 +127,9 @@ class TextInputCommand : public Command {
 				}
 			}
 			
-			ARX_UNICODE_DrawTextInRect(hFontMenu, Vec2f(200,200), 999999, strQuestion, Color(255,255,255));
+			g_gameTime.pause(GameTime::PauseUser);
+			
+			ARX_UNICODE_DrawTextInRect(hFontMenu, Vec2f(200,200), 999999, strQuestion, Color(232, 204, 142));
 			
 			TextInputWidget textbox(hFontMenu, strVal, Rectf(200,220,300,20));
 			//textbox.setText(strVal);
@@ -136,6 +139,7 @@ class TextInputCommand : public Command {
 			}
 			
 			//todoa wait enter or esc key ? or is it automatic?
+			g_gameTime.resume(GameTime::PauseUser);
 			
 			if(!textbox.text().empty()) {
 				if(!SETVarValueText(context.getEntity()->m_variables, strVar, context.getStringVar(textbox.text(), context.getEntity()))) {
