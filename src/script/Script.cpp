@@ -2157,6 +2157,18 @@ void ManageCasseDArme(Entity * io) {
 	
 }
 
+res::path writeScriptAtModDumpFolder(EERIE_SCRIPT & script, res::path * pathScript) {
+	res::path pathModdedDump = std::string() + "modsdump/" + pathScript->string();
+	res::path folder = pathModdedDump.parent();
+	std::filesystem::create_directories(folder.string());
+	static std::ofstream flModdedDump;
+	flModdedDump.open(pathModdedDump.string(), std::ios_base::trunc); //std::ios_base::app);
+	flModdedDump << script.data << "\n";
+	flModdedDump.flush();
+	flModdedDump.close();
+	return pathModdedDump;
+}
+
 void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 	
 	if(!file) {
@@ -2183,7 +2195,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 					LogInfo << " ├─ Mod: " << line;
 				}
 				flLoadOrder.close();
-				LogInfo << " └─ END";
+				LogInfo << " └─ Ended collecting mod load order.";
 			}
 		}
 		
@@ -2194,54 +2206,62 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 		 * To apply a patch in a script code override, create a new folder containing it and being called after.
 		 */
 		size_t modApplyCount = 0;
-		static bool usePakFileMode = false; //TODO if possible, and remove the alternative.
 		std::stringstream fileData;
 		for(std::string strMod : vMod) {
 			res::path pathModOverride = std::string() + "mods/" + strMod + "/" + pathScript->string() + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
 			res::path pathModPatch = pathModOverride + ".patch";
 			
+			int logInfoForScript = 0;
+			
 			// apply diff patch
-			if(usePakFileMode) {
-				PakFile * fileModPatch = g_resources->getFile(pathModPatch);
-				if(fileModPatch) {
-					//TODO apply patch (from diff) by capturing patch sys command stdout into script.data, before the simple prepended override.
-					LogInfo << "Mod: apply patch: " << pathModPatch;
-					modApplyCount++;
+			std::ifstream fileModPatch(pathModPatch.string());
+			if (fileModPatch.is_open()) {
+				if(logInfoForScript == 0) {
+					LogInfo << "Modding script file: " << pathScript->string();
+					logInfoForScript++;
 				}
-			} else {
-				//TODO
+				
+				res::path pathScriptToBePatched = writeScriptAtModDumpFolder(script, pathScript);
+				
+				std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatch.string() + "\"";
+				int ret = std::system(strCmd);
+				if(ret != 0) {
+					arx_assert_msg(false, "failed to patch the script '%s' using the mod patch file '%s'", pathScriptToBePatched.string(), pathModPatch.string());
+				}
+				
+				std::ifstream fileModPatched(pathScriptToBePatched.string());
+				if (fileModPatched.is_open()) {
+					fileData << fileModPatched.rdbuf();
+					script.data = util::toLowercase(fileData.str());
+					fileModPatched.close();
+					LogInfo << "├─ Mod: apply patch: " << pathModPatch;
+					modApplyCount++;
+				} else {
+					arx_assert_msg(false, "failed to load the patched script '%s' after using the mod patch file '%s'", pathScriptToBePatched.string(), pathModPatch.string());
+				}
+				
+				fileModPatch.close();
 			}
 			
 			// apply simple override. prepends script code. The last prepended wins.
-			if(usePakFileMode) {
-				PakFile * fileModOverride = g_resources->getFile(pathModOverride);
-				if(fileModOverride) { //prepends an override that can contain events and functions (call targets)
-					script.data = util::toLowercase(fileModOverride->read()) + "\n" + script.data; //prepends. The last prepended wins.
-					LogInfo << "Mod: apply overrides: " << pathModOverride;
-					modApplyCount++;
+			std::ifstream fileModOverride(pathModOverride.string());
+			if (fileModOverride.is_open()) {
+				if(logInfoForScript == 0) {
+					LogInfo << "Modding script file: " << pathScript->string();
+					logInfoForScript++;
 				}
-			} else {
-				std::ifstream fileModOverride(pathModOverride.string());
-				if (fileModOverride.is_open()) {
-					fileData << fileModOverride.rdbuf();
-					script.data = util::toLowercase(fileData.str()) + "\n" + script.data;
-					fileModOverride.close();
-					LogInfo << "Mod: apply overrides: " << pathModOverride;
-					modApplyCount++;
-				}
+				
+				fileData << fileModOverride.rdbuf();
+				script.data = util::toLowercase(fileData.str()) + "\n" + script.data;
+				fileModOverride.close();
+				LogInfo << "├─ Mod: apply overrides: " << pathModOverride;
+				modApplyCount++;
 			}
 		}
 		
 		if(modApplyCount > 0) {
-			res::path pathModdedDump = std::string() + "modsdump/" + pathScript->string();
-			res::path folder = pathModdedDump.parent();
-			std::filesystem::create_directories(folder.string());
-			static std::ofstream flModdedDump;
-			flModdedDump.open(pathModdedDump.string(), std::ios_base::trunc); //std::ios_base::app);
-			flModdedDump << script.data << "\n";
-			flModdedDump.flush();
-			flModdedDump.close();
-			LogInfo << "Mod: dump result of " << modApplyCount << " applied mods at: " << pathModdedDump;
+			writeScriptAtModDumpFolder(script, pathScript);
+			LogInfo << "└─ Mod: dump result of " << modApplyCount << " applied mods at: " << pathModdedDump;
 		}
 	}
 	
