@@ -2258,7 +2258,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				
 				if(fileDataPatch.str().find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
 					std::ofstream fileModPatchLowerCase;
-					pathModPatch = pathModPatch.string()+"lowercase.patch";
+					pathModPatch = pathModPatch.string()+".lowercase.patch";
 					fileModPatchLowerCase.open(pathModPatch.string(), std::ios_base::trunc);
 					if(fileModPatchLowerCase.fail()) {
 						arx_assert_msg(false, "failed to write required lowercase patch file '%s'", pathModPatch.string().c_str());
@@ -2272,10 +2272,12 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				res::path pathScriptToBePatched = pathModdedDump;
 				writeScriptAtModDumpFolder(pathScriptToBePatched, script);
 				
-				std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatch.string() + "\"";
+				std::string strPatchOutputFile = pathModPatch.string() + ".output";
+				std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatch.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
 				int ret = std::system(strCmd.c_str());
 				if(ret != 0) {
-					arx_assert_msg(false, "failed to patch the script '%s' using the mod patch file '%s'", pathScriptToBePatched.string().c_str(), pathModPatch.string().c_str());
+					ret = std::system((std::string() + "cat \"" + strPatchOutputFile + "\"").c_str());
+					arx_assert_msg(false, "failed to patch the script '%s' using the mod patch file '%s'. See the above output at '%s'", pathScriptToBePatched.string().c_str(), pathModPatch.string().c_str(), strPatchOutputFile.c_str());
 				}
 				
 				std::ifstream fileModPatched(pathScriptToBePatched.string());
