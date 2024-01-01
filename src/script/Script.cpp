@@ -2157,16 +2157,19 @@ void ManageCasseDArme(Entity * io) {
 	
 }
 
-res::path writeScriptAtModDumpFolder(EERIE_SCRIPT & script, res::path * pathScript) {
-	res::path pathModdedDump = std::string() + "modsdump/" + pathScript->string();
+static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, EERIE_SCRIPT & script) {
 	res::path folder = pathModdedDump.parent();
 	std::filesystem::create_directories(folder.string());
 	static std::ofstream flModdedDump;
 	flModdedDump.open(pathModdedDump.string(), std::ios_base::trunc); //std::ios_base::app);
-	flModdedDump << script.data << "\n";
-	flModdedDump.flush();
-	flModdedDump.close();
-	return pathModdedDump;
+	if(!flModdedDump.fail()) {
+		flModdedDump << script.data << "\n";
+		flModdedDump.flush();
+		flModdedDump.close();
+		return true;
+	}
+	arx_assert_msg(false, "failed to write mod dump file '%s'", pathModdedDump.string());
+	return false;
 }
 
 void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
@@ -2175,11 +2178,34 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 		return;
 	}
 	
+	std::stringstream fileData;
+	res::path pathModdedDump;
+	//TODO arx_assert_msg(pathScript, "file path not specified for '%s'", file->path()); //this would also allow rm the param pathScript
+	arx_assert_msg(pathScript, "file path not specified"); //TODO make this specific but how? needs the file path, how to get it from file param?
+	pathModdedDump = std::string() + "modsdump/" + pathScript->string();
+	
 	script.valid = true;
 	
-	script.data = util::toLowercase(file->read());
+	const char * modding = std::getenv("ARX_MODDING"); // set ARX_MODDING=1 to let dumped scripts cache always be loaded, this will also ignore changes to mod files and to original files that would be patched/overriden
+	int moddingMode = 0;
+	if(modding) {
+		moddingMode = util::parseInt(modding);
+	}
 	
-	if(pathScript) {
+	bool usedCache = false;
+	if(moddingMode >= 1) {
+		std::ifstream fileModCache(pathModdedDump.string());
+		if (fileModCache.is_open()) {
+			fileData << fileModCache.rdbuf();
+			script.data = util::toLowercase(fileData.str());
+			fileModCache.close();
+			usedCache = true;
+		}
+	}
+	
+	if(!usedCache) {
+		script.data = util::toLowercase(file->read());
+		
 		static std::vector<std::string> vMod;
 		if(vMod.size() == 0) {
 			//the last in the list wins.
@@ -2206,7 +2232,6 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 		 * To apply a patch in a script code override, create a new folder containing it and being called after.
 		 */
 		size_t modApplyCount = 0;
-		std::stringstream fileData;
 		for(std::string strMod : vMod) {
 			res::path pathModOverride = std::string() + "mods/" + strMod + "/" + pathScript->string() + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
 			res::path pathModPatch = pathModOverride + ".patch";
@@ -2221,7 +2246,8 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 					logInfoForScript++;
 				}
 				
-				res::path pathScriptToBePatched = writeScriptAtModDumpFolder(script, pathScript);
+				res::path pathScriptToBePatched = pathModdedDump;
+				writeScriptAtModDumpFolder(pathScriptToBePatched, script, pathScript);
 				
 				std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatch.string() + "\"";
 				int ret = std::system(strCmd);
@@ -2260,7 +2286,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 		}
 		
 		if(modApplyCount > 0) {
-			writeScriptAtModDumpFolder(script, pathScript);
+			writeScriptAtModDumpFolder(pathModdedDump, script, pathScript);
 			LogInfo << "└─ Mod: dump result of " << modApplyCount << " applied mods at: " << pathModdedDump;
 		}
 	}
