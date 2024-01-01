@@ -906,7 +906,6 @@ void ArxGame::managePlayerControls() {
 		unstackedEntity->pos = FlyingOverIO->pos;
 		unstackedEntity->angle = FlyingOverIO->angle;
 		unstackedEntity->show = SHOW_FLAG_IN_SCENE;
-		// entities.player()->inventory->insertIntoNewSlot(unstackedEntity);
 		FlyingOverIO->owner()->inventory->insertIntoNewSlot(unstackedEntity);
 		FlyingOverIO->_itemdata->count--;
 	}
