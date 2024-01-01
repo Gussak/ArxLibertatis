@@ -2182,8 +2182,6 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	}
 	
 	res::path pathModdedDump;
-	//TODO arx_assert_msg(pathScript, "file path not specified for '%s'", file->path()); //this would also allow rm the param pathScript
-	//arx_assert_msg(pathScript, "file path not specified"); //TODO make this specific but how? needs the file path, how to get it from file param?
 	pathModdedDump = std::string() + "modsdump/" + pathScript.string();
 	
 	script.valid = true;
@@ -2192,7 +2190,6 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	int moddingMode = 0;
 	if(moddingOpt) {
 		moddingMode = util::parseInt(moddingOpt);
-		// arx_assert_msg(moddingMode >= 0, "invalid modding mode: %s %d", moddingOpt, moddingMode);
 		if(moddingMode < 0) moddingMode = 0; // as the end user can cause this error, just auto-fix it.
 	}
 	static bool bShowModeOnce = true;
@@ -2260,7 +2257,6 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				fileDataPatch << fileModPatch.rdbuf();
 				
 				if(fileDataPatch.str().find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
-					// arx_assert_msg(false, "all chars at '%s' must be lowercase", pathModPatch.string().c_str());
 					std::ofstream fileModPatchLowerCase;
 					pathModPatch = pathModPatch.string()+"lowercase.patch";
 					fileModPatchLowerCase.open(pathModPatch.string(), std::ios_base::trunc);
@@ -2271,12 +2267,6 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					fileModPatchLowerCase.flush();
 					fileModPatchLowerCase.close();
 					LogInfo << "├─ Mod: fixed patch to lower case at: " << pathModPatch;
-					// std::ifstream fileModPatch(pathModPatch.string());
-					// if(fileModPatch.is_open()) {
-						// fileDataPatch << fileModPatch.rdbuf();
-					// } else {
-						// arx_assert_msg(false, "failed to write required lowercase patch file '%s'", pathModPatch.string().c_str());
-					// }
 				}
 				
 				res::path pathScriptToBePatched = pathModdedDump;
