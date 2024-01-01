@@ -121,7 +121,7 @@ Entity * LoadInter_Ex(const res::path & classPath, EntityInstance instance,
 	
 	if(PakDirectory * dir = g_resources->getDirectory(io->instancePath())) {
 		res::path script = io->className() + ".asl";
-		loadScript(io->over_script, dir->getFile(script), &script);
+		loadScript(io->over_script, dir->getFile(script), script);
 	}
 	
 	if(SendIOScriptEvent(nullptr, io, SM_LOAD) == ACCEPT && io->obj == nullptr) {

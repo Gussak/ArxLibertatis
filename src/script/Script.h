@@ -545,6 +545,7 @@ size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str);
 void CloneLocalVars(Entity * ioo, Entity * io);
 void ARX_SCRIPT_Free_All_Global_Variables();
 
-void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript = nullptr);
+void loadScript(EERIE_SCRIPT & script, res::path & pathScript);
+void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript);
 
 #endif // ARX_SCRIPT_SCRIPT_H
