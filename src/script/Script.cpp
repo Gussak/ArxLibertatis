@@ -2168,11 +2168,14 @@ static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, EERIE_SCRIPT 
 		flModdedDump.close();
 		return true;
 	}
-	arx_assert_msg(false, "failed to write mod dump file '%s'", pathModdedDump.string());
+	arx_assert_msg(false, "failed to write mod dump file '%s'", pathModdedDump.string().c_str());
 	return false;
 }
 
-void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
+void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
+	loadScript(script, g_resources->getFile(pathScript), pathScript);
+}
+void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	
 	if(!file) {
 		return;
@@ -2181,19 +2184,26 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 	std::stringstream fileData;
 	res::path pathModdedDump;
 	//TODO arx_assert_msg(pathScript, "file path not specified for '%s'", file->path()); //this would also allow rm the param pathScript
-	arx_assert_msg(pathScript, "file path not specified"); //TODO make this specific but how? needs the file path, how to get it from file param?
-	pathModdedDump = std::string() + "modsdump/" + pathScript->string();
+	//arx_assert_msg(pathScript, "file path not specified"); //TODO make this specific but how? needs the file path, how to get it from file param?
+	pathModdedDump = std::string() + "modsdump/" + pathScript.string();
 	
 	script.valid = true;
 	
-	const char * modding = std::getenv("ARX_MODDING"); // set ARX_MODDING=1 to let dumped scripts cache always be loaded, this will also ignore changes to mod files and to original files that would be patched/overriden
+	const char * moddingOpt = std::getenv("ARX_MODDING"); // set ARX_MODDING=1 to let dumped scripts cache always be loaded, this will also ignore changes to mod files and to original files that would be patched/overriden
 	int moddingMode = 0;
-	if(modding) {
-		moddingMode = util::parseInt(modding);
+	if(moddingOpt) {
+		moddingMode = util::parseInt(moddingOpt);
+		// arx_assert_msg(moddingMode >= 0, "invalid modding mode: %s %d", moddingOpt, moddingMode);
+		if(moddingMode < 0) moddingMode = 0; // as the end user can cause this error, just auto-fix it.
+	}
+	static bool bShowModeOnce = true;
+	if(bShowModeOnce) {
+		LogInfo << "Modding mode (" << moddingMode << "): " << (moddingMode == 0 ? "using cached modded scripts if available" : "developer mode always re-patch and re-apply overrides");
+		bShowModeOnce = false;
 	}
 	
 	bool usedCache = false;
-	if(moddingMode >= 1) {
+	if(moddingMode == 0) {
 		std::ifstream fileModCache(pathModdedDump.string());
 		if (fileModCache.is_open()) {
 			fileData << fileModCache.rdbuf();
@@ -2233,7 +2243,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 		 */
 		size_t modApplyCount = 0;
 		for(std::string strMod : vMod) {
-			res::path pathModOverride = std::string() + "mods/" + strMod + "/" + pathScript->string() + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
+			res::path pathModOverride = std::string() + "mods/" + strMod + "/" + pathScript.string() + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
 			res::path pathModPatch = pathModOverride + ".patch";
 			
 			int logInfoForScript = 0;
@@ -2242,17 +2252,17 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 			std::ifstream fileModPatch(pathModPatch.string());
 			if (fileModPatch.is_open()) {
 				if(logInfoForScript == 0) {
-					LogInfo << "Modding script file: " << pathScript->string();
+					LogInfo << "Modding script file: " << pathScript.string();
 					logInfoForScript++;
 				}
 				
 				res::path pathScriptToBePatched = pathModdedDump;
-				writeScriptAtModDumpFolder(pathScriptToBePatched, script, pathScript);
+				writeScriptAtModDumpFolder(pathScriptToBePatched, script);
 				
 				std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatch.string() + "\"";
-				int ret = std::system(strCmd);
+				int ret = std::system(strCmd.c_str());
 				if(ret != 0) {
-					arx_assert_msg(false, "failed to patch the script '%s' using the mod patch file '%s'", pathScriptToBePatched.string(), pathModPatch.string());
+					arx_assert_msg(false, "failed to patch the script '%s' using the mod patch file '%s'", pathScriptToBePatched.string().c_str(), pathModPatch.string().c_str());
 				}
 				
 				std::ifstream fileModPatched(pathScriptToBePatched.string());
@@ -2263,7 +2273,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 					LogInfo << "├─ Mod: apply patch: " << pathModPatch;
 					modApplyCount++;
 				} else {
-					arx_assert_msg(false, "failed to load the patched script '%s' after using the mod patch file '%s'", pathScriptToBePatched.string(), pathModPatch.string());
+					arx_assert_msg(false, "failed to load the patched script '%s' after using the mod patch file '%s'", pathScriptToBePatched.string().c_str(), pathModPatch.string().c_str());
 				}
 				
 				fileModPatch.close();
@@ -2273,7 +2283,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 			std::ifstream fileModOverride(pathModOverride.string());
 			if (fileModOverride.is_open()) {
 				if(logInfoForScript == 0) {
-					LogInfo << "Modding script file: " << pathScript->string();
+					LogInfo << "Modding script file: " << pathScript.string();
 					logInfoForScript++;
 				}
 				
@@ -2286,7 +2296,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path * pathScript) {
 		}
 		
 		if(modApplyCount > 0) {
-			writeScriptAtModDumpFolder(pathModdedDump, script, pathScript);
+			writeScriptAtModDumpFolder(pathModdedDump, script);
 			LogInfo << "└─ Mod: dump result of " << modApplyCount << " applied mods at: " << pathModdedDump;
 		}
 	}
