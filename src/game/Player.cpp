@@ -1112,7 +1112,8 @@ void ARX_PLAYER_LoadHeroAnimsAndMesh() {
 	io->_npcdata->vvpos = -99999.f;
 	
 	io->armormaterial = "leather";
-	loadScript(io->script, g_resources->getFile("graph/obj3d/interactive/player/player.asl"));
+	std::string strPlayerScript = "graph/obj3d/interactive/player/player.asl";
+	loadScript(io->script, g_resources->getFile(strPlayerScript), &res::path(strPlayerScript));
 	
 	if(EERIE_OBJECT_GetGroup(io->obj, "head") &&
 	   EERIE_OBJECT_GetGroup(io->obj, "neck") &&
