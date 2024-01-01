@@ -2181,7 +2181,6 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		return;
 	}
 	
-	std::stringstream fileData;
 	res::path pathModdedDump;
 	//TODO arx_assert_msg(pathScript, "file path not specified for '%s'", file->path()); //this would also allow rm the param pathScript
 	//arx_assert_msg(pathScript, "file path not specified"); //TODO make this specific but how? needs the file path, how to get it from file param?
@@ -2206,6 +2205,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	if(moddingMode == 0) {
 		std::ifstream fileModCache(pathModdedDump.string());
 		if (fileModCache.is_open()) {
+			std::stringstream fileData;
 			fileData << fileModCache.rdbuf();
 			script.data = util::toLowercase(fileData.str());
 			fileModCache.close();
@@ -2216,8 +2216,8 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	if(!usedCache) {
 		script.data = util::toLowercase(file->read());
 		
-		static std::vector<std::string> vMod;
-		if(vMod.size() == 0) {
+		static std::vector<std::string> vModList;
+		if(vModList.size() == 0) {
 			//the last in the list wins.
 			std::string strFlModLoadOrder = "mods/modloadorder.cfg";
 			std::ifstream flLoadOrder(strFlModLoadOrder);
@@ -2227,7 +2227,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				while (std::getline(flLoadOrder, line)) {
 					if(line.size() == 0) continue; //empty lines are ignored
 					if(line[0] == '#') continue; //lines beggining with # are comments and will be ignored
-					vMod.push_back(line.c_str());
+					vModList.push_back(line.c_str());
 					LogInfo << " ├─ Mod: " << line;
 				}
 				flLoadOrder.close();
@@ -2241,12 +2241,13 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		 * Patches are applied before overrides.
 		 * To apply a patch in a script code override, create a new folder containing it and being called after.
 		 */
-		size_t modApplyCount = 0;
-		for(std::string strMod : vMod) {
-			res::path pathModOverride = std::string() + "mods/" + strMod + "/" + pathScript.string() + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
-			res::path pathModPatch = pathModOverride + ".patch";
-			
-			int logInfoForScript = 0;
+		int logInfoForScript = 0;
+		size_t modOverrideApplyCount = 0;
+		size_t modPatchApplyCount = 0;
+		for(std::string strMod : vModList) {
+			std::string strModBase = std::string() + "mods/" + strMod + "/" + pathScript.string();
+			res::path pathModOverride = strModBase + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
+			res::path pathModPatch = strModBase + ".patch";
 			
 			// apply diff patch
 			std::ifstream fileModPatch(pathModPatch.string());
@@ -2254,6 +2255,28 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				if(logInfoForScript == 0) {
 					LogInfo << "Modding script file: " << pathScript.string();
 					logInfoForScript++;
+				}
+				std::stringstream fileDataPatch;
+				fileDataPatch << fileModPatch.rdbuf();
+				
+				if(fileDataPatch.str().find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
+					// arx_assert_msg(false, "all chars at '%s' must be lowercase", pathModPatch.string().c_str());
+					std::ofstream fileModPatchLowerCase;
+					pathModPatch = pathModPatch.string()+"lowercase.patch";
+					fileModPatchLowerCase.open(pathModPatch.string(), std::ios_base::trunc);
+					if(fileModPatchLowerCase.fail()) {
+						arx_assert_msg(false, "failed to write required lowercase patch file '%s'", pathModPatch.string().c_str());
+					}
+					fileModPatchLowerCase << util::toLowercase(fileDataPatch.str());
+					fileModPatchLowerCase.flush();
+					fileModPatchLowerCase.close();
+					LogInfo << "├─ Mod: fixed patch to lower case at: " << pathModPatch;
+					// std::ifstream fileModPatch(pathModPatch.string());
+					// if(fileModPatch.is_open()) {
+						// fileDataPatch << fileModPatch.rdbuf();
+					// } else {
+						// arx_assert_msg(false, "failed to write required lowercase patch file '%s'", pathModPatch.string().c_str());
+					// }
 				}
 				
 				res::path pathScriptToBePatched = pathModdedDump;
@@ -2267,11 +2290,12 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				
 				std::ifstream fileModPatched(pathScriptToBePatched.string());
 				if (fileModPatched.is_open()) {
+					std::stringstream fileData;
 					fileData << fileModPatched.rdbuf();
 					script.data = util::toLowercase(fileData.str());
 					fileModPatched.close();
-					LogInfo << "├─ Mod: apply patch: " << pathModPatch;
-					modApplyCount++;
+					LogInfo << "├─ Mod: applied patch: " << pathModPatch;
+					modPatchApplyCount++;
 				} else {
 					arx_assert_msg(false, "failed to load the patched script '%s' after using the mod patch file '%s'", pathScriptToBePatched.string().c_str(), pathModPatch.string().c_str());
 				}
@@ -2279,7 +2303,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				fileModPatch.close();
 			}
 			
-			// apply simple override. prepends script code. The last prepended wins.
+			// apply simple override. prepends script code for GoTo/GoSub calls and events. The last prepended wins.
 			std::ifstream fileModOverride(pathModOverride.string());
 			if (fileModOverride.is_open()) {
 				if(logInfoForScript == 0) {
@@ -2287,17 +2311,18 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					logInfoForScript++;
 				}
 				
+				std::stringstream fileData;
 				fileData << fileModOverride.rdbuf();
 				script.data = util::toLowercase(fileData.str()) + "\n" + script.data;
 				fileModOverride.close();
-				LogInfo << "├─ Mod: apply overrides: " << pathModOverride;
-				modApplyCount++;
+				LogInfo << "├─ Mod: applied overrides: " << pathModOverride;
+				modOverrideApplyCount++;
 			}
 		}
 		
-		if(modApplyCount > 0) {
+		if((modOverrideApplyCount + modPatchApplyCount) > 0) {
 			writeScriptAtModDumpFolder(pathModdedDump, script);
-			LogInfo << "└─ Mod: dump result of " << modApplyCount << " applied mods at: " << pathModdedDump;
+			LogInfo << "└─ Mod: dump result of " << modOverrideApplyCount << " applied overrides and " << modPatchApplyCount << " applied patches at: " << pathModdedDump;
 		}
 	}
 	
