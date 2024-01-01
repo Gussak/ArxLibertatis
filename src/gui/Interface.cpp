@@ -886,9 +886,10 @@ void ArxGame::managePlayerControls() {
 		g_moveto = player.pos + tm;
 	}
 	
-	if(   GInput->actionNowPressed(CONTROLS_CUST_UNSTACK) 
+	if(   GInput->actionNowPressed(CONTROLS_CUST_UNSTACK)
 		 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())
-		 && FlyingOverIO && FlyingOverIO->_itemdata->count > 1
+		 && FlyingOverIO && FlyingOverIO->owner() && FlyingOverIO->owner()->inventory
+		 && FlyingOverIO->_itemdata->count > 1
 	) {
 		Entity * unstackedEntity = CloneIOItem(FlyingOverIO);
 		unstackedEntity->scriptload = 1;
@@ -896,7 +897,6 @@ void ArxGame::managePlayerControls() {
 		unstackedEntity->pos = FlyingOverIO->pos;
 		unstackedEntity->angle = FlyingOverIO->angle;
 		unstackedEntity->show = SHOW_FLAG_IN_SCENE;
-		//entities.player()->inventory->insertIntoNewSlot(unstackedEntity);
 		FlyingOverIO->owner()->inventory->insertIntoNewSlot(unstackedEntity);
 		FlyingOverIO->_itemdata->count--;
 	}
