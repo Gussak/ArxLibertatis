@@ -51,12 +51,12 @@
 
 std::string strFlConsoleHistory; // fs::path flHistory;
 void ScriptConsole::loadHistoryFile() {
-	//flHistory = fs::getUserDir() / "consolehistory.txt";
+	// flHistory = fs::getUserDir() / "consolehistory.txt";
 	strFlConsoleHistory = "./arxLiberatisConsolehistory.txt";
-	std::ifstream flHistoryLoad(strFlConsoleHistory); //flHistory.string());
-	if (flHistoryLoad.is_open()) {
+	std::ifstream flHistoryLoad(strFlConsoleHistory); // flHistory.string());
+	if(flHistoryLoad.is_open()) {
 		std::string line;
-		while (std::getline(flHistoryLoad, line)) {
+		while(std::getline(flHistoryLoad, line)) {
 			m_history.push_back(line.c_str());
 		}
 		flHistoryLoad.close();
