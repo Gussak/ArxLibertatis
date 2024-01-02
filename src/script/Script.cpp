@@ -2272,7 +2272,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				res::path pathScriptToBePatched = pathModdedDump;
 				writeScriptAtModDumpFolder(pathScriptToBePatched, script);
 				
-				std::string strPatchOutputFile = pathModPatch.string() + ".output";
+				std::string strPatchOutputFile = pathModPatch.string() + ".log";
 				std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatch.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
 				int ret = std::system(strCmd.c_str());
 				if(ret != 0) {
