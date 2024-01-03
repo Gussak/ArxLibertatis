@@ -23,7 +23,6 @@
 #include <sstream>
 #include <cctype>
 #include <fstream>
-#include <iostream>     // std::ios, std::istream, std::cout
 
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -49,14 +48,13 @@
 
 // TODO Share some of this with the save name entry field
 
-std::string strFlConsoleHistory; // fs::path flHistory;
+fs::path historyFile;
 void ScriptConsole::loadHistoryFile() {
-	//flHistory = fs::getUserDir() / "consolehistory.txt";
-	strFlConsoleHistory = "./arxLiberatisConsolehistory.txt";
-	std::ifstream flHistoryLoad(strFlConsoleHistory); //flHistory.string());
-	if (flHistoryLoad.is_open()) {
+	historyFile = fs::getUserDir() / "consolehistory.txt";
+	std::ifstream flHistoryLoad(historyFile.string());
+	if(flHistoryLoad.is_open()) {
 		std::string line;
-		while (std::getline(flHistoryLoad, line)) {
+		while(std::getline(flHistoryLoad, line)) {
 			m_history.push_back(line.c_str());
 		}
 		flHistoryLoad.close();
@@ -381,6 +379,7 @@ void ScriptConsole::paste(std::string_view text) {
 
 void ScriptConsole::open() {
 	if(!m_enabled) {
+		if(historyFile.string().size() == 0)loadHistoryFile();
 		config.input.allowConsole = true;
 		m_enabled = true;
 		m_wasPaused = (g_gameTime.isPaused() & GameTime::PauseUser) != 0;
@@ -417,7 +416,7 @@ void ScriptConsole::execute() {
 		m_history.push_back(text());
 		
 		static std::ofstream flConsoleHistory;
-		flConsoleHistory.open(strFlConsoleHistory, std::ios_base::app);
+		flConsoleHistory.open(historyFile.string(), std::ios_base::app);
 		flConsoleHistory << text() << "\n";
 		flConsoleHistory.flush();
 		flConsoleHistory.close();
