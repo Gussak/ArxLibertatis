@@ -48,6 +48,7 @@
 
 // TODO Share some of this with the save name entry field
 
+std::string previousConsoleCommand;
 fs::path historyFile;
 void ScriptConsole::loadHistoryFile() {
 	historyFile = fs::getUserDir() / "consolehistory.txt";
@@ -56,6 +57,7 @@ void ScriptConsole::loadHistoryFile() {
 		std::string line;
 		while(std::getline(flHistoryLoad, line)) {
 			m_history.push_back(line.c_str());
+			previousConsoleCommand = line;
 		}
 		flHistoryLoad.close();
 	}
@@ -415,11 +417,14 @@ void ScriptConsole::execute() {
 		m_history.erase(std::remove(m_history.begin(), m_history.end(), text()), m_history.end());
 		m_history.push_back(text());
 		
-		static std::ofstream flConsoleHistory;
-		flConsoleHistory.open(historyFile.string(), std::ios_base::app);
-		flConsoleHistory << text() << "\n";
-		flConsoleHistory.flush();
-		flConsoleHistory.close();
+		std::string newCommandLine = text();
+		if(newCommandLine != previousConsoleCommand) {
+			static std::ofstream flConsoleHistory;
+			flConsoleHistory.open(historyFile.string(), std::ios_base::app);
+			flConsoleHistory << text() << "\n";
+			flConsoleHistory.flush();
+			flConsoleHistory.close();
+		}
 		
 		if(m_history.size() > MaxHistorySize) {
 			m_history.pop_front();
