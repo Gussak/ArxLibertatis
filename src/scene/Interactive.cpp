@@ -1931,6 +1931,12 @@ void UpdateInter() {
 	
 	for(Entity & entity : entities.inScene()) {
 		
+		static float detectMoveDist = 3.0f; // TODO this could be configurable, may be also per entity, thru a script command: DetectMove -e <entityID> <floatDist>
+		if((entity.pos != entity.detectMovePos) && (fdist(entity.pos, entity.detectMovePos) >= detectMoveDist)) {
+			SendIOScriptEvent(nullptr, entity, SM_MOVEMENTDETECTED, "");
+			entity.detectMovePos = entity.pos;
+		}
+		
 		if(&entity == g_draggedEntity
 		   || !(entity.gameFlags & GFLAG_ISINTREATZONE)
 		   || (entity.ioflags & (IO_CAMERA | IO_MARKER))
