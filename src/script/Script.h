@@ -188,6 +188,7 @@ struct EERIE_SCRIPT {
 	bool valid = false;
 	std::string data;
 	size_t shortcut[SM_MAXCMD];
+	std::map<string,int> shortcutCalls;
 
 	EERIE_SCRIPT() noexcept {
 		memset(&shortcut, 0, sizeof(shortcut));
