@@ -46,16 +46,16 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/Script.h"
 
-#include <stddef.h>
-#include <cstdio>
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
 #include <exception>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <limits>
 #include <sstream>
-#include <chrono>
-#include <fstream>
-#include <sstream>
-#include <filesystem>
+#include <stddef.h>
 
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -86,6 +86,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "io/resource/PakReader.h"
 #include "io/log/Logger.h"
 
+#include "platform/Thread.h"
 #include "platform/profiler/Profiler.h"
 
 #include "scene/Scene.h"
@@ -2004,10 +2005,11 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	if(!usedCache) {
 		script.data = util::toLowercase(file->read());
 		
+		std::string strBaseModPath = "mods";
 		static std::vector<std::string> vModList;
 		if(vModList.size() == 0) {
 			//the last in the list wins.
-			std::string strFlModLoadOrder = "mods/modloadorder.cfg";
+			std::string strFlModLoadOrder = strBaseModPath + "/" + "modloadorder.cfg";
 			std::ifstream flLoadOrder(strFlModLoadOrder);
 			if (flLoadOrder.is_open()) {
 				std::string line;
@@ -2033,57 +2035,75 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		size_t modOverrideApplyCount = 0;
 		size_t modPatchApplyCount = 0;
 		for(std::string strMod : vModList) {
-			std::string strModBase = std::string() + "mods/" + strMod + "/" + pathScript.string();
+			std::string strModBase = std::string() + strBaseModPath + "/" + strMod + "/" + pathScript.string();
+			int cleanTo = strBaseModPath.size()+1+strMod.size()+1;
 			res::path pathModOverride = strModBase + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
 			res::path pathModPatch = strModBase + ".patch";
+			int logInfoForMod = 0;
+			int logInfoAppliedForMod = 0;
 			
 			// apply diff patch
-			std::ifstream fileModPatch(pathModPatch.string());
-			if (fileModPatch.is_open()) {
-				if(logInfoForScript == 0) {
-					LogInfo << "Modding script file: " << pathScript.string();
-					logInfoForScript++;
-				}
-				std::stringstream fileDataPatch;
-				fileDataPatch << fileModPatch.rdbuf();
-				
-				if(fileDataPatch.str().find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
-					std::ofstream fileModPatchLowerCase;
-					pathModPatch = pathModPatch.string()+".lowercase.patch";
-					fileModPatchLowerCase.open(pathModPatch.string(), std::ios_base::trunc);
-					if(fileModPatchLowerCase.fail()) {
-						arx_assert_msg(false, "failed to write required lowercase patch file '%s'", pathModPatch.string().c_str());
+			while(true) { // this loop let the user or mod developer take action w/o requiring to restart the game
+				std::ifstream fileModPatch(pathModPatch.string());
+				if (fileModPatch.is_open()) {
+					if(logInfoForScript == 0) {
+						LogInfo << "Modding script file: " << pathScript.string();
+						logInfoForScript++;
 					}
-					fileModPatchLowerCase << util::toLowercase(fileDataPatch.str());
-					fileModPatchLowerCase.flush();
-					fileModPatchLowerCase.close();
-					LogInfo << "├─ Mod: fixed patch to lower case at: " << pathModPatch;
+					if(logInfoForMod == 0) {
+						LogInfo << "├─ Mod name: " << strMod;
+						logInfoForMod++;
+					}
+
+					std::stringstream fileDataPatch;
+					fileDataPatch << fileModPatch.rdbuf();
+					fileModPatch.close();
+					
+					res::path pathModPatchToApply;
+					if(fileDataPatch.str().find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
+						std::ofstream fileModPatchLowerCase;
+						res::path pathModPatchLowerCase = pathModPatch.string()+".lowercase.patch";
+						fileModPatchLowerCase.open(pathModPatchLowerCase.string(), std::ios_base::trunc);
+						if(fileModPatchLowerCase.fail()) {
+							arx_assert_msg(false, "failed to write required lowercase patch file '%s'", pathModPatchLowerCase.string().c_str());
+						}
+						fileModPatchLowerCase << util::toLowercase(fileDataPatch.str());
+						fileModPatchLowerCase.flush();
+						fileModPatchLowerCase.close();
+						LogInfo << "│   ├─ lower case patch : " << pathModPatchLowerCase.string().substr(cleanTo);
+						pathModPatchToApply = pathModPatchLowerCase;
+					} else {
+						pathModPatchToApply = pathModPatch;
+					}
+					
+					res::path pathScriptToBePatched = pathModdedDump;
+					writeScriptAtModDumpFolder(pathScriptToBePatched, script);
+					
+					std::string strPatchOutputFile = pathModPatchToApply.string() + ".log";
+					std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatchToApply.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
+					int retCmd = std::system(strCmd.c_str());
+					if(retCmd != 0) {
+						int dummy = std::system((std::string() + "cat \"" + strPatchOutputFile + "\"").c_str());
+						std::cerr << "ERROR: Failed (err:" << retCmd << ":" << dummy << ") to patch the script '" << pathScriptToBePatched.string() << "' using the mod patch file '" << pathModPatchToApply.string() << "'. See the above output at '" << strPatchOutputFile << "'\n";
+						std::cerr << "Fix, update or remove the patch. Retrying in 3s.\n"; // while debugging with nemiver at least, none of these work to wait terminal user input: std::cin >> dummy; dummy = std::system("read"); getchar(); do { ... } while (std::cin.get() != '\n');
+						Thread::sleep(3000ms);
+						continue;
+					}
+					
+					std::ifstream fileModPatched(pathScriptToBePatched.string());
+					if (fileModPatched.is_open()) {
+						std::stringstream fileData;
+						fileData << fileModPatched.rdbuf();
+						script.data = util::toLowercase(fileData.str());
+						fileModPatched.close();
+						LogInfo << "│   ├─ applied patch    : " << pathModPatchToApply.string().substr(cleanTo);;
+						modPatchApplyCount++;
+					} else {
+						arx_assert_msg(false, "failed to load the patched script '%s' after using the mod patch file '%s'", pathScriptToBePatched.string().c_str(), pathModPatchToApply.string().c_str());
+					}
 				}
 				
-				res::path pathScriptToBePatched = pathModdedDump;
-				writeScriptAtModDumpFolder(pathScriptToBePatched, script);
-				
-				std::string strPatchOutputFile = pathModPatch.string() + ".output";
-				std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatch.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
-				int ret = std::system(strCmd.c_str());
-				if(ret != 0) {
-					ret = std::system((std::string() + "cat \"" + strPatchOutputFile + "\"").c_str());
-					arx_assert_msg(false, "failed to patch the script '%s' using the mod patch file '%s'. See the above output at '%s'", pathScriptToBePatched.string().c_str(), pathModPatch.string().c_str(), strPatchOutputFile.c_str());
-				}
-				
-				std::ifstream fileModPatched(pathScriptToBePatched.string());
-				if (fileModPatched.is_open()) {
-					std::stringstream fileData;
-					fileData << fileModPatched.rdbuf();
-					script.data = util::toLowercase(fileData.str());
-					fileModPatched.close();
-					LogInfo << "├─ Mod: applied patch: " << pathModPatch;
-					modPatchApplyCount++;
-				} else {
-					arx_assert_msg(false, "failed to load the patched script '%s' after using the mod patch file '%s'", pathScriptToBePatched.string().c_str(), pathModPatch.string().c_str());
-				}
-				
-				fileModPatch.close();
+				break;
 			}
 			
 			// apply simple override. prepends script code for GoTo/GoSub calls and events. The last prepended wins.
@@ -2093,19 +2113,28 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					LogInfo << "Modding script file: " << pathScript.string();
 					logInfoForScript++;
 				}
+				if(logInfoForMod == 0) {
+					LogInfo << "├─ Mod name: " << strMod;
+					logInfoForMod++;
+				}
 				
 				std::stringstream fileData;
 				fileData << fileModOverride.rdbuf();
 				script.data = util::toLowercase(fileData.str()) + "\n" + script.data;
 				fileModOverride.close();
-				LogInfo << "├─ Mod: applied overrides: " << pathModOverride;
+				LogInfo << "│   ├─ applied overrides: " << pathModOverride.string().substr(cleanTo);;
 				modOverrideApplyCount++;
+				logInfoAppliedForMod++;
+			}
+			
+			if(logInfoAppliedForMod > 0) {
+				LogInfo << "│   └─ End apply all for: " << strMod;
 			}
 		}
 		
 		if((modOverrideApplyCount + modPatchApplyCount) > 0) {
 			writeScriptAtModDumpFolder(pathModdedDump, script);
-			LogInfo << "└─ Mod: dump result of " << modOverrideApplyCount << " applied overrides and " << modPatchApplyCount << " applied patches at: " << pathModdedDump;
+			LogInfo << "└─ All Mods: Dumping result of " << modOverrideApplyCount << " applied overrides and " << modPatchApplyCount << " applied patches at: " << pathModdedDump;
 		}
 	}
 	
