@@ -2235,17 +2235,17 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		}
 		
 		/**
-		 * Patches are meant to be applyed at originals (of other mods) and vanilla scripts.
-		 * Overrides are prepended script code.
+		 * Patches are meant to be applied at originals (of other mods) and vanilla scripts.
 		 * Patches are applied before overrides.
-		 * To apply a patch in a script code override, create a new folder containing it and being called after.
+		 * Overrides are prepended script code.
+		 * To apply a patch in a script code override, create a new folder (mod) containing it and being loaded after.
 		 */
 		int logInfoForScript = 0;
 		size_t modOverrideApplyCount = 0;
 		size_t modPatchApplyCount = 0;
 		for(std::string strMod : vModList) {
 			std::string strModBase = std::string() + strBaseModPath + "/" + strMod + "/" + pathScript.string();
-			int cleanTo = strBaseModPath.size()+1+strMod.size()+1;
+			int cleanTo = strBaseModPath.size() + 1 + strMod.size() + 1;
 			res::path pathModOverride = strModBase + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
 			res::path pathModPatch = strModBase + ".patch";
 			int logInfoForMod = 0;

@@ -112,6 +112,8 @@ public:
 	void skipWhitespace(bool skipNewlines = false, bool warnNewlines = false);
 	void skipWhitespaceAndComment();
 	
+	void updateNewLinesList();
+	
 	Entity * getSender() const { return m_sender; }
 	Entity * getEntity() const { return m_entity; }
 	ScriptMessage getMessage() const { return m_message; }

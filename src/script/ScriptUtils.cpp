@@ -56,6 +56,10 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_message(msg)
 	, m_parameters(std::move(parameters))
 {
+	updateNewLinesList();
+}
+
+void Context::updateNewLinesList() {
 	size_t posNL = 0;
 	while(true) {
 		posNL = m_script->data.find('\n', posNL);
