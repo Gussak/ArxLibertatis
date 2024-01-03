@@ -1933,7 +1933,7 @@ void UpdateInter() {
 		
 		static float detectMoveDist = 3.0f; // TODO this could be configurable, may be also per entity, thru a script command: DetectMove -e <entityID> <floatDist>
 		if((entity.pos != entity.detectMovePos) && (fdist(entity.pos, entity.detectMovePos) >= detectMoveDist)) {
-			SendIOScriptEvent(nullptr, &entity, SM_MOVEMENTDETECTED);
+			SendIOScriptEvent(&entity == g_draggedEntity ? entities.player() : nullptr, &entity, SM_MOVEMENTDETECTED);
 			entity.detectMovePos = entity.pos;
 		}
 		
