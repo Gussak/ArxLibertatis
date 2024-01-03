@@ -149,7 +149,7 @@ public:
 		, m_contextEnd(0)
 		, m_commandBegin(0)
 		, m_suggestionPos(0)
-	{ loadHistoryFile(); }
+	{ }
 	
 	void loadHistoryFile();
 	
