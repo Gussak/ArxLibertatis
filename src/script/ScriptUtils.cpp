@@ -464,10 +464,26 @@ size_t Context::skipCommand() {
  * 
  * if using nemiver to debug, just Shift+Ctrl+B and paste DebugBreakpoint at function name field.
 */
-static void DebugBreakpoint(std::string_view target) {
+static void DebugBreakpoint(std::string_view target, Context & context) {
 	if(boost::contains(target, "debugbreakpoint")) { //this must be on the script function's name
 		static int iDbgBrkPCount = 0;
 		iDbgBrkPCount++; //put breakpoint here
+		
+		static const char * systemPopup = std::getenv("ARX_ScriptErrorPopupCommand"); // ex.: set ARX_ScriptErrorPopupCommand="yad --title=\"%title\" --text=\"%text\""
+		if(systemPopup) {
+			std::string strSysPopup = std::string() + systemPopup;
+			std::string strTitleToken = "%title"
+			strSysPopup.replace(strSysPopup.find(strTitleToken), strTitleToken.size(), "ArxLibertatis Script Debug BreakPoint");
+			
+			std::string strTextToken = "%text"
+			std::stringstream ss;
+			std::string strVarDebug = '\xA3' + "DebugMessage";
+			ss << ScriptContextPrefix(context) << "\n" << context.getStringVar(strVarDebug); // set a string var named DebugMessage in the script and it will show up on the popup!
+			strSysPopup.replace(strSysPopup.find(strTextToken), strTextToken.size(), ss.string());
+			
+			int i = std::system(strSysPopup);
+			i++; //dummy avoid warnings
+		}
 	}
 }
 #pragma GCC pop_options
@@ -482,7 +498,7 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	}
 	
 #ifdef ARX_DEBUG
-	DebugBreakpoint(target);
+	DebugBreakpoint(target, this);
 #endif
 
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
