@@ -201,8 +201,30 @@ std::string Context::getPositionAndLineNumber(bool compact, size_t pos) const {
 	
 	s << "[" << (compact ? "p=" : "Position ") << pos;
 	
-	int iLine = 0;
-	int iColumn = 1;
+	size_t iLine, iColumn;
+	getLineColumn(iLine, iColumn, pos);
+	//for(size_t i = 0; i < m_vNewLineAt.size(); i++) {
+		//if(pos > m_vNewLineAt[i]) {
+			//iLine = i + 1;
+			//iColumn = pos - m_vNewLineAt[i];
+			//iLine++;
+			//iColumn--;
+		//} else {
+			//break;
+		//}
+	//}
+	
+	s << (compact ? ",l=" : ", Line ") << iLine << (compact ? ",c=" : ", Column ") << iColumn << "]";
+	return s.str();
+}
+
+void Context::getLineColumn(size_t & iLine, size_t & iColumn, size_t pos) const {
+	if(pos == static_cast<size_t>(-1)) {
+		pos = m_pos;
+	}
+	
+	iLine = 0;
+	iColumn = 1;
 	for(size_t i = 0; i < m_vNewLineAt.size(); i++) {
 		if(pos > m_vNewLineAt[i]) {
 			iLine = i + 1;
@@ -213,9 +235,6 @@ std::string Context::getPositionAndLineNumber(bool compact, size_t pos) const {
 			break;
 		}
 	}
-	
-	s << (compact ? ",l=" : ", Line ") << iLine << (compact ? ",c=" : ", Column ") << iColumn << "]";
-	return s.str();
 }
 
 std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const {
@@ -469,20 +488,40 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 		static int iDbgBrkPCount = 0;
 		iDbgBrkPCount++; //put breakpoint here
 		
-		static const char * systemPopup = std::getenv("ARX_ScriptErrorPopupCommand"); // ex.: set ARX_ScriptErrorPopupCommand="yad --title=\"%title\" --text=\"%text\""
+		static const char * systemPopup = std::getenv("ARX_ScriptErrorPopupCommand"); // ex.: export ARX_ScriptErrorPopupCommand="yad --title=\"%title\" --text=\"%text\""
 		if(systemPopup) {
 			std::string strSysPopup = std::string() + systemPopup;
-			std::string strTitleToken = "%title"
+			
+			std::string strTitleToken = "%title";
 			strSysPopup.replace(strSysPopup.find(strTitleToken), strTitleToken.size(), "ArxLibertatis Script Debug BreakPoint");
 			
-			std::string strTextToken = "%text"
+			std::string strTextToken = "%text";
 			std::stringstream ss;
-			std::string strVarDebug = '\xA3' + "DebugMessage";
-			ss << ScriptContextPrefix(context) << "\n" << context.getStringVar(strVarDebug); // set a string var named DebugMessage in the script and it will show up on the popup!
-			strSysPopup.replace(strSysPopup.find(strTextToken), strTextToken.size(), ss.string());
+			std::string strVarDebug = std::string() + '\xA3' + "debugmessage"; //keep lower case here! but in the original script can be DebugMessage
+			ss << ScriptContextPrefix(context) << "\n"
+			   << context.getStringVar(strVarDebug) << "\n"
+			   << (context).getScript()->file << "\n"
+			   << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
+			strSysPopup.replace(strSysPopup.find(strTextToken), strTextToken.size(), ss.str());
 			
-			int i = std::system(strSysPopup);
-			i++; //dummy avoid warnings
+			int i = std::system(strSysPopup.c_str());
+			if(i == 0) {
+				static const char * codeEditor = std::getenv("ARX_ScriptCodeEditor"); // ex.: export ARX_ScriptCodeEditor="geany \"%file\":%line"
+				if(codeEditor) {
+					std::string strCodeEditor = std::string() + codeEditor;
+					
+					std::string strFileToken = "%file";
+					strCodeEditor.replace(strCodeEditor.find(strFileToken), strFileToken.size(), (context).getScript()->file);
+					
+					size_t line,column;
+					(context).getLineColumn(line, column);
+					std::string strLineToken = "%line";
+					strCodeEditor.replace(strCodeEditor.find(strLineToken), strLineToken.size(), std::to_string(line));
+					
+					int iEd = std::system(strCodeEditor.c_str());
+					iEd++; // dummy avoid warnings
+				}
+			}
 		}
 	}
 }
@@ -498,7 +537,7 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	}
 	
 #ifdef ARX_DEBUG
-	DebugBreakpoint(target, this);
+	DebugBreakpoint(target, *this);
 #endif
 
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);

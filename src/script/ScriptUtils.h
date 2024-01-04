@@ -140,6 +140,7 @@ public:
 	
 	size_t getPosition() const { return m_pos; }
 	
+	void getLineColumn(size_t & iLine, size_t & iColumn, size_t pos = static_cast<size_t>(-1)) const;
 	std::string getPositionAndLineNumber(bool compact = false, size_t pos = static_cast<size_t>(-1)) const;
 	std::string getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const;
 	void seekToPosition(size_t pos);

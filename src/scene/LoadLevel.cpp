@@ -115,7 +115,7 @@ Entity * LoadInter_Ex(const res::path & classPath, EntityInstance instance,
 	RestoreInitialIOStatusOfIO(io);
 	ARX_INTERACTIVE_HideGore(io);
 	
-	io->lastpos = io->initpos = io->pos = pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos = pos;
 	io->move = Vec3f(0.f);
 	io->initangle = io->angle = angle;
 	

@@ -54,6 +54,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <stddef.h>
 
@@ -260,10 +261,11 @@ std::ostream & operator<<(std::ostream & os, const ScriptParameters & parameters
 
 size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 	
-	std::map<string,int>::iterator itCall; // TODO performance tests in some 100KB+ script where the target is at it's end
-	itCall = es->shortcutCalls.find(str);
-	if(itCall != es->shortcutCalls.end()) {
-		return itCall->second;
+	if(str.size() >= 2 && str[0] == '>' && str[1] == '>') {
+		auto it = es->shortcutCalls.find(str);
+		if(it != es->shortcutCalls.end()) {
+			return it->second;
+		}
 	}
 	
 	// TODO(script-parser) remove, respect quoted strings
@@ -282,9 +284,7 @@ size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 		// Check if the line is commented out!
 		for(size_t p = pos; es->data[p] != '/' || es->data[p + 1] != '/'; p--) {
 			if(es->data[p] == '\n' || p == 0) {
-				pos += str.length();
-				es->shortcutCalls.insert( std::pair<string,int>(str,pos) );
-				return pos;
+				return pos + str.length();
 			}
 		}
 		
@@ -2194,6 +2194,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	pathModdedDump = std::string() + "modsdump/" + pathScript.string();
 	
 	script.valid = true;
+	script.file = pathScript.string();
 	
 	const char * moddingOpt = std::getenv("ARX_MODDING"); // set ARX_MODDING=1 to let dumped scripts cache always be loaded, this will also ignore changes to mod files and to original files that would be patched/overriden
 	int moddingMode = 0;
@@ -2214,6 +2215,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 			std::stringstream fileData;
 			fileData << fileModCache.rdbuf();
 			script.data = util::toLowercase(fileData.str());
+			script.file = pathModdedDump.string();
 			fileModCache.close();
 			usedCache = true;
 		}
@@ -2300,9 +2302,14 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatchToApply.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
 					int retCmd = std::system(strCmd.c_str());
 					if(retCmd != 0) {
-						int dummy = std::system((std::string() + "cat \"" + strPatchOutputFile + "\"").c_str());
-						std::cerr << "ERROR: Failed (err:" << retCmd << ":" << dummy << ") to patch the script '" << pathScriptToBePatched.string() << "' using the mod patch file '" << pathModPatchToApply.string() << "'. See the above output at '" << strPatchOutputFile << "'\n";
-						std::cerr << "Fix, update or remove the patch. Retrying in 3s.\n"; // while debugging with nemiver at least, none of these work to wait terminal user input: std::cin >> dummy; dummy = std::system("read"); getchar(); do { ... } while (std::cin.get() != '\n');
+						std::ifstream fileOutputMsg(strPatchOutputFile);
+						if (fileOutputMsg.is_open()) {
+							std::cerr << fileOutputMsg.rdbuf();
+							fileOutputMsg.close();
+						}
+						std::cerr << "ERROR: Failed (err=" << retCmd << ") to patch the script '" << pathScriptToBePatched.string() << "' using the mod patch file '" << pathModPatchToApply.string() << "'. See the above output at '" << strPatchOutputFile << "'\n";
+						std::cerr << "Fix, update or remove the patch. Retrying in 3s.\n"; 
+						// while debugging with nemiver at least, none of these work (hitting enter does nothing, so it wont continue) to wait terminal user input: std::cin >> dummy; dummy = std::system("read"); getchar(); do { ... } while (std::cin.get() != '\n');
 						Thread::sleep(3000ms);
 						continue;
 					}
@@ -2351,6 +2358,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		
 		if((modOverrideApplyCount + modPatchApplyCount) > 0) {
 			writeScriptAtModDumpFolder(pathModdedDump, script);
+			script.file = pathModdedDump.string();
 			LogInfo << "└─ All Mods: Dumping result of " << modOverrideApplyCount << " applied overrides and " << modPatchApplyCount << " applied patches at: " << pathModdedDump;
 		}
 	}

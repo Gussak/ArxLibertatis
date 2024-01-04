@@ -1265,7 +1265,7 @@ Entity * AddFix(const res::path & classPath, EntityInstance instance, AddInterac
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
 	
-	io->lastpos = io->initpos = io->pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos;
 	io->lastpos.x = io->initpos.x = glm::abs(io->initpos.x / 20) * 20.f;
 	io->lastpos.z = io->initpos.z = glm::abs(io->initpos.z / 20) * 20.f;
 	
@@ -1321,7 +1321,7 @@ static Entity * AddCamera(const res::path & classPath, EntityInstance instance) 
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
 	
-	io->lastpos = io->initpos = io->pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos;
 	io->lastpos.x = io->initpos.x = glm::abs(io->initpos.x / 20) * 20.f;
 	io->lastpos.z = io->initpos.z = glm::abs(io->initpos.z / 20) * 20.f;
 	
@@ -1373,7 +1373,7 @@ static Entity * AddMarker(const res::path & classPath, EntityInstance instance) 
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
 	
-	io->lastpos = io->initpos = io->pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos;
 	io->lastpos.x = io->initpos.x = glm::abs(io->initpos.x / 20) * 20.f;
 	io->lastpos.z = io->initpos.z = glm::abs(io->initpos.z / 20) * 20.f;
 	
@@ -1489,7 +1489,7 @@ Entity * AddNPC(const res::path & classPath, EntityInstance instance, AddInterac
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
 	
-	io->lastpos = io->initpos = io->pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos;
 	io->lastpos.x = io->initpos.x = glm::abs(io->initpos.x / 20) * 20.f;
 	io->lastpos.z = io->initpos.z = glm::abs(io->initpos.z / 20) * 20.f;
 	
@@ -1580,6 +1580,7 @@ Entity * AddItem(const res::path & classPath_, EntityInstance instance, AddInter
 	
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
+	io->detectMovePos = io->pos;
 	
 	io->lastpos.x = io->initpos.x = std::floor(io->pos.x / 20.f) * 20.f;
 	io->lastpos.z = io->initpos.z = std::floor(io->pos.z / 20.f) * 20.f;

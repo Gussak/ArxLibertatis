@@ -40,6 +40,8 @@ If you have questions concerning this license or the applicable additional terms
 ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 ===========================================================================
 */
+#include <iostream>
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n"
 
 #include "script/ScriptEvent.h"
 
@@ -159,6 +161,68 @@ std::string_view ScriptEvent::name(ScriptMessage event) {
 void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 	for(size_t i = 1; i < SM_MAXCMD; i++) {
 		es.shortcut[i] = FindScriptPos(&es, ScriptEvent::name(ScriptMessage(i)));
+	}
+	
+	// cache GoTo/GoSub call target IDs
+	size_t pos = 0;
+	size_t posEnd = 0;
+	bool bContinue = false;
+	while(true) {
+		bContinue=false;
+		
+		if(pos == std::string::npos) {
+			break;
+		}
+		
+		pos = es.data.find(">>",pos);
+		if(pos == std::string::npos) {
+			break;
+		}
+		MYDBG("pos="<<pos<<",datasize="<<es.data.size()); //LogDebug
+		
+		// Check if the line is commented out!
+		for(size_t p = pos;; p--) {
+			if(p == 0) {
+				break; // is valid
+			}
+			if(es.data[p] == '\n') {
+				break; // is valid
+			}
+			if(es.data[p] == '/' && es.data[p + 1] == '/') {
+				pos = es.data.find('\n', pos); //skip to the end of the commented line
+				if(pos != std::string::npos) {
+					pos++; //skip \n
+				}
+				bContinue = true;
+				break;
+			}
+		}
+		if(bContinue) {
+			continue;
+		}
+		//for(size_t p = pos; es.data[p] != '/' || es.data[p + 1] != '/'; p--) {
+			//if(es->data[p] == '\n' || p == 0) {
+				//return pos + str.length();
+			//}
+		//}
+		
+		posEnd = es.data.find_first_not_of("abcdefghijklmnopqrstuvwxyz_", pos+2); //skip ">>"
+		if(posEnd == std::string::npos) {
+			posEnd = es.data.size();
+		}
+		std::string id = es.data.substr(pos, posEnd-pos);
+		if(id.find_first_not_of("abcdefghijklmnopqrstuvwxyz_>") != std::string::npos) {
+			arx_assert_msg(false, "invalid id detected '%s' pos=%lu, posEnd=%lu, scriptSize=%lu idSize=%lu", id.c_str(), pos, posEnd, es.data.size(), id.size());
+		}
+		
+		es.shortcutCalls.emplace(id, posEnd);
+		MYDBG("shortcutCall:id="<<id<<",posAfterIt="<<posEnd<<",pos="<<pos<<",vsize="<<es.shortcutCalls.size()); //LogDebug
+		
+		if(posEnd == es.data.size()) {
+			break;
+		}
+		
+		pos = posEnd;
 	}
 }
 
