@@ -526,25 +526,22 @@ bool SystemPopup(const std::string strTitle, const std::string strCustomMessage,
 	return false;
 }
 
-#ifdef ARX_DEBUG
 #pragma GCC push_options
 #pragma GCC optimize ("O0") //required to let the breakpoint work
 /* implementation suggestion:
  >>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
- * call this inside the .asl script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
- * 
- * if using nemiver to debug, just Shift+Ctrl+B and paste DebugBreakpoint at function name field.
+ * Call this inside the .asl script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
+ * If using nemiver to debug, just Shift+Ctrl+B and paste DebugBreakpoint at function name field.
+ * This will be available also on release compilations as mod developers can use the system popup instead of a debugger! The system popup requires environment variables to be set, or it wont show up, what makes it ok also to players.
 */
 static void DebugBreakpoint(std::string_view target, Context & context) {
-	if(boost::contains(target, "debugbreakpoint")) { //this must be on the script function's name
+	if(boost::contains(target, "debugbreakpoint")) { // this must be on the script call target name
 		static int iDbgBrkPCount = 0;
-		iDbgBrkPCount++; //put breakpoint here
-		
+		iDbgBrkPCount++; // put breakpoint here if using a debugger
 		SystemPopup("Debug", "Script Debug BreakPoint", (context).getScript()->file, "DebugMessage", &context);
 	}
 }
 #pragma GCC pop_options
-#endif
 
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
@@ -554,10 +551,8 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 		m_stackId.push_back(std::string() += target);
 	}
 	
-#ifdef ARX_DEBUG
 	DebugBreakpoint(target, *this);
-#endif
-
+	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
 	if(targetpos == size_t(-1)) {
 		return false;
