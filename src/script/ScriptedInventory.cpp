@@ -379,6 +379,61 @@ class InventoryCommand : public Command {
 		
 	};
 	
+	class GetItemCommand : public SubCommand {
+		
+		const char mode;
+		
+	public:
+		
+		/**
+		 * INVENTORY GetItemCount [-e] <e?entityId> <IntVar> <strItemIdPrefix>
+		 * INVENTORY GetItemList [-e] <e?entityId> <StrVar> <strItemIdPrefix>
+		 * INVENTORY GetItemCountList [-e] <e?entityId> <StrVar> <strItemIdPrefix>
+		 */
+		GetItemCommand(std::string_view name, char _mode) : SubCommand(name), mode(_mode) { }
+		
+		Result execute(Context & context) override {
+			
+			Entity * entInventory = context.getEntity();
+			std::string strEntId;
+			
+			HandleFlags("e") {
+				if(flg & flag('e')) {
+					strEntId = context.getWord();
+					if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
+					entInventory = entities.getById(strEntId);
+				}
+			}
+			
+			std::string strVar = context.getWord();
+			std::string strItemIdPrefix = context.getStringVar(context.getWord());
+			
+			if(!entInventory) {
+				ScriptWarning << "Invalid target entity " << strEntId;
+				if(multi) {
+					context.skipWord();
+				}
+				return Failed;
+			}
+			
+			// TODOA migrate code from ScriptedVariable.cpp/SetCommand
+			switch(mode) {
+				case 'c': {
+					break;
+				}
+				case 'l': {
+					break;
+				}
+				case 'a': {
+					break;
+				}
+				default: arx_assert_msg(false, "invalid inventory getitem mode '%c'", mode);
+			}
+			
+			return Success;
+		}
+	};
+	
 	class OpenCommand : public SubCommand {
 		
 	public:
@@ -433,6 +488,9 @@ public:
 		addCommand(new DestroyCommand);
 		addCommand(new OpenCommand);
 		addCommand(new CloseCommand);
+		addCommand(new GetItemCommand("getitemcount", 'c'));
+		addCommand(new GetItemCommand("getitemlist", 'l'));
+		addCommand(new GetItemCommand("getitemcountlist", 'a'));
 	}
 	
 	Result execute(Context & context) override {
