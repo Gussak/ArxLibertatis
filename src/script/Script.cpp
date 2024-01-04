@@ -2301,7 +2301,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					std::string strPatchOutputFile = pathModPatchToApply.string() + ".log";
 					std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatchToApply.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
 					int retCmd = std::system(strCmd.c_str());
-					if(retCmd != 0) {
+					if(retCmd != 0) { // these below are important to show also to end users installing mods, so they can remove the mod, update it, or try to fix by themselves.
 						std::ifstream fileOutputMsg(strPatchOutputFile);
 						if (fileOutputMsg.is_open()) {
 							std::cerr << fileOutputMsg.rdbuf();
