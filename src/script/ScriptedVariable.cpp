@@ -147,17 +147,21 @@ public:
 	 * 
 	 * The Modes below are exclusive. Use only one.
 	 * 
+	 * TODO: new command ARRAY [-rw] <w?entWriteTo> <r?entReadFrom> <var> <a?array> <a?index>
 	 ** <-a> Mode: Array: assigns to var the array entry at index
 	 * Set -a[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?array> <a?index>
 	 * 		<array> is a string that contains words separated by spaces ' '
 	 * 		<index> array index that begins in 0
 	 * 
+	 * TODO: new command (at INVENTORY as sub command) GetItemCount [-rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
 	 ** <-i> Mode: Item count at inventory: assigns to var the count of items beggining with entityIdPrefix
 	 * Set -i[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
 	 * 
+	 * TODO: new command (at INVENTORY as sub command) GetItemList [-rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
 	 ** <-l> Mode: List: assigns to var an array of item IDs that begin with entityIdPrefix
 	 * Set -l[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
 	 * 
+	 * TODO: new command (at INVENTORY as sub command) GetItemCountList [-rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
 	 ** <-m> Mode: List2D: assigns to var a bi-dimentional list containing the item ID (beggining with entityIdPrefix) and it's count like: "itemIDa 2 itemIDb 78"
 	 * Set -m[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
 	 * 
