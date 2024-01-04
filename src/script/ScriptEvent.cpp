@@ -126,6 +126,7 @@ std::string_view ScriptEvent::name(ScriptMessage event) {
 		case SM_LOAD:                   return "on load";
 		case SM_LOSTTARGET:             return "on losttarget";
 		case SM_MAIN:                   return "on main";
+		case SM_MOVEMENTDETECTED:       return "on movementdetected";
 		case SM_OUCH:                   return "on ouch";
 		case SM_PATHEND:                return "on pathend";
 		case SM_PATHFINDER_FAILURE:     return "on pathfinder_failure";
