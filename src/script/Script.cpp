@@ -2308,9 +2308,12 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 							fileOutputMsg.close();
 						}
 						std::cerr << "ERROR: Failed (err=" << retCmd << ") to patch the script '" << pathScriptToBePatched.string() << "' using the mod patch file '" << pathModPatchToApply.string() << "'. See the above output at '" << strPatchOutputFile << "'\n";
-						std::cerr << "Fix, update or remove the patch. Retrying in 3s.\n"; 
+						std::cerr << "Fix, update or remove the patch.\n"; 
 						// while debugging with nemiver at least, none of these work (hitting enter does nothing, so it wont continue) to wait terminal user input: std::cin >> dummy; dummy = std::system("read"); getchar(); do { ... } while (std::cin.get() != '\n');
-						Thread::sleep(3000ms);
+						if(!SystemPopup("Modding", "Applying a mod patch failed.", pathModPatchToApply.string())) {
+							std::cerr << "Retrying in 3s.\n"; 
+							Thread::sleep(3000ms);
+						}
 						continue;
 					}
 					

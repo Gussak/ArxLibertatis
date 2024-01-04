@@ -206,4 +206,6 @@ size_t initSuppressions();
 
 } // namespace script
 
+bool SystemPopup(const std::string strTitle, const std::string strCustomMessage, const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr);
+
 #endif // ARX_SCRIPT_SCRIPTUTILS_H

@@ -474,6 +474,58 @@ size_t Context::skipCommand() {
 	return oldpos;
 }
 
+bool SystemPopup(const std::string strTitle, const std::string strCustomMessage, const std::string strCodeFile, const std::string strScriptStringVariableID, const Context * context) {
+	static const char * systemPopup = std::getenv("ARX_ScriptErrorPopupCommand"); // ex.: export ARX_ScriptErrorPopupCommand="yad --title=\"%title\" --text=\"%text\""
+	if(systemPopup) {
+		std::string strSysPopup = std::string() + systemPopup;
+		
+		std::string strTitleToken = "%title";
+		strSysPopup.replace(strSysPopup.find(strTitleToken), strTitleToken.size(), "ArxLibertatis: " + strTitle);
+		
+		std::string strTextToken = "%text";
+		std::stringstream ss = strCustomMessage + "\n";
+		strScriptStringVariableID = util::toLowercase(strScriptStringVariableID); // must become lowercase
+		std::string strVarDebug = std::string() + '\xA3' + strScriptStringVariableID;
+		if(context) {
+			ss << ScriptContextPrefix(context) << "\n"
+				 << context.getStringVar(strVarDebug) << "\n"
+		}
+		if(strCodeFile != "") {
+			ss << "FILE: " << strCodeFile << "\n"
+		}
+		
+		static const char * codeEditor = std::getenv("ARX_ScriptCodeEditor"); // ex.: export ARX_ScriptCodeEditor="geany \"%file\":%line"
+		
+		if(codeEditor) {
+			ss << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
+		}
+		
+		strSysPopup.replace(strSysPopup.find(strTextToken), strTextToken.size(), ss.str());
+		
+		int i = std::system(strSysPopup.c_str());
+		if(i == 0 && codeEditor && strCodeFile != "") { // clicked ok
+			std::string strCodeEditor = std::string() + codeEditor;
+			
+			std::string strFileToken = "%file";
+			strCodeEditor.replace(strCodeEditor.find(strFileToken), strFileToken.size(), strCodeFile);
+			
+			size_t line,column;
+			(context).getLineColumn(line, column);
+			std::string strLineToken = "%line";
+			strCodeEditor.replace(strCodeEditor.find(strLineToken), strLineToken.size(), std::to_string(line));
+			
+			int iEd = std::system(strCodeEditor.c_str());
+			iEd++; // dummy avoid warnings, could log if not 0 tho..
+		}
+		
+		if(i == 0) { //TODO in case user clicks cancel, the popup still showed up but returned non 0. If the popup shows up it succeeded and therefore should return true! it needs a ARX_ScriptCodeEditorReturnCancelValue env var that shall differ from a failed to open popup return value.
+			return true;
+		}
+	}
+	
+	return false;
+}
+
 #ifdef ARX_DEBUG
 #pragma GCC push_options
 #pragma GCC optimize ("O0") //required to let the breakpoint work
@@ -488,41 +540,7 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 		static int iDbgBrkPCount = 0;
 		iDbgBrkPCount++; //put breakpoint here
 		
-		static const char * systemPopup = std::getenv("ARX_ScriptErrorPopupCommand"); // ex.: export ARX_ScriptErrorPopupCommand="yad --title=\"%title\" --text=\"%text\""
-		if(systemPopup) {
-			std::string strSysPopup = std::string() + systemPopup;
-			
-			std::string strTitleToken = "%title";
-			strSysPopup.replace(strSysPopup.find(strTitleToken), strTitleToken.size(), "ArxLibertatis Script Debug BreakPoint");
-			
-			std::string strTextToken = "%text";
-			std::stringstream ss;
-			std::string strVarDebug = std::string() + '\xA3' + "debugmessage"; //keep lower case here! but in the original script can be DebugMessage
-			ss << ScriptContextPrefix(context) << "\n"
-			   << context.getStringVar(strVarDebug) << "\n"
-			   << (context).getScript()->file << "\n"
-			   << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
-			strSysPopup.replace(strSysPopup.find(strTextToken), strTextToken.size(), ss.str());
-			
-			int i = std::system(strSysPopup.c_str());
-			if(i == 0) {
-				static const char * codeEditor = std::getenv("ARX_ScriptCodeEditor"); // ex.: export ARX_ScriptCodeEditor="geany \"%file\":%line"
-				if(codeEditor) {
-					std::string strCodeEditor = std::string() + codeEditor;
-					
-					std::string strFileToken = "%file";
-					strCodeEditor.replace(strCodeEditor.find(strFileToken), strFileToken.size(), (context).getScript()->file);
-					
-					size_t line,column;
-					(context).getLineColumn(line, column);
-					std::string strLineToken = "%line";
-					strCodeEditor.replace(strCodeEditor.find(strLineToken), strLineToken.size(), std::to_string(line));
-					
-					int iEd = std::system(strCodeEditor.c_str());
-					iEd++; // dummy avoid warnings
-				}
-			}
-		}
+		SystemPopup("Debug", "Script Debug BreakPoint", (context).getScript()->file, "DebugMessage", &context);
 	}
 }
 #pragma GCC pop_options
