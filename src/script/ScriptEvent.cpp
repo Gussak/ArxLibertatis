@@ -178,7 +178,7 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		}
 		LogDebug("pos="<<pos<<",datasize="<<es.data.size());
 		
-		// Check if the line is commented out!
+		// Check if the line is commented out! Back track. TODO a generic function and use also at Script.cpp at least
 		for(size_t p = pos;; p--) {
 			if(p == 0) {
 				break; // is valid
@@ -198,11 +198,6 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		if(bContinue) {
 			continue;
 		}
-		//for(size_t p = pos; es.data[p] != '/' || es.data[p + 1] != '/'; p--) {
-			//if(es->data[p] == '\n' || p == 0) {
-				//return pos + str.length();
-			//}
-		//}
 		
 		static std::string strValidCallIdChars = "abcdefghijklmnopqrstuvwxyz_";
 		posEnd = es.data.find_first_not_of(strValidCallIdChars, pos+2); //skip ">>"
@@ -212,8 +207,14 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		std::string id = es.data.substr(pos, posEnd-pos);
 		arx_assert_msg(!(id.size() < 3 || id.substr(0,2) != ">>" || id.find_first_not_of(strValidCallIdChars,2) != std::string::npos), "invalid id detected '%s' pos=%lu, posEnd=%lu, scriptSize=%lu idSize=%lu", id.c_str(), pos, posEnd, es.data.size(), id.size());
 		
-		es.shortcutCalls.emplace(id, posEnd);
-		LogDebug("shortcutCall:id="<<id<<",posAfterIt="<<posEnd<<",pos="<<pos<<",vsize="<<es.shortcutCalls.size());
+		auto it = es.shortcutCalls.find(id);
+		if(it == es.shortcutCalls.end()) {
+			es.shortcutCalls.emplace(id, posEnd);
+			LogDebug("shortcutCall:AddNew: id="<<id<<", posAfterIt="<<posEnd<<", pos="<<pos<<", vsize="<<es.shortcutCalls.size());
+		} else {
+			// an overrider call target was already found and will be kept. This new match will be ignored.
+			LogDebug("shortcutCall:Ignored: id="<<id<<", posAfterIt="<<posEnd<<"(posOverride="<<it->second<<"), pos="<<pos<<", vsize="<<es.shortcutCalls.size());
+		}
 		
 		if(posEnd == es.data.size()) {
 			break;
