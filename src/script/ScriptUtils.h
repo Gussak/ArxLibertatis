@@ -90,9 +90,10 @@ class Context {
 	ScriptMessage m_message;
 	ScriptParameters m_parameters;
 	std::vector<size_t> m_stack;
-	//std::map< todoa
-	std::vector<size_t> m_stackCallFromPos;
+	
 	std::vector<std::string> m_stackId;
+	std::vector<size_t> m_stackCallFromPos;
+	
 	std::vector<size_t> m_vNewLineAt;
 	
 public:
@@ -143,8 +144,8 @@ public:
 	
 	void getLineColumn(size_t & iLine, size_t & iColumn, size_t pos = static_cast<size_t>(-1)) const;
 	std::string getPositionAndLineNumber(bool compact = false, size_t pos = static_cast<size_t>(-1)) const;
-	size_t getGoToGoSubCallPosFromStack(long & index) const;
-	std::string getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const;
+	size_t getGoToGoSubCallFromPos(size_t  indexFromLast) const;
+	std::string getGoToGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between = " -> ") const;
 	void seekToPosition(size_t pos);
 	
 };
@@ -196,7 +197,7 @@ bool isBlockEndSuprressed(const Context & context, std::string_view command);
 
 size_t initSuppressions();
 
-#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPositionAndLineNumber() << (context).getGoToGoSubCallStack(" (CallStack:", ")") << "] "
+#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPositionAndLineNumber() << (context).getGoToGoSubCallStack(" {CallStackId(FromPosition): ", " ) ") << "] "
 #define ScriptPrefix ScriptContextPrefix(context) << getName() <<
 #define DebugScript(args) LogDebug(ScriptPrefix args)
 #define ScriptInfo(args) LogInfo << ScriptPrefix args
@@ -206,7 +207,7 @@ size_t initSuppressions();
 #define HandleFlags(expected) std::string options = context.getFlags(); \
 	for(u64 run = !options.empty(), flg = 0; run && ((flg = flagsToMask(options), (flg && !(flg & ~flagsToMask(expected)))) || (ScriptWarning << "unexpected flags: " << options, true)); run = 0)
 
-bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails = "", const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr, long callStackIndex = -1);
+bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails = "", const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr, size_t callStackIndexFromLast = 0);
 
 } // namespace script
 

@@ -17,6 +17,9 @@
  * along with Arx Libertatis.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <iostream> //del
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
+
 #include "script/ScriptUtils.h"
 
 #include <set>
@@ -202,22 +205,12 @@ std::string Context::getPositionAndLineNumber(bool compact, size_t pos) const {
 		pos = m_pos;
 	}
 	
-	s << "[" << (compact ? "p=" : "Position ") << pos;
+	s << "(" << (compact ? "p=" : "Position ") << pos;
 	
 	size_t iLine, iColumn;
 	getLineColumn(iLine, iColumn, pos);
-	//for(size_t i = 0; i < m_vNewLineAt.size(); i++) {
-		//if(pos > m_vNewLineAt[i]) {
-			//iLine = i + 1;
-			//iColumn = pos - m_vNewLineAt[i];
-			//iLine++;
-			//iColumn--;
-		//} else {
-			//break;
-		//}
-	//}
 	
-	s << (compact ? ",l=" : ", Line ") << iLine << (compact ? ",c=" : ", Column ") << iColumn << "]";
+	s << (compact ? ",l=" : ", Line ") << iLine << (compact ? ",c=" : ", Column ") << iColumn << ")";
 	return s.str();
 }
 
@@ -240,36 +233,35 @@ void Context::getLineColumn(size_t & iLine, size_t & iColumn, size_t pos) const 
 	}
 }
 
-/**
- * index = -1 is last one, and is fixed to real index
- */
-size_t Context::getGoToGoSubCallPosFromStack(long & index) const {
-	if( static_cast<size_t>(index) >= (m_stackCallFromPos.size() - 1) ) {
-		index = m_stackCallFromPos.size() - 1;
+size_t Context::getGoToGoSubCallFromPos(size_t indexFromLast) const {
+	if(m_stackCallFromPos.size() == 0) {
+		return static_cast<size_t>(-1); // means invalid
 	}
-	if(index < 0) {
-		index = m_stackCallFromPos.size() + index;
+	
+	if(indexFromLast >= m_stackCallFromPos.size()) {
+		indexFromLast = m_stackCallFromPos.size() - 1;
 	}
-	return m_stackCallFromPos[index];
+	
+	return m_stackCallFromPos[m_stackCallFromPos.size() - indexFromLast - 1];
 }
 
-std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const {
-	std::stringstream s;
+std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between) const {
+	std::stringstream ss;
 	
 	if(m_stackId.size() > 0) {
-		s << prepend;
+		ss << prepend;
 		
 		size_t index = 0;
-		for(std::string s2 : m_stackId) {
-			if(index >= 1) s << " -> ";
-			s << s2 << getPositionAndLineNumber(true, m_stackCallFromPos[index]);
+		for(std::string strId : m_stackId) {
+			if(index >= 1) ss << between;
+			ss << strId << getPositionAndLineNumber(true, m_stackCallFromPos[index]);
 			index++;
 		}
 		
-		s << append;
+		ss << append;
 	}
 	
-	return s.str();
+	return ss.str();
 }
 
 void Context::seekToPosition(size_t pos) { 
@@ -556,18 +548,17 @@ size_t Context::skipCommand() {
 	
 	//return false;
 //}
-bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, const std::string strScriptStringVariableID, const Context * context, long callStackIndex) {
+bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, const std::string strScriptStringVariableID, const Context * context, size_t callStackIndexFromLast) {
 	std::stringstream ss;
 	
 	ss << strCustomMessage << "\n";
 	
 	size_t lineAtFileToEdit = 0;
 	if(context) {
-		ss << ScriptContextPrefix(*context) << "\n"
-			 << context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)) << "\n"; // must become lowercase or wont match
-			 
 		size_t column;
-		context->getLineColumn(lineAtFileToEdit, column, context->getGoToGoSubCallPosFromStack(callStackIndex));
+		context->getLineColumn(lineAtFileToEdit, column, context->getGoToGoSubCallFromPos(callStackIndexFromLast));
+		ss << ScriptContextPrefix(*context) << " [CallStackIndexFromLast=" << callStackIndexFromLast << "]\n"
+			 << " [ScriptDebugMessage] " << context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)) << "\n"; // must become lowercase or wont match
 	}
 	
 	return platform::askOkCancelCustomUserSystemPopupCommand(strTitle, ss.str(), strDetails, strFileToEdit, lineAtFileToEdit);
@@ -585,7 +576,7 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 	if(boost::contains(target, "debugbreakpoint")) { // this must be on the script call target name
 		static int iDbgBrkPCount = 0;
 		iDbgBrkPCount++; // put breakpoint here if using a debugger
-		askOkCancelCustomUserSystemPopupCommand("Debug", "Script Debug BreakPoint", "", (context).getScript()->file, "DebugMessage", &context, -3); // FUNCDebugBreakpoint=-1, FUNCCustomCmdsB4DbgBreakpoint=-2. so -3 is who called FUNCCustomCmdsB4DbgBreakpoint
+		askOkCancelCustomUserSystemPopupCommand("Debug", "Script Debug BreakPoint", context.getGoToGoSubCallStack("Script GoTo/GoSub CallStack (targed ID was called from that line,column):\n ", "\n", " -> \n "), (context).getScript()->file, "DebugMessage", &context, 1); // CallFrom: 0 (size-1(-0)=last) would return where FUNCDebugBreakpoint was called from. 1 (size-1(-1)=last-1) would return where FUNCCustomCmdsB4DbgBreakpoint was called from.
 	}
 }
 #pragma GCC pop_options
@@ -594,6 +585,8 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
 	if(substack) {
 		m_stack.push_back(m_pos);
+		
+		//TODO std::vector<std::pair<res::path, size_t>> m_stackIdCalledFromPos; instead of the 2 below
 		m_stackCallFromPos.push_back(m_pos);
 		m_stackId.push_back(std::string() += target);
 	}
@@ -617,8 +610,10 @@ bool Context::returnToCaller() {
 	
 	m_pos = m_stack.back();
 	m_stack.pop_back();
+	
 	m_stackCallFromPos.pop_back();
 	m_stackId.pop_back();
+	
 	return true;
 }
 

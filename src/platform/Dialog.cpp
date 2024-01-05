@@ -528,7 +528,7 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 		
 		util::applyTokenAt(strSysPopupCmd, "%{message}", util::escapeString(ssMsg.str()));
 		
-		util::applyTokenAt(strSysPopupCmd, "%{details}", util::escapeString(strDetails));
+		util::applyTokenAt(strSysPopupCmd, "%{details}", std::string() + " [DETAILS] \n" + util::escapeString(strDetails));
 		
 		int retPopupCmd = platform::runUserCommand(strSysPopupCmd.c_str());
 		if(retPopupCmd == 0 && codeEditorCmd && strFileToEdit.size() > 0) { // clicked ok
