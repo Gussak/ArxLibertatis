@@ -17,9 +17,6 @@
  * along with Arx Libertatis.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <iostream> //del
-#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //del
-
 #include "script/ScriptUtils.h"
 
 #include <set>
@@ -234,27 +231,27 @@ void Context::getLineColumn(size_t & iLine, size_t & iColumn, size_t pos) const 
 }
 
 size_t Context::getGoToGoSubCallFromPos(size_t indexFromLast) const {
-	if(m_stackCallFromPos.size() == 0) {
+	if(m_stackIdCalledFromPos.size() == 0) {
 		return static_cast<size_t>(-1); // means invalid
 	}
 	
-	if(indexFromLast >= m_stackCallFromPos.size()) {
-		indexFromLast = m_stackCallFromPos.size() - 1;
+	if(indexFromLast >= m_stackIdCalledFromPos.size()) {
+		indexFromLast = m_stackIdCalledFromPos.size() - 1;
 	}
 	
-	return m_stackCallFromPos[m_stackCallFromPos.size() - indexFromLast - 1];
+	return m_stackIdCalledFromPos[m_stackIdCalledFromPos.size() - indexFromLast - 1].first;
 }
 
 std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between) const {
 	std::stringstream ss;
 	
-	if(m_stackId.size() > 0) {
+	if(m_stackIdCalledFromPos.size() > 0) {
 		ss << prepend;
 		
 		size_t index = 0;
-		for(std::string strId : m_stackId) {
+		for(auto pair : m_stackIdCalledFromPos) {
 			if(index >= 1) ss << between;
-			ss << strId << getPositionAndLineNumber(true, m_stackCallFromPos[index]);
+			ss << pair.second << getPositionAndLineNumber(true, m_stackIdCalledFromPos[index].first);
 			index++;
 		}
 		
@@ -584,11 +581,7 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
 	if(substack) {
-		m_stack.push_back(m_pos);
-		
-		//TODO std::vector<std::pair<res::path, size_t>> m_stackIdCalledFromPos; instead of the 2 below
-		m_stackCallFromPos.push_back(m_pos);
-		m_stackId.push_back(std::string() += target);
+		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
 	}
 	
 	DebugBreakpoint(target, *this);
@@ -604,15 +597,12 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 
 bool Context::returnToCaller() {
 	
-	if(m_stack.empty()) {
+	if(m_stackIdCalledFromPos.empty()) {
 		return false;
 	}
 	
-	m_pos = m_stack.back();
-	m_stack.pop_back();
-	
-	m_stackCallFromPos.pop_back();
-	m_stackId.pop_back();
+	m_pos = m_stackIdCalledFromPos.back().first;
+	m_stackIdCalledFromPos.pop_back();
 	
 	return true;
 }

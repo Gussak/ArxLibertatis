@@ -89,11 +89,7 @@ class Context {
 	Entity * m_entity;
 	ScriptMessage m_message;
 	ScriptParameters m_parameters;
-	std::vector<size_t> m_stack;
-	
-	std::vector<std::string> m_stackId;
-	std::vector<size_t> m_stackCallFromPos;
-	
+	std::vector<std::pair<size_t, std::string>> m_stackIdCalledFromPos;
 	std::vector<size_t> m_vNewLineAt;
 	
 public:
