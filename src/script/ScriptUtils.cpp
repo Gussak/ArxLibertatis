@@ -27,7 +27,10 @@
 
 #include "game/Entity.h"
 #include "graphics/data/Mesh.h"
+#include "platform/Dialog.h"
+#include "platform/Process.h"
 #include "util/Number.h"
+#include "util/String.h"
 
 
 namespace script {
@@ -237,6 +240,19 @@ void Context::getLineColumn(size_t & iLine, size_t & iColumn, size_t pos) const 
 	}
 }
 
+/**
+ * index = -1 is last one, and is fixed to real index
+ */
+size_t Context::getGoToGoSubCallPosFromStack(long & index) const {
+	if( static_cast<size_t>(index) >= (m_stackCallFromPos.size() - 1) ) {
+		index = m_stackCallFromPos.size() - 1;
+	}
+	if(index < 0) {
+		index = m_stackCallFromPos.size() + index;
+	}
+	return m_stackCallFromPos[index];
+}
+
 std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const {
 	std::stringstream s;
 	
@@ -246,7 +262,7 @@ std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string
 		size_t index = 0;
 		for(std::string s2 : m_stackId) {
 			if(index >= 1) s << " -> ";
-			s << s2 << getPositionAndLineNumber(true, m_stackCallFrom[index]);
+			s << s2 << getPositionAndLineNumber(true, m_stackCallFromPos[index]);
 			index++;
 		}
 		
@@ -474,56 +490,87 @@ size_t Context::skipCommand() {
 	return oldpos;
 }
 
-bool SystemPopup(const std::string strTitle, const std::string strCustomMessage, const std::string strCodeFile, const std::string strScriptStringVariableID, const Context * context) {
-	static const char * systemPopup = std::getenv("ARX_ScriptErrorPopupCommand"); // ex.: export ARX_ScriptErrorPopupCommand="yad --title=\"%title\" --text=\"%text\""
-	if(systemPopup) {
-		std::string strSysPopup = std::string() + systemPopup;
+/**
+ * This is more permissive (any command can be run) and flexible (any params can be used) alternative to platform::showInfoDialog and related functions.
+ * TODO but try to adapt it to platform::show... anyway ? (there is no yad support there)
+ * This means the user must be careful when setting the env vars for requested commands, or just copy the below examples:
+ * 	For Linux:
+ * 		export ARX_ScriptErrorPopupCommand="yad --title=\"%{title}\" --text=\"%{message}\" --form --field=\"%{details}\":LBL --scroll --on-top --center"
+ * 		export ARX_ScriptCodeEditorCommand="geany \"%{file}\":%{line}"
+ * 	For Windows:
+ * 		TODO
+ * 	For Mac:
+ * 		TODO
+ */
+//bool SystemPopup(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strCodeFile, const std::string strScriptStringVariableID, const Context * context) {
+	//static const char * systemPopup = std::getenv("ARX_ScriptErrorPopupCommand");
+	//if(systemPopup) {
+		//std::string strSysPopup = std::string() + systemPopup;
 		
-		std::string strTitleToken = "%title";
-		strSysPopup.replace(strSysPopup.find(strTitleToken), strTitleToken.size(), "ArxLibertatis: " + strTitle);
+		//util::applyTokenAt(strSysPopup, "%{title}", "ArxLibertatis: " + strTitle);
 		
-		std::string strTextToken = "%text";
-		std::stringstream ss = strCustomMessage + "\n";
-		strScriptStringVariableID = util::toLowercase(strScriptStringVariableID); // must become lowercase
-		std::string strVarDebug = std::string() + '\xA3' + strScriptStringVariableID;
-		if(context) {
-			ss << ScriptContextPrefix(context) << "\n"
-				 << context.getStringVar(strVarDebug) << "\n"
-		}
-		if(strCodeFile != "") {
-			ss << "FILE: " << strCodeFile << "\n"
-		}
+		//std::stringstream ss;
 		
-		static const char * codeEditor = std::getenv("ARX_ScriptCodeEditor"); // ex.: export ARX_ScriptCodeEditor="geany \"%file\":%line"
+		//ss << strCustomMessage << "\n";
 		
-		if(codeEditor) {
-			ss << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
-		}
+		//std::string strVarDebug = std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID); // must become lowercase or wont match
+		//if(context) {
+			//ss << ScriptContextPrefix(*context) << "\n"
+				 //<< context->getStringVar(strVarDebug) << "\n";
+		//}
 		
-		strSysPopup.replace(strSysPopup.find(strTextToken), strTextToken.size(), ss.str());
+		//if(strCodeFile != "") {
+			//ss << " [FileToEdit] " << strCodeFile << "\n";
+		//}
 		
-		int i = std::system(strSysPopup.c_str());
-		if(i == 0 && codeEditor && strCodeFile != "") { // clicked ok
-			std::string strCodeEditor = std::string() + codeEditor;
+		//static const char * codeEditor = std::getenv("ARX_ScriptCodeEditorCommand");
+		
+		//if(codeEditor) {
+			//ss << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
+		//}
+		
+		//util::applyTokenAt(strSysPopup, "%{message}", ss.str());
+		
+		//util::applyTokenAt(strSysPopup, "%{details}", strDetails);
+		
+		//int i = platform::runUserCommand(strSysPopup.c_str());
+		//if(i == 0 && codeEditor && strCodeFile != "") { // clicked ok
+			//std::string strCodeEditor = std::string() + codeEditor;
 			
-			std::string strFileToken = "%file";
-			strCodeEditor.replace(strCodeEditor.find(strFileToken), strFileToken.size(), strCodeFile);
+			//util::applyTokenAt(strCodeEditor, "%{file}", strCodeFile);
 			
-			size_t line,column;
-			(context).getLineColumn(line, column);
-			std::string strLineToken = "%line";
-			strCodeEditor.replace(strCodeEditor.find(strLineToken), strLineToken.size(), std::to_string(line));
+			//size_t line = 0;
+			//if(context) {
+				//size_t column;
+				//context->getLineColumn(line, column);
+			//}
+			//util::applyTokenAt(strCodeEditor, "%{line}", std::to_string(line));
 			
-			int iEd = std::system(strCodeEditor.c_str());
-			iEd++; // dummy avoid warnings, could log if not 0 tho..
-		}
+			//platform::runUserCommand(strCodeEditor.c_str());
+		//}
 		
-		if(i == 0) { //TODO in case user clicks cancel, the popup still showed up but returned non 0. If the popup shows up it succeeded and therefore should return true! it needs a ARX_ScriptCodeEditorReturnCancelValue env var that shall differ from a failed to open popup return value.
-			return true;
-		}
+		//if(i == 0) { //TODO in case user clicks cancel, the popup still showed up but returned non 0. If the popup shows up it succeeded and therefore should return true! it needs a ARX_ScriptCodeEditorReturnCancelValue env var that shall differ from a failed to open popup return value.
+			//return true;
+		//}
+	//}
+	
+	//return false;
+//}
+bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, const std::string strScriptStringVariableID, const Context * context, long callStackIndex) {
+	std::stringstream ss;
+	
+	ss << strCustomMessage << "\n";
+	
+	size_t lineAtFileToEdit = 0;
+	if(context) {
+		ss << ScriptContextPrefix(*context) << "\n"
+			 << context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)) << "\n"; // must become lowercase or wont match
+			 
+		size_t column;
+		context->getLineColumn(lineAtFileToEdit, column, context->getGoToGoSubCallPosFromStack(callStackIndex));
 	}
 	
-	return false;
+	return platform::askOkCancelCustomUserSystemPopupCommand(strTitle, ss.str(), strDetails, strFileToEdit, lineAtFileToEdit);
 }
 
 #pragma GCC push_options
@@ -538,7 +585,7 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 	if(boost::contains(target, "debugbreakpoint")) { // this must be on the script call target name
 		static int iDbgBrkPCount = 0;
 		iDbgBrkPCount++; // put breakpoint here if using a debugger
-		SystemPopup("Debug", "Script Debug BreakPoint", (context).getScript()->file, "DebugMessage", &context);
+		askOkCancelCustomUserSystemPopupCommand("Debug", "Script Debug BreakPoint", "", (context).getScript()->file, "DebugMessage", &context, -3); // FUNCDebugBreakpoint=-1, FUNCCustomCmdsB4DbgBreakpoint=-2. so -3 is who called FUNCCustomCmdsB4DbgBreakpoint
 	}
 }
 #pragma GCC pop_options
@@ -547,7 +594,7 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
 	if(substack) {
 		m_stack.push_back(m_pos);
-		m_stackCallFrom.push_back(m_pos);
+		m_stackCallFromPos.push_back(m_pos);
 		m_stackId.push_back(std::string() += target);
 	}
 	
@@ -570,7 +617,7 @@ bool Context::returnToCaller() {
 	
 	m_pos = m_stack.back();
 	m_stack.pop_back();
-	m_stackCallFrom.pop_back();
+	m_stackCallFromPos.pop_back();
 	m_stackId.pop_back();
 	return true;
 }

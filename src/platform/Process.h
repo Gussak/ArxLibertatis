@@ -85,6 +85,8 @@ inline int run(const std::string & exe, const char * const args[], bool detach =
 	return run(exe.c_str(), args, detach);
 }
 
+int runUserCommand(const std::string strCmd);
+
 /*!
  * \brief Start a program without waiting for it to finish
  *

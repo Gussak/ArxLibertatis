@@ -40,8 +40,6 @@ If you have questions concerning this license or the applicable additional terms
 ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 ===========================================================================
 */
-#include <iostream>
-#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n"
 
 #include "script/ScriptEvent.h"
 
@@ -178,7 +176,7 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		if(pos == std::string::npos) {
 			break;
 		}
-		MYDBG("pos="<<pos<<",datasize="<<es.data.size()); //LogDebug
+		LogDebug("pos="<<pos<<",datasize="<<es.data.size());
 		
 		// Check if the line is commented out!
 		for(size_t p = pos;; p--) {
@@ -206,17 +204,16 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 			//}
 		//}
 		
-		posEnd = es.data.find_first_not_of("abcdefghijklmnopqrstuvwxyz_", pos+2); //skip ">>"
+		static std::string strValidCallIdChars = "abcdefghijklmnopqrstuvwxyz_";
+		posEnd = es.data.find_first_not_of(strValidCallIdChars, pos+2); //skip ">>"
 		if(posEnd == std::string::npos) {
 			posEnd = es.data.size();
 		}
 		std::string id = es.data.substr(pos, posEnd-pos);
-		if(id.find_first_not_of("abcdefghijklmnopqrstuvwxyz_>") != std::string::npos) {
-			arx_assert_msg(false, "invalid id detected '%s' pos=%lu, posEnd=%lu, scriptSize=%lu idSize=%lu", id.c_str(), pos, posEnd, es.data.size(), id.size());
-		}
+		arx_assert_msg(!(id.size() < 3 || id.substr(0,2) != ">>" || id.find_first_not_of(strValidCallIdChars,2) != std::string::npos), "invalid id detected '%s' pos=%lu, posEnd=%lu, scriptSize=%lu idSize=%lu", id.c_str(), pos, posEnd, es.data.size(), id.size());
 		
 		es.shortcutCalls.emplace(id, posEnd);
-		MYDBG("shortcutCall:id="<<id<<",posAfterIt="<<posEnd<<",pos="<<pos<<",vsize="<<es.shortcutCalls.size()); //LogDebug
+		LogDebug("shortcutCall:id="<<id<<",posAfterIt="<<posEnd<<",pos="<<pos<<",vsize="<<es.shortcutCalls.size());
 		
 		if(posEnd == es.data.size()) {
 			break;

@@ -137,6 +137,8 @@ inline bool safeGet(T & data, CTYPE * & pos, STYPE & size) {
 
 [[nodiscard]] std::string getDateTimeString();
 
+void applyTokenAt(std::string & strAt, const std::string strToken, const std::string strText);
+
 struct SplitStringSentinel { };
 
 template <typename Separator, bool SkipEmpty>

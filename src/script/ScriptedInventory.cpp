@@ -410,9 +410,6 @@ class InventoryCommand : public Command {
 			
 			if(!entInventory) {
 				ScriptWarning << "Invalid target entity " << strEntId;
-				if(multi) {
-					context.skipWord();
-				}
 				return Failed;
 			}
 			

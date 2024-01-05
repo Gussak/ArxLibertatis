@@ -90,7 +90,8 @@ class Context {
 	ScriptMessage m_message;
 	ScriptParameters m_parameters;
 	std::vector<size_t> m_stack;
-	std::vector<size_t> m_stackCallFrom;
+	//std::map< todoa
+	std::vector<size_t> m_stackCallFromPos;
 	std::vector<std::string> m_stackId;
 	std::vector<size_t> m_vNewLineAt;
 	
@@ -142,6 +143,7 @@ public:
 	
 	void getLineColumn(size_t & iLine, size_t & iColumn, size_t pos = static_cast<size_t>(-1)) const;
 	std::string getPositionAndLineNumber(bool compact = false, size_t pos = static_cast<size_t>(-1)) const;
+	size_t getGoToGoSubCallPosFromStack(long & index) const;
 	std::string getGoToGoSubCallStack(std::string_view prepend, std::string_view append) const;
 	void seekToPosition(size_t pos);
 	
@@ -204,8 +206,8 @@ size_t initSuppressions();
 #define HandleFlags(expected) std::string options = context.getFlags(); \
 	for(u64 run = !options.empty(), flg = 0; run && ((flg = flagsToMask(options), (flg && !(flg & ~flagsToMask(expected)))) || (ScriptWarning << "unexpected flags: " << options, true)); run = 0)
 
-} // namespace script
+bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails = "", const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr, long callStackIndex = -1);
 
-bool SystemPopup(const std::string strTitle, const std::string strCustomMessage, const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr);
+} // namespace script
 
 #endif // ARX_SCRIPT_SCRIPTUTILS_H

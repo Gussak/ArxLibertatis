@@ -26,6 +26,7 @@
 #include <string_view>
 #include <vector>
 
+#include "io/log/Logger.h"
 #include "platform/Platform.h"
 
 #include "Configure.h"
@@ -484,6 +485,69 @@ bool askYesNoWarning(const std::string & question, const std::string & title) {
 
 bool askOkCancel(const std::string & question, const std::string & title) {
 	return showDialog(DialogOkCancel, question, title);
+}
+
+/**
+ * This is more permissive (any command can be run) and flexible (any params can be used) alternative to platform::showInfoDialog and related functions.
+ * TODO but try to adapt it to platform::show... anyway ? (there is no yad support there)
+ * This means the user must be careful when setting the env vars for requested commands, or just copy the below examples:
+ * 
+ * 	For Linux:
+ * 		export ARX_ScriptErrorPopupCommand='yad --selectable-labels --title="%{title}" --text="%{message}" --form --field="%{details}":LBL --scroll --on-top --center'
+ * 		export ARX_ScriptCodeEditorCommand='geany "%{file}":%{line}'
+ * 	For Windows:
+ * 		TODO
+ * 	For Mac:
+ * 		TODO
+ */
+bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, size_t lineAtFileToEdit) {
+	static std::string strEnvVarCmdPopup = "ARX_ScriptErrorPopupCommand";
+	//static const char * systemPopupCmd = std::getenv(strEnvVarCmdPopup.c_str());
+	static const char * systemPopupCmd = [](){const char * pc = std::getenv(strEnvVarCmdPopup.c_str()); LogWarning << "[CustomUserCommand] " << strEnvVarCmdPopup << "=\"" << pc << "\""; return pc;}(); // warns only once
+	if(systemPopupCmd) {
+		std::string strSysPopupCmd = std::string() + systemPopupCmd;
+		//static bool bWarnPopupOnce = [strSysPopupCmd](){LogWarning << "[CustomUserCommand] " << strEnvVarCmdPopup << "=\"" << strSysPopupCmd << "\""; return true;}();
+		
+		std::string strTitleOk = "ArxLibertatis: " + strTitle;
+		util::applyTokenAt(strSysPopupCmd, "%{title}", util::escapeString(strTitleOk));
+		
+		std::stringstream ssMsg;
+		
+		ssMsg << strCustomMessage << "\n";
+		
+		if(strFileToEdit.size() > 0) {
+			ssMsg << " [FileToEdit] '" << strFileToEdit << ":" << lineAtFileToEdit << "'\n";
+		}
+		
+		static std::string strEnvVarCmdEditor = "ARX_ScriptCodeEditorCommand";
+		static const char * codeEditorCmd = [](){const char * pc = std::getenv(strEnvVarCmdEditor.c_str()); LogWarning << "[CustomUserCommand] " << strEnvVarCmdEditor << "=\"" << pc << "\""; return pc;}();  // warns only once
+		
+		if(codeEditorCmd) {
+			ssMsg << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
+		}
+		
+		util::applyTokenAt(strSysPopupCmd, "%{message}", util::escapeString(ssMsg.str()));
+		
+		util::applyTokenAt(strSysPopupCmd, "%{details}", util::escapeString(strDetails));
+		
+		int retPopupCmd = platform::runUserCommand(strSysPopupCmd.c_str());
+		if(retPopupCmd == 0 && codeEditorCmd && strFileToEdit.size() > 0) { // clicked ok
+			std::string strCodeEditorCmd = std::string() + codeEditorCmd;
+			//static bool bWarnEditorOnce = [strCodeEditorCmd](){LogWarning << "[CustomUserCommand] " << strEnvVarCmdEditor << "=\"" << strCodeEditorCmd << "\""; return true;}();
+			
+			util::applyTokenAt(strCodeEditorCmd, "%{file}", strFileToEdit);
+			
+			util::applyTokenAt(strCodeEditorCmd, "%{line}", std::to_string(lineAtFileToEdit));
+			
+			platform::runUserCommand(strCodeEditorCmd.c_str()); // even if the editor fails, it may be opened externally by the user, wont affect return value
+		}
+		
+		if(retPopupCmd == 0) {
+			return true;
+		}
+	}
+	
+	return false;
 }
 
 } // namespace platform

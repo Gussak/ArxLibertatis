@@ -52,7 +52,6 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <exception>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <sstream>
@@ -89,6 +88,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "io/resource/PakReader.h"
 #include "io/log/Logger.h"
 
+#include "platform/Dialog.h"
+#include "platform/Process.h"
 #include "platform/Thread.h"
 #include "platform/profiler/Profiler.h"
 
@@ -261,7 +262,7 @@ std::ostream & operator<<(std::ostream & os, const ScriptParameters & parameters
 
 size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 	
-	if(str.size() >= 2 && str[0] == '>' && str[1] == '>') {
+	if(str.size() >= 2 && str[0] == '>' && str[1] == '>') { // Only for GoTo/GoSub calls
 		auto it = es->shortcutCalls.find(str);
 		if(it != es->shortcutCalls.end()) {
 			return it->second;
@@ -2300,20 +2301,28 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					
 					std::string strPatchOutputFile = pathModPatchToApply.string() + ".log";
 					std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatchToApply.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
-					int retCmd = std::system(strCmd.c_str());
-					if(retCmd != 0) { // these below are important to show also to end users installing mods, so they can remove the mod, update it, or try to fix by themselves.
+					int retCmdPatch = platform::runUserCommand(strCmd.c_str());
+					if(retCmdPatch != 0) { // these below are important to show also to end users installing mods, so they can remove the mod, update it, or try to fix by themselves.
+						std::stringstream ssPatchingOutput;
 						std::ifstream fileOutputMsg(strPatchOutputFile);
 						if (fileOutputMsg.is_open()) {
-							std::cerr << fileOutputMsg.rdbuf();
+							ssPatchingOutput << fileOutputMsg.rdbuf();
 							fileOutputMsg.close();
 						}
-						std::cerr << "ERROR: Failed (err=" << retCmd << ") to patch the script '" << pathScriptToBePatched.string() << "' using the mod patch file '" << pathModPatchToApply.string() << "'. See the above output at '" << strPatchOutputFile << "'\n";
-						std::cerr << "Fix, update or remove the patch.\n"; 
-						// while debugging with nemiver at least, none of these work (hitting enter does nothing, so it wont continue) to wait terminal user input: std::cin >> dummy; dummy = std::system("read"); getchar(); do { ... } while (std::cin.get() != '\n');
-						if(!SystemPopup("Modding", std::string() + "Applying a mod patch failed.\n SCRIPT: " + pathScriptToBePatched.string() + "\n PatchingOutput:\n" + strPatchingOutput, pathModPatchToApply.string())) {
-							std::cerr << "Retrying in 3s.\n"; 
-							Thread::sleep(3000ms);
+						
+						// TODO terminal input is not capturable? is there some way to let it work w/o system windowed popup? while debugging with nemiver at least, none of these work to wait terminal user input (hitting enter does nothing, so it wont continue running, the app stays there forever): std::cin >> dummy; dummy = platform::runUserCommand("read"); getchar(); do { ... } while (std::cin.get() != '\n');
+						std::string strTitle = "Modding";
+						if(platform::askOkCancelCustomUserSystemPopupCommand(strTitle, std::string() + "Applying a mod patch failed.\n [SCRIPT] '" + pathScriptToBePatched.string() + "'", ssPatchingOutput.str(), pathModPatch.string())) { // pathModPatch will be lower cased again
+							platform::showInfoDialog(std::string() + "ArxLibertatis" + strTitle + "\n" + "After editing:\n [PATCH] '" + pathModPatch.string() + "'\nClose this dialog to retry the patch.", "ArxLibertatis" + strTitle); // TODO zenity is not showing the specified title
+							continue;
 						}
+						
+						LogError << "[Description] Failed to patch the script (err=" << retCmdPatch << ") '" << pathScriptToBePatched.string() << "' using the mod patch file '" << pathModPatchToApply.string() << "'. See the above output at '" << strPatchOutputFile << "'\n";
+						#ifdef ARX_DEBUG
+						LogError << "[PatchCommandOutput] " << ssPatchingOutput.str();
+						#endif
+						LogError << "[RequestUserAction] Fix, update or remove the patch. Retrying in 3s ...\n"; 
+						Thread::sleep(3000ms);
 						continue;
 					}
 					
