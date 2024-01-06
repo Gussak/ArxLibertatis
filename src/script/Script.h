@@ -191,9 +191,6 @@ struct EERIE_SCRIPT {
 	bool valid = false;
 	std::string data;
 	size_t shortcut[SM_MAXCMD];
-	
-	//struct StructCallPos { std::string_view id; size_t pos; };
-	//std::vector<StructCallPos> shortcutCalls;
 	std::map<std::string_view, size_t> shortcutCalls;
 	std::string file;
 	

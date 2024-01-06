@@ -41,6 +41,9 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 ===========================================================================
 */
 
+#include <iostream>
+#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //replace with LogDebug later
+
 #include "script/ScriptEvent.h"
 
 #include <utility>
@@ -161,7 +164,7 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		es.shortcut[i] = FindScriptPos(&es, ScriptEvent::name(ScriptMessage(i)));
 	}
 	
-	// cache GoTo/GoSub call target IDs
+	// cache GoSub call target IDs
 	size_t pos = 0;
 	size_t posEnd = 0;
 	bool bContinue = false;
@@ -207,13 +210,13 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		std::string id = es.data.substr(pos, posEnd-pos);
 		arx_assert_msg(!(id.size() < 3 || id.substr(0,2) != ">>" || id.find_first_not_of(strValidCallIdChars,2) != std::string::npos), "invalid id detected '%s' pos=%lu, posEnd=%lu, scriptSize=%lu idSize=%lu", id.c_str(), pos, posEnd, es.data.size(), id.size());
 		
-		auto it = es.shortcutCalls.find(id);
+		auto it = es.shortcutCalls.find(id.c_str());
 		if(it == es.shortcutCalls.end()) {
-			es.shortcutCalls.emplace(id, posEnd);
-			LogDebug("shortcutCall:AddNew: id="<<id<<", posAfterIt="<<posEnd<<", pos="<<pos<<", vsize="<<es.shortcutCalls.size());
+			es.shortcutCalls.emplace(id.c_str(), posEnd);
+			MYDBG("shortcutCall:AddNew: id="<<id<<", posAfterIt="<<posEnd<<"; posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
 		} else {
 			// an overrider call target was already found and will be kept. This new match will be ignored.
-			LogDebug("shortcutCall:Ignored: id="<<id<<", posAfterIt="<<posEnd<<"(posOverride="<<it->second<<"), pos="<<pos<<", vsize="<<es.shortcutCalls.size());
+			MYDBG("shortcutCall:Ignored: id="<<id<<", posAfterIt="<<posEnd<<"(overridenBy="<< it->second <<"); posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
 		}
 		
 		if(posEnd == es.data.size()) {
@@ -222,6 +225,13 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		
 		pos = posEnd;
 	}
+	
+	#ifdef ARX_DEBUG
+	MYDBG("shortcutCallsForFile["<<es.shortcutCalls.size()<<"]:"<<es.file);
+	for(auto it : es.shortcutCalls) {
+		MYDBG("shortcutCall: id="<< it.first <<", posAfterIt="<< it.second);
+	}
+	#endif
 }
 
 static bool checkInteractiveObject(Entity * io, ScriptMessage msg, ScriptResult & ret) {

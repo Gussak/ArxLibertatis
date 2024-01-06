@@ -262,7 +262,7 @@ std::ostream & operator<<(std::ostream & os, const ScriptParameters & parameters
 
 size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 	
-	if(str.size() >= 2 && str[0] == '>' && str[1] == '>') { // Only for GoTo/GoSub calls
+	if(str.size() >= 2 && str[0] == '>' && str[1] == '>') { // Only for GoSub calls
 		auto it = es->shortcutCalls.find(str);
 		if(it != es->shortcutCalls.end()) {
 			return it->second;
