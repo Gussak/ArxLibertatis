@@ -42,7 +42,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 */
 
 #include <iostream>
-#define MYDBG(x) std::cout << "___MySimpleDbg___: " << x << "\n" //replace with LogDebug later
+#define MYDBG(x) std::cout << "_MyDbg_: " << x << "\n" //replace with LogDebug later
 
 #include "script/ScriptEvent.h"
 
@@ -160,11 +160,12 @@ std::string_view ScriptEvent::name(ScriptMessage event) {
 }
 
 void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
+	MYDBG("file="<<es.file);
 	for(size_t i = 1; i < SM_MAXCMD; i++) {
 		es.shortcut[i] = FindScriptPos(&es, ScriptEvent::name(ScriptMessage(i)));
 	}
 	
-	// cache GoSub call target IDs
+	// detect and cache GoTo and GoSub call target IDs and the position just after them.
 	size_t pos = 0;
 	size_t posEnd = 0;
 	bool bContinue = false;
@@ -202,21 +203,22 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 			continue;
 		}
 		
-		static std::string strValidCallIdChars = "abcdefghijklmnopqrstuvwxyz_";
+		static std::string strValidCallIdChars = "0123456789abcdefghijklmnopqrstuvwxyz_";
 		posEnd = es.data.find_first_not_of(strValidCallIdChars, pos+2); //skip ">>"
 		if(posEnd == std::string::npos) {
 			posEnd = es.data.size();
 		}
-		std::string id = es.data.substr(pos, posEnd-pos);
-		arx_assert_msg(!(id.size() < 3 || id.substr(0,2) != ">>" || id.find_first_not_of(strValidCallIdChars,2) != std::string::npos), "invalid id detected '%s' pos=%lu, posEnd=%lu, scriptSize=%lu idSize=%lu", id.c_str(), pos, posEnd, es.data.size(), id.size());
+		const std::string id = es.data.substr(pos, posEnd-pos);
+		//MYDBG("shortcutCall:found: "<<"id="<<id<<", posAfterIt="<<posEnd<<"; posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
+		arx_assert_msg(!(id.size() < 3 || id.substr(0,2) != ">>" || id.find_first_not_of(strValidCallIdChars,2) != std::string::npos), "invalid id detected '%s' pos=%lu, posEnd=%lu, scriptSize=%lu idSize=%lu", std::string(id).c_str(), pos, posEnd, es.data.size(), id.size());
 		
-		auto it = es.shortcutCalls.find(id.c_str());
+		auto it = es.shortcutCalls.find(id);
 		if(it == es.shortcutCalls.end()) {
-			es.shortcutCalls.emplace(id.c_str(), posEnd);
-			MYDBG("shortcutCall:AddNew: id="<<id<<", posAfterIt="<<posEnd<<"; posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
+			es.shortcutCalls.emplace(id, posEnd);
+			MYDBG("shortcutCall:AddedNew: id="<<id<<", posAfterIt="<<posEnd<<"; posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
 		} else {
 			// an overrider call target was already found and will be kept. This new match will be ignored.
-			MYDBG("shortcutCall:Ignored: id="<<id<<", posAfterIt="<<posEnd<<"(overridenBy="<< it->second <<"); posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
+			MYDBG("shortcutCall:IGNORED: id="<<id<<"("<< it->first <<"), posAfterIt="<<posEnd<<"(overridenBy="<< it->second <<"); posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
 		}
 		
 		if(posEnd == es.data.size()) {
@@ -228,7 +230,7 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 	
 	#ifdef ARX_DEBUG
 	MYDBG("shortcutCallsForFile["<<es.shortcutCalls.size()<<"]:"<<es.file);
-	for(auto it : es.shortcutCalls) {
+	for(auto it : es.shortcutCalls) { // shows the ordered sorted map result!
 		MYDBG("shortcutCall: id="<< it.first <<", posAfterIt="<< it.second);
 	}
 	#endif

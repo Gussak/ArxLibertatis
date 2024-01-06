@@ -191,7 +191,7 @@ struct EERIE_SCRIPT {
 	bool valid = false;
 	std::string data;
 	size_t shortcut[SM_MAXCMD];
-	std::map<std::string_view, size_t> shortcutCalls;
+	std::map<std::string, size_t> shortcutCalls; // key cannot be std::string_view here as it needs to hold the new string data
 	std::string file;
 
 	EERIE_SCRIPT() noexcept {

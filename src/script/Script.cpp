@@ -262,14 +262,14 @@ std::ostream & operator<<(std::ostream & os, const ScriptParameters & parameters
 
 size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 	
-	if(str.size() >= 2 && str[0] == '>' && str[1] == '>') { // Only for GoSub calls
-		auto it = es->shortcutCalls.find(str);
+	// TODO(script-parser) remove, respect quoted strings
+	
+	if(str.size() >= 2 && str[0] == '>' && str[1] == '>') { // uses the cache only for GoTo/GoSub calls
+		auto it = es->shortcutCalls.find(std::string(str));
 		if(it != es->shortcutCalls.end()) {
 			return it->second;
 		}
 	}
-	
-	// TODO(script-parser) remove, respect quoted strings
 	
 	for(size_t pos = 0; pos < es->data.size(); pos++) {
 		
