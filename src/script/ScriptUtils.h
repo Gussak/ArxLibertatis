@@ -137,11 +137,12 @@ public:
 	const EERIE_SCRIPT * getScript() const { return m_script; }
 	
 	size_t getPosition() const { return m_pos; }
-	
 	void getLineColumn(size_t & iLine, size_t & iColumn, size_t pos = static_cast<size_t>(-1)) const;
 	std::string getPositionAndLineNumber(bool compact = false, size_t pos = static_cast<size_t>(-1)) const;
-	size_t getGoToGoSubCallFromPos(size_t  indexFromLast) const;
-	std::string getGoToGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between = " -> ") const;
+	
+	size_t getGoSubCallFromPos(size_t  indexFromLast) const;
+	std::string getGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between = " -> ") const;
+	
 	void seekToPosition(size_t pos);
 	
 };
@@ -193,7 +194,7 @@ bool isBlockEndSuprressed(const Context & context, std::string_view command);
 
 size_t initSuppressions();
 
-#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPositionAndLineNumber() << (context).getGoToGoSubCallStack(" {CallStackId(FromPosition): ", " ) ") << "] "
+#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPositionAndLineNumber() << (context).getGoSubCallStack(" {CallStackId(FromPosition): ", " ) ") << "] "
 #define ScriptPrefix ScriptContextPrefix(context) << getName() <<
 #define DebugScript(args) LogDebug(ScriptPrefix args)
 #define ScriptInfo(args) LogInfo << ScriptPrefix args

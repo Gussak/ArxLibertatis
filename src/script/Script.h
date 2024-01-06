@@ -193,7 +193,7 @@ struct EERIE_SCRIPT {
 	size_t shortcut[SM_MAXCMD];
 	std::map<std::string_view, size_t> shortcutCalls;
 	std::string file;
-	
+
 	EERIE_SCRIPT() noexcept {
 		memset(&shortcut, 0, sizeof(shortcut));
 	}

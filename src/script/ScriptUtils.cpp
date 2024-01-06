@@ -230,7 +230,7 @@ void Context::getLineColumn(size_t & iLine, size_t & iColumn, size_t pos) const 
 	}
 }
 
-size_t Context::getGoToGoSubCallFromPos(size_t indexFromLast) const {
+size_t Context::getGoSubCallFromPos(size_t indexFromLast) const {
 	if(m_stackIdCalledFromPos.size() == 0) {
 		return static_cast<size_t>(-1); // means invalid
 	}
@@ -242,7 +242,7 @@ size_t Context::getGoToGoSubCallFromPos(size_t indexFromLast) const {
 	return m_stackIdCalledFromPos[m_stackIdCalledFromPos.size() - indexFromLast - 1].first;
 }
 
-std::string Context::getGoToGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between) const {
+std::string Context::getGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between) const {
 	std::stringstream ss;
 	
 	if(m_stackIdCalledFromPos.size() > 0) {
@@ -479,72 +479,6 @@ size_t Context::skipCommand() {
 	return oldpos;
 }
 
-/**
- * This is more permissive (any command can be run) and flexible (any params can be used) alternative to platform::showInfoDialog and related functions.
- * TODO but try to adapt it to platform::show... anyway ? (there is no yad support there)
- * This means the user must be careful when setting the env vars for requested commands, or just copy the below examples:
- * 	For Linux:
- * 		export ARX_ScriptErrorPopupCommand="yad --title=\"%{title}\" --text=\"%{message}\" --form --field=\"%{details}\":LBL --scroll --on-top --center"
- * 		export ARX_ScriptCodeEditorCommand="geany \"%{file}\":%{line}"
- * 	For Windows:
- * 		TODO
- * 	For Mac:
- * 		TODO
- */
-//bool SystemPopup(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strCodeFile, const std::string strScriptStringVariableID, const Context * context) {
-	//static const char * systemPopup = std::getenv("ARX_ScriptErrorPopupCommand");
-	//if(systemPopup) {
-		//std::string strSysPopup = std::string() + systemPopup;
-		
-		//util::applyTokenAt(strSysPopup, "%{title}", "ArxLibertatis: " + strTitle);
-		
-		//std::stringstream ss;
-		
-		//ss << strCustomMessage << "\n";
-		
-		//std::string strVarDebug = std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID); // must become lowercase or wont match
-		//if(context) {
-			//ss << ScriptContextPrefix(*context) << "\n"
-				 //<< context->getStringVar(strVarDebug) << "\n";
-		//}
-		
-		//if(strCodeFile != "") {
-			//ss << " [FileToEdit] " << strCodeFile << "\n";
-		//}
-		
-		//static const char * codeEditor = std::getenv("ARX_ScriptCodeEditorCommand");
-		
-		//if(codeEditor) {
-			//ss << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
-		//}
-		
-		//util::applyTokenAt(strSysPopup, "%{message}", ss.str());
-		
-		//util::applyTokenAt(strSysPopup, "%{details}", strDetails);
-		
-		//int i = platform::runUserCommand(strSysPopup.c_str());
-		//if(i == 0 && codeEditor && strCodeFile != "") { // clicked ok
-			//std::string strCodeEditor = std::string() + codeEditor;
-			
-			//util::applyTokenAt(strCodeEditor, "%{file}", strCodeFile);
-			
-			//size_t line = 0;
-			//if(context) {
-				//size_t column;
-				//context->getLineColumn(line, column);
-			//}
-			//util::applyTokenAt(strCodeEditor, "%{line}", std::to_string(line));
-			
-			//platform::runUserCommand(strCodeEditor.c_str());
-		//}
-		
-		//if(i == 0) { //TODO in case user clicks cancel, the popup still showed up but returned non 0. If the popup shows up it succeeded and therefore should return true! it needs a ARX_ScriptCodeEditorReturnCancelValue env var that shall differ from a failed to open popup return value.
-			//return true;
-		//}
-	//}
-	
-	//return false;
-//}
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, const std::string strScriptStringVariableID, const Context * context, size_t callStackIndexFromLast) {
 	std::stringstream ss;
 	
@@ -553,7 +487,7 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 	size_t lineAtFileToEdit = 0;
 	if(context) {
 		size_t column;
-		context->getLineColumn(lineAtFileToEdit, column, context->getGoToGoSubCallFromPos(callStackIndexFromLast));
+		context->getLineColumn(lineAtFileToEdit, column, context->getGoSubCallFromPos(callStackIndexFromLast));
 		ss << ScriptContextPrefix(*context) << " [CallStackIndexFromLast=" << callStackIndexFromLast << "]\n"
 			 << " [ScriptDebugMessage] " << context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)) << "\n"; // must become lowercase or wont match
 	}
@@ -573,7 +507,7 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 	if(boost::contains(target, "debugbreakpoint")) { // this must be on the script call target name
 		static int iDbgBrkPCount = 0;
 		iDbgBrkPCount++; // put breakpoint here if using a debugger
-		askOkCancelCustomUserSystemPopupCommand("Debug", "Script Debug BreakPoint", context.getGoToGoSubCallStack("Script GoTo/GoSub CallStack (targed ID was called from that line,column):\n ", "\n", " -> \n "), (context).getScript()->file, "DebugMessage", &context, 1); // CallFrom: 0 (size-1(-0)=last) would return where FUNCDebugBreakpoint was called from. 1 (size-1(-1)=last-1) would return where FUNCCustomCmdsB4DbgBreakpoint was called from.
+		askOkCancelCustomUserSystemPopupCommand("Debug", "Script Debug BreakPoint", context.getGoSubCallStack("Script GoSub CallStack (targed ID was called from that line,column):\n ", "\n", " -> \n "), (context).getScript()->file, "DebugMessage", &context, 1); // CallFrom: 0 (size-1(-0)=last) would return where FUNCDebugBreakpoint was called from. 1 (size-1(-1)=last-1) would return where FUNCCustomCmdsB4DbgBreakpoint was called from.
 	}
 }
 #pragma GCC pop_options
