@@ -84,4 +84,8 @@ std::string getDateTimeString() {
 	return localTimeString.str();
 }
 
+void applyTokenAt(std::string & strAt, const std::string strToken, const std::string strText) {
+	strAt.replace(strAt.find(strToken), strToken.size(), strText);
+}
+
 } // namespace util
