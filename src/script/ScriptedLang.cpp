@@ -46,7 +46,9 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <memory>
 #include <string>
 
+#include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/split.hpp> // Include for boost::split
 
 #include "ai/Paths.h"
 #include "core/GameTime.h"
@@ -92,11 +94,57 @@ public:
 	
 	GotoCommand(std::string_view command, bool _sub = false) : Command(command), sub(_sub) { }
 	
+	/**
+	 * <GoTo|GoSub> [-p] <label> <p?params>
+	 * ex.: GoSub -p FUNCTarget "@testFloat=10.3 @testFloat2=5.7" // it will create localvars (not globals) so only use localvar token chars for float, int and string. It is intended to get only numeric values and entity IDs, not custom concatenated strings.
+	 *  it will automatically create the following local vars that you can use at the GoTo/GoSub target: 
+	 *   @FUNCTarget_testFloat1 = 10.3
+	 *   @FUNCTarget_testFloat2 = 5.7
+	 */
 	Result execute(Context & context) override {
 		
-		std::string label = context.getWord();
+		bool hasParams = false;
+		HandleFlags("p") {
+			if(flg & flag('p')) {
+				hasParams = true;
+			}
+		}
 		
+		std::string label = context.getWord();
 		DebugScript(' ' << label);
+		
+		if(hasParams) {
+			std::string strParams = context.getWord();
+			DebugScript(' ' << strParams);
+			std::vector<std::string> vParams;
+			boost::split(vParams, strParams, boost::is_any_of(" "), boost::token_compress_on);
+			for(std::string strVarValue : vParams) {
+				size_t equalPos = strVarValue.find('=');
+				if(equalPos != std::string::npos) {
+					std::string var = strVarValue.substr(0,equalPos);
+					std::string val = strVarValue.substr(equalPos+1);
+					
+					std::string varNew = std::string()+var[0]+label+"_"+var.substr(1)
+					DebugScript(' ' << varNew);
+					SCRIPT_VAR * sv = nullptr;
+					switch(var[0]) {
+						case '\xA3': sv = SETVarValueText(entWriteTo->m_variables, varNew,      context.getStringVar(val,context->getEntity())); break;
+						case '\xA7': sv = SETVarValueLong(entWriteTo->m_variables, varNew, long(context.getFloatVar(val,context->getEntity()))); break;
+						case '@':    sv = SETVarValueFloat(entWriteTo->m_variables, varNew,     context.getFloatVar(val,context->getEntity())); break;
+						default:
+							ScriptError << "invalid param variable type \"" << strVarValue << "\" at \"" << strParams << "\"";
+							return AbortError;
+					}
+					if(!sv) {
+						ScriptWarning << "Unable to create variable " << strVar;
+						return Failed;
+					}
+				} else {
+					ScriptError << "invalid param assignment \"" << strVarValue << "\" at \"" << strParams << "\"";
+					return AbortError;
+				}
+			}
+		}
 		
 		if(!sub) {
 			size_t pos = context.skipCommand();
