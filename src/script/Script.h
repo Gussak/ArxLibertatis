@@ -50,6 +50,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <stddef.h>
 #include <cstring>
 #include <limits>
+#include <map>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -188,7 +189,8 @@ struct EERIE_SCRIPT {
 	bool valid = false;
 	std::string data;
 	size_t shortcut[SM_MAXCMD];
-	std::map<string,int> shortcutCalls;
+	std::map<std::string, size_t> shortcutCalls; // key cannot be std::string_view here as it needs to hold the new string data
+	std::string file;
 
 	EERIE_SCRIPT() noexcept {
 		memset(&shortcut, 0, sizeof(shortcut));

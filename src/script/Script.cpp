@@ -254,13 +254,14 @@ std::ostream & operator<<(std::ostream & os, const ScriptParameters & parameters
 
 size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 	
-	std::map<string,int>::iterator itCall; // TODO performance tests in some 100KB+ script where the target is at it's end
-	itCall = es->shortcutCalls.find(str);
-	if(itCall != es->shortcutCalls.end()) {
-		return itCall->second;
-	}
-	
 	// TODO(script-parser) remove, respect quoted strings
+	
+	if(str.size() >= 2 && str[0] == '>' && str[1] == '>') { // uses the cache only for GoTo/GoSub calls
+		auto it = es->shortcutCalls.find(std::string(str));
+		if(it != es->shortcutCalls.end()) {
+			return it->second;
+		}
+	}
 	
 	for(size_t pos = 0; pos < es->data.size(); pos++) {
 		
@@ -276,9 +277,7 @@ size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 		// Check if the line is commented out!
 		for(size_t p = pos; es->data[p] != '/' || es->data[p + 1] != '/'; p--) {
 			if(es->data[p] == '\n' || p == 0) {
-				pos += str.length();
-				es->shortcutCalls.insert( std::pair<string,int>(str,pos) );
-				return pos;
+				return pos + str.length();
 			}
 		}
 		

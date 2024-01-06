@@ -155,9 +155,80 @@ std::string_view ScriptEvent::name(ScriptMessage event) {
 }
 
 void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
+	LogDebug("file="<<es.file);
 	for(size_t i = 1; i < SM_MAXCMD; i++) {
 		es.shortcut[i] = FindScriptPos(&es, ScriptEvent::name(ScriptMessage(i)));
 	}
+	
+	// detect and cache GoTo and GoSub call target IDs and the position just after them.
+	size_t pos = 0;
+	size_t posEnd = 0;
+	bool bContinue = false;
+	while(true) {
+		bContinue=false;
+		
+		if(pos == std::string::npos) {
+			break;
+		}
+		
+		pos = es.data.find(">>",pos);
+		if(pos == std::string::npos) {
+			break;
+		}
+		LogDebug("pos="<<pos<<",datasize="<<es.data.size());
+		
+		// Check if the line is commented out! Back track. TODO a generic function and use also at Script.cpp at least
+		for(size_t p = pos;; p--) {
+			if(p == 0) {
+				break; // is valid
+			}
+			if(es.data[p] == '\n') {
+				break; // is valid
+			}
+			if(es.data[p] == '/' && es.data[p + 1] == '/') {
+				pos = es.data.find('\n', pos); //skip to the end of the commented line
+				if(pos != std::string::npos) {
+					pos++; //skip \n
+				}
+				bContinue = true;
+				break;
+			}
+		}
+		if(bContinue) {
+			continue;
+		}
+		
+		static std::string strValidCallIdChars = "0123456789abcdefghijklmnopqrstuvwxyz_";
+		posEnd = es.data.find_first_not_of(strValidCallIdChars, pos+2); //skip ">>"
+		if(posEnd == std::string::npos) {
+			posEnd = es.data.size();
+		}
+		const std::string id = es.data.substr(pos, posEnd-pos);
+		//LogDebug("shortcutCall:found: "<<"id="<<id<<", posAfterIt="<<posEnd<<"; posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
+		arx_assert_msg(!(id.size() < 3 || id.substr(0,2) != ">>" || id.find_first_not_of(strValidCallIdChars,2) != std::string::npos), "invalid id detected '%s' pos=%lu, posEnd=%lu, scriptSize=%lu idSize=%lu", std::string(id).c_str(), pos, posEnd, es.data.size(), id.size());
+		
+		auto it = es.shortcutCalls.find(id);
+		if(it == es.shortcutCalls.end()) {
+			es.shortcutCalls.emplace(id, posEnd);
+			LogDebug("shortcutCall:AddedNew: id="<<id<<", posAfterIt="<<posEnd<<"; posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
+		} else {
+			// an overrider call target was already found and will be kept. This new match will be ignored.
+			LogDebug("shortcutCall:IGNORED: id="<<id<<"("<< it->first <<"), posAfterIt="<<posEnd<<"(overridenBy="<< it->second <<"); posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
+		}
+		
+		if(posEnd == es.data.size()) {
+			break;
+		}
+		
+		pos = posEnd;
+	}
+	
+	#ifdef ARX_DEBUG
+	LogDebug("shortcutCallsForFile["<<es.shortcutCalls.size()<<"]:"<<es.file);
+	for(auto it : es.shortcutCalls) { // shows the ordered sorted map result!
+		LogDebug("shortcutCall: id="<< it.first <<", posAfterIt="<< it.second);
+	}
+	#endif
 }
 
 static bool checkInteractiveObject(Entity * io, ScriptMessage msg, ScriptResult & ret) {
