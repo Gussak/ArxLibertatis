@@ -206,6 +206,13 @@ size_t initSuppressions();
 
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails = "", const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr, size_t callStackIndexFromLast = 0);
 
+enum PreCompiledReference { //TODO sketch studing script pre-compilation
+	// \x01 is the reference hint
+	// commands
+	IF = 2,
+	SET,
+};
+
 } // namespace script
 
 #endif // ARX_SCRIPT_SCRIPTUTILS_H
