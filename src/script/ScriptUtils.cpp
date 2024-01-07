@@ -265,6 +265,19 @@ void Context::seekToPosition(size_t pos) {
 	m_pos=pos; 
 }
 
+/**
+ * //TODO sketch studing script pre-compilation
+ * it is like a pre-compiled script
+ * TODO clean all comments
+ * TODO convert all \n to ' '
+ */
+void Context::overwriteWithReference(size_t pos, std::string word, PreCompiledReference & ref) { //std::string reference) {
+	//arx_assert_msg(!(word.size() < reference.size()),"pre-compiled reference=%s needs to be at most word=%s size", reference.c_str(), word.c_str());
+	m_script->data[pos] = '\x01';
+	m_script->data[pos+1] = ref;
+	m_script->data[pos+2] = word.size();
+}
+
 std::string Context::getWord() {
 	
 	std::string_view esdat = m_script->data;
