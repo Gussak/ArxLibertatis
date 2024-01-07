@@ -2182,6 +2182,114 @@ static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, EERIE_SCRIPT 
 	return false;
 }
 
+/**
+ * Necessary because of other parts of the code that seek back for the single line comment token "//" !
+ * This is destructive. Will replace initial chars of each line in the multiline comment with "//", but only in the RAM.
+ */
+void detectAndTransformMultilineCommentIntoSingleLineComments(std::string_view & esdat) {
+	size_t pos = 0;
+	
+	while(true) {
+		pos = esdat.find("/*", pos);
+		if(posEnd == std::string_view::npos) return;
+		
+		// replaces "/*"
+		if(pos == esdat.size()) return; esdat[pos] = '/'; pos++;
+		if(pos == esdat.size()) return; esdat[pos] = '/'; pos++;
+			
+		posEnd = esdat.find("*/", pos);
+		if(posEnd == std::string_view::npos) {
+			posEnd = esdat.size();
+		}
+		
+		for(; pos < posEnd; pos++) {
+			if(esdat[pos] == '\n') {
+				pos++; // seek to the begin of the next line
+				if(esdat[pos] == '\n' || esdat[pos + 1] == '\n') { // a line with 0 or 1 text char is invalid
+					LogError "MultilineCommentScript: every line, inside a multiline comment, must have at least 2 characters. Obs.: a single tab on it counts only as 1 character!"
+					// just a simple user instruction above.
+					// must have at least 2 characters and one newline at it's end because this is the only way to replace both chars with a single line comment resulting in '//\n'
+					// obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+				}
+				// replaces 2 chars in the begin of the line
+				if(pos == esdat.size()) return; esdat[pos] = '/'; pos++;
+				if(pos == esdat.size()) return; esdat[pos] = '/'; pos++;
+			}
+		}
+		
+		// replaces "*/"
+		if(pos == esdat.size()) return; esdat[pos] = '/'; pos++;
+		if(pos == esdat.size()) return; esdat[pos] = '/'; pos++;
+		
+		if(pos < esdat.size() && esdat[pos] != '\n') {
+			LogError "MultilineCommentScript: the closing '*/' token shall always be followed by a newline '\n'."
+			// just a simple user instruction above.
+			// must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script!
+			// obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+		}
+	}
+}
+bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string_view & esdat) {
+	size_t pos = 0;
+	if(esdat[pos] == '/' && (pos + 1 != esdat.size()) && esdat[pos + 1] == '*') {
+		bool endMultilineConversion = false;
+		int iCountLineChars = 0;
+		while(true) {
+			if(pos == esdat.size()) break;
+			
+			iCountLineChars++;
+			esdat[pos] = '/'; // destructive
+			pos++;
+			if(pos == esdat.size()) break;
+			
+			iCountLineChars++;
+			if(iCountLineChars < 2) {
+				LogError "MultilineCommentScript: every line, inside a multiline comment, must have at least 2 characters and one newline at it's end. This is the only way to replace both chars with a single line comment resulting in '//\n'. Obs.: a single tab on it counts only as 1 character! " // dont assert as end user may cause this!
+			}
+			esdat[pos] = '/'; // destructive
+			pos++;
+			if(pos + 1 >= esdat.size()) break;
+			iCountLineChars++;
+			
+			while(true) {
+				if(esdat[pos] == "\n") {
+					iCountLineChars = 0;
+					break;
+				}
+				
+				if(esdat[pos] == '*' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
+					esdat[pos] = '/'; // destructive
+					pos++;
+					if(pos + 1 >= esdat.size()) break;
+					
+					esdat[pos] = '/'; // destructive
+					pos++;
+					if(pos + 1 >= esdat.size()) break;
+					
+					if(pos < esdat.size() && esdat[pos] != '\n') {
+						LogError "MultilineCommentScript: '*/' shall always be followed by a newline '\n', otherwise adding a newline there would make the line calculation, of other messages, miss the original script!" // dont assert as end user may cause this!
+					}
+					
+					endMultilineConversion = true;
+					
+					break;
+				} else {
+					pos++;
+					if(pos >= esdat.size()) break;
+					iCountLineChars++;
+				}
+			}
+			if(endMultilineConversion) {
+				break;
+			}
+		}
+		
+		return true;
+	}
+	
+	return false;
+}
+
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);
 }
@@ -2374,6 +2482,8 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 			LogInfo << "└─ All Mods: Dumping result of " << modOverrideApplyCount << " applied overrides and " << modPatchApplyCount << " applied patches at: " << pathModdedDump;
 		}
 	}
+	
+	detectAndTransformMultilineCommentIntoSingleLineComments(script.data);
 	
 	ARX_SCRIPT_ComputeShortcuts(script);
 	

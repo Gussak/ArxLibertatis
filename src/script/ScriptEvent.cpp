@@ -169,7 +169,7 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 	while(true) {
 		bContinue=false;
 		
-		if(pos == std::string::npos) {
+		if(pos == es.data.size() || pos == std::string::npos) {
 			break;
 		}
 		
@@ -187,14 +187,18 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 			if(es.data[p] == '\n') {
 				break; // is valid
 			}
-			if(es.data[p] == '/' && es.data[p + 1] == '/') {
-				pos = es.data.find('\n', pos); //skip to the end of the commented line
-				if(pos != std::string::npos) {
-					pos++; //skip \n
-				}
+			if(script::detectAndSkipComment(es.data, pos, true)) {
 				bContinue = true;
-				break;
+				break; // break the back track for comment token
 			}
+			//if(es.data[p] == '/' && es.data[p + 1] == '/') {
+				//pos = es.data.find('\n', pos); //skip to the end of the commented line
+				//if(pos != std::string::npos) {
+					//pos++; //skip \n
+				//}
+				//bContinue = true;
+				//break; // break the back track for comment token
+			//}
 		}
 		if(bContinue) {
 			continue;

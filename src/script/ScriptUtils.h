@@ -109,6 +109,7 @@ public:
 	
 	void skipWhitespace(bool skipNewlines = false, bool warnNewlines = false);
 	void skipWhitespaceAndComment();
+	//bool detectAndSkipComment(size_t & pos, bool skipNewlines = true);
 	
 	void updateNewLinesList();
 	
@@ -206,10 +207,13 @@ size_t initSuppressions();
 
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails = "", const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr, size_t callStackIndexFromLast = 0);
 
-enum PreCompiledReference { //TODO sketch studing script pre-compilation
-	// \x01 is the reference hint
+bool detectAndSkipComment(std::string_view & esdat, size_t & pos, bool skipNewlines);
+
+enum PreCompileReference { //TODO sketch studing script pre-compilation
+	// \x01 is the hint telling there is a reference
+	// \x02 is the hint telling to skip up to 255-1=254 chars of comments or white spaces (because \x00 shall not be used in the middle of a string).
 	// commands
-	IF = 2,
+	IF = 3,
 	SET,
 };
 

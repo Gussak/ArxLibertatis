@@ -143,20 +143,52 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
 
-void Context::skipWhitespaceAndComment() {
-	skipWhitespace(true);
-	
-	std::string_view esdat = m_script->data;
-	char c = esdat[m_pos];
-	if(c == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-		m_pos = esdat.find('\n', m_pos + 2);
-		if(m_pos == std::string::npos) {
-			m_pos = esdat.size();
+bool detectAndSkipComment(std::string_view & esdat, size_t & pos, bool skipNewlines) {
+	if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
+		pos = esdat.find('\n', pos + 2);
+		if(pos == std::string::npos) {
+			pos = esdat.size();
 		} else {
-			m_pos++;
+			if(skipNewlines) {
+				pos++; //after \n
+			}
 		}
+		return true;
 	}
+	return false;
+}
+//bool Context::detectAndSkipComment(size_t & pos, bool skipNewlines) {
+	//std::string_view esdat = m_script->data;
 	
+	//if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
+		//pos = esdat.find('\n', pos + 2);
+		//if(pos == std::string::npos) {
+			//pos = esdat.size();
+		//} else {
+			//if(skipNewlines) {
+				//pos++; //after \n
+			//}
+		//}
+		//return true;
+	//}
+	
+	////// multiline comment TODO do not use! transform multiline comments into single line comments (at loadScript()) because of other parts of the code that seek back for the single line comment token "//" !
+	////if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '*') {
+		////pos = esdat.find("*/", pos + 2);
+		////if(pos == std::string::npos) {
+			////pos = esdat.size();
+		////} else {
+			////pos += 2; //after */
+		////}
+		////return true;
+	////}
+	
+	//return false;
+//}
+
+void Context::skipWhitespaceAndComment() { // TODO refactor to skipWhitespacesCommentsAndNewLines
+	skipWhitespace(true);
+	script::detectAndSkipComment(m_script->data, m_pos, true);
 	skipWhitespace(true);
 }
 
@@ -178,17 +210,15 @@ std::string Context::getCommand(bool skipNewlines) {
 			ScriptParserWarning << "unexpected '~' in command name";
 		} else if(c == '\n') {
 			break;
-		} else if(c == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-			m_pos = esdat.find('\n', m_pos + 2);
-			if(m_pos == std::string::npos) {
-				m_pos = esdat.size();
-			}
-			if(!word.empty()) {
-				break;
-			}
-			skipWhitespace(skipNewlines), m_pos--;
 		} else {
-			word.push_back(c);
+			if(script::detectAndSkipComment(esdat, m_pos, false)) {
+				if(!word.empty()) {
+					break;
+				}
+				skipWhitespace(skipNewlines), m_pos--;
+			} else {
+				word.push_back(c);
+			}
 		}
 	}
 	
@@ -271,7 +301,7 @@ void Context::seekToPosition(size_t pos) {
  * TODO clean all comments
  * TODO convert all \n to ' '
  */
-void Context::overwriteWithReference(size_t pos, std::string word, PreCompiledReference & ref) { //std::string reference) {
+void Context::overwriteWithReference(size_t pos, std::string word, PreCompileReference & ref) { //std::string reference) {
 	//arx_assert_msg(!(word.size() < reference.size()),"pre-compiled reference=%s needs to be at most word=%s size", reference.c_str(), word.c_str());
 	m_script->data[pos] = '\x01';
 	m_script->data[pos+1] = ref;
@@ -335,16 +365,13 @@ std::string Context::getWord() {
 				tilde = !tilde;
 			} else if(tilde) {
 				var.push_back(esdat[m_pos]);
-			} else if(esdat[m_pos] == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-				m_pos = esdat.find('\n', m_pos + 2);
-				if(m_pos == std::string::npos) {
-					m_pos = esdat.size();
-				}
-				break;
 			} else {
-				word.push_back(esdat[m_pos]);
+				if(script::detectAndSkipComment(esdat, m_pos, false)) {
+					break;
+				} else {
+					word.push_back(esdat[m_pos]);
+				}
 			}
-			
 		}
 		
 	}
@@ -383,11 +410,7 @@ void Context::skipWord() {
 		for(; m_pos != esdat.size() && !isWhitespace(esdat[m_pos]); m_pos++) {
 			if(esdat[m_pos] == '"') {
 				ScriptParserWarning << "unexpected '\"' inside token";
-			} else if(esdat[m_pos] == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-				m_pos = esdat.find('\n', m_pos + 2);
-				if(m_pos == std::string::npos) {
-					m_pos = esdat.size();
-				}
+			} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
 				break;
 			}
 		}
@@ -479,14 +502,9 @@ size_t Context::skipCommand() {
 	
 	size_t oldpos = m_pos;
 	
-	if(esdat[m_pos] == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
+	if(script::detectAndSkipComment(esdat, m_pos, false)) {
 		oldpos = size_t(-1);
 		m_pos += 2;
-	}
-	
-	m_pos = esdat.find('\n', m_pos);
-	if(m_pos == std::string::npos) {
-		m_pos = esdat.size();
 	}
 	
 	return oldpos;
