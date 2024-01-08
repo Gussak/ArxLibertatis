@@ -2229,66 +2229,66 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string_view &
 		}
 	}
 }
-bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string_view & esdat) {
-	size_t pos = 0;
-	if(esdat[pos] == '/' && (pos + 1 != esdat.size()) && esdat[pos + 1] == '*') {
-		bool endMultilineConversion = false;
-		int iCountLineChars = 0;
-		while(true) {
-			if(pos == esdat.size()) break;
+//bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string_view & esdat) {
+	//size_t pos = 0;
+	//if(esdat[pos] == '/' && (pos + 1 != esdat.size()) && esdat[pos + 1] == '*') {
+		//bool endMultilineConversion = false;
+		//int iCountLineChars = 0;
+		//while(true) {
+			//if(pos == esdat.size()) break;
 			
-			iCountLineChars++;
-			esdat[pos] = '/'; // destructive
-			pos++;
-			if(pos == esdat.size()) break;
+			//iCountLineChars++;
+			//esdat[pos] = '/'; // destructive
+			//pos++;
+			//if(pos == esdat.size()) break;
 			
-			iCountLineChars++;
-			if(iCountLineChars < 2) {
-				LogError "MultilineCommentScript: every line, inside a multiline comment, must have at least 2 characters and one newline at it's end. This is the only way to replace both chars with a single line comment resulting in '//\n'. Obs.: a single tab on it counts only as 1 character! " // dont assert as end user may cause this!
-			}
-			esdat[pos] = '/'; // destructive
-			pos++;
-			if(pos + 1 >= esdat.size()) break;
-			iCountLineChars++;
+			//iCountLineChars++;
+			//if(iCountLineChars < 2) {
+				//LogError "MultilineCommentScript: every line, inside a multiline comment, must have at least 2 characters and one newline at it's end. This is the only way to replace both chars with a single line comment resulting in '//\n'. Obs.: a single tab on it counts only as 1 character! " // dont assert as end user may cause this!
+			//}
+			//esdat[pos] = '/'; // destructive
+			//pos++;
+			//if(pos + 1 >= esdat.size()) break;
+			//iCountLineChars++;
 			
-			while(true) {
-				if(esdat[pos] == "\n") {
-					iCountLineChars = 0;
-					break;
-				}
+			//while(true) {
+				//if(esdat[pos] == "\n") {
+					//iCountLineChars = 0;
+					//break;
+				//}
 				
-				if(esdat[pos] == '*' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
-					esdat[pos] = '/'; // destructive
-					pos++;
-					if(pos + 1 >= esdat.size()) break;
+				//if(esdat[pos] == '*' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
+					//esdat[pos] = '/'; // destructive
+					//pos++;
+					//if(pos + 1 >= esdat.size()) break;
 					
-					esdat[pos] = '/'; // destructive
-					pos++;
-					if(pos + 1 >= esdat.size()) break;
+					//esdat[pos] = '/'; // destructive
+					//pos++;
+					//if(pos + 1 >= esdat.size()) break;
 					
-					if(pos < esdat.size() && esdat[pos] != '\n') {
-						LogError "MultilineCommentScript: '*/' shall always be followed by a newline '\n', otherwise adding a newline there would make the line calculation, of other messages, miss the original script!" // dont assert as end user may cause this!
-					}
+					//if(pos < esdat.size() && esdat[pos] != '\n') {
+						//LogError "MultilineCommentScript: '*/' shall always be followed by a newline '\n', otherwise adding a newline there would make the line calculation, of other messages, miss the original script!" // dont assert as end user may cause this!
+					//}
 					
-					endMultilineConversion = true;
+					//endMultilineConversion = true;
 					
-					break;
-				} else {
-					pos++;
-					if(pos >= esdat.size()) break;
-					iCountLineChars++;
-				}
-			}
-			if(endMultilineConversion) {
-				break;
-			}
-		}
+					//break;
+				//} else {
+					//pos++;
+					//if(pos >= esdat.size()) break;
+					//iCountLineChars++;
+				//}
+			//}
+			//if(endMultilineConversion) {
+				//break;
+			//}
+		//}
 		
-		return true;
-	}
+		//return true;
+	//}
 	
-	return false;
-}
+	//return false;
+//}
 
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);

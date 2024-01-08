@@ -187,6 +187,7 @@ bool detectAndSkipComment(std::string_view & esdat, size_t & pos, bool skipNewli
 //}
 
 void Context::skipWhitespaceAndComment() { // TODO refactor to skipWhitespacesCommentsAndNewLines
+	//if(m_script->data[m_pos] == '\x01' todoa
 	skipWhitespace(true);
 	script::detectAndSkipComment(m_script->data, m_pos, true);
 	skipWhitespace(true);
@@ -301,11 +302,12 @@ void Context::seekToPosition(size_t pos) {
  * TODO clean all comments
  * TODO convert all \n to ' '
  */
-void Context::overwriteWithReference(size_t pos, std::string word, PreCompileReference & ref) { //std::string reference) {
+void Context::writePreCompiledData(std::string_view & esdat, size_t pos, unsigned char c); //std::string word, PreCompileReference & ref) { //std::string reference) {
 	//arx_assert_msg(!(word.size() < reference.size()),"pre-compiled reference=%s needs to be at most word=%s size", reference.c_str(), word.c_str());
-	m_script->data[pos] = '\x01';
-	m_script->data[pos+1] = ref;
-	m_script->data[pos+2] = word.size();
+	m_script->data[pos] = PreCompiled.REFERENCE;
+	m_script->data[pos+1] = c;
+	//m_script->data[pos+1] = ref;
+	//m_script->data[pos+2] = word.size();
 }
 
 std::string Context::getWord() {

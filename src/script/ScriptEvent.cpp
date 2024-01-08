@@ -371,23 +371,44 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	
 	for(;;) {
 		
-		std::string word = context.getCommand(event != SM_EXECUTELINE);
-		if(word.empty()) {
-			if(event == SM_EXECUTELINE && context.getPosition() != es->data.size()) {
-				arx_assert(es->data[context.getPosition()] == '\n');
-				LogDebug("<-- line end");
+		static std::vector<Command*> vCmd = {nullptr}; // lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data
+		script::Command * pCmd = nullptr;
+		int iCmd = -1;
+		bool isCmd = false;
+		std::string word;
+		size_t posCmd = context.getPosition();
+		if(es->data[posCmd] == PreCompiled.REFERENCE) {
+			pCmd = vCmd[(size_t)es->data[posCmd+1]]
+			isCmd = true;
+		} else {
+			word = context.getCommand(event != SM_EXECUTELINE);
+			if(word.empty()) {
+				if(event == SM_EXECUTELINE && context.getPosition() != es->data.size()) {
+					arx_assert(es->data[context.getPosition()] == '\n');
+					LogDebug("<-- line end");
+					return ACCEPT;
+				}
+				ScriptEventWarning << "<-- reached script end without accept / refuse / return";
 				return ACCEPT;
 			}
-			ScriptEventWarning << "<-- reached script end without accept / refuse / return";
-			return ACCEPT;
+			
+			// Remove all underscores from the command.
+			word.resize(std::remove(word.begin(), word.end(), '_') - word.begin());
+			
+			auto it = commands.find(word);
+			if(it != commands.end()) {
+				pCmd = it->second;
+				iCmd = vCmd.size();
+				vCmd.push_back(pCmd);
+				arx_assert_msg(vCmd.size() <= 255, "to have more than 255 pre-compiled references, this code need to be reviewed (to use 2 chars to create the reference for 65535 instead of 1 limited to 255)");
+				writePreCompiledData(es->data, posCmd, (unsigned char)iCmd);
+				isCmd = true;
+			}
 		}
 		
-		// Remove all underscores from the command.
-		word.resize(std::remove(word.begin(), word.end(), '_') - word.begin());
-		
-		if(auto it = commands.find(word); it != commands.end()) {
+		if(isCmd) {
 			
-			script::Command & command = *(it->second);
+			script::Command & command = *(pCmd);
 			
 			script::Command::Result res;
 			if(command.getEntityFlags()
