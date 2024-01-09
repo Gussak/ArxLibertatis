@@ -283,11 +283,14 @@ size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 		}
 		
 		// Check if the line is commented out!
-		for(size_t p = pos; es->data[p] != '/' || es->data[p + 1] != '/'; p--) {
-			if(es->data[p] == '\n' || p == 0) {
-				return pos + str.length();
-			}
+		if(script::seekBackwardsForCommentToken(es->data, pos) == size_t(-1)) {
+			return pos + str.length();
 		}
+		//for(size_t p = pos; es->data[p] != '/' || es->data[p + 1] != '/'; p--) {
+			//if(es->data[p] == '\n' || p == 0) {
+				//return pos + str.length();
+			//}
+		//}
 		
 	}
 	
@@ -2183,19 +2186,78 @@ void ManageCasseDArme(Entity * io) {
 	
 }
 
-static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, EERIE_SCRIPT & script) {
+static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, std::string & esdat) {
 	res::path folder = pathModdedDump.parent();
 	std::filesystem::create_directories(folder.string());
 	static std::ofstream flModdedDump;
 	flModdedDump.open(pathModdedDump.string(), std::ios_base::trunc); //std::ios_base::app);
 	if(!flModdedDump.fail()) {
-		flModdedDump << script.data << "\n";
+		flModdedDump << esdat << "\n";
 		flModdedDump.flush();
 		flModdedDump.close();
 		return true;
 	}
 	arx_assert_msg(false, "failed to write mod dump file '%s'", pathModdedDump.string().c_str());
 	return false;
+}
+
+bool createSingleLineComment(std::string & esdat, size_t & posNow) {
+	if(posNow == esdat.size()) return false;
+	esdat[posNow] = '/';
+	posNow++;
+	
+	if(posNow == esdat.size()) return false;
+	esdat[posNow] = '/';
+	posNow++;
+	
+	return true;
+}
+/**
+ * Necessary because of other parts of the code that seek back for the single line comment token "//" !
+ * This is destructive. Will replace initial chars of each line in the multiline comment with "//", but only in the RAM.
+ */
+void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat) {
+	size_t posNow = 0;
+	size_t posEnd = 0;
+	
+	while(true) {
+		if(posEnd == esdat.size()) return;
+		
+		posNow = esdat.find("/*", posNow);
+		if(posNow == std::string_view::npos) {
+			return;
+		}
+		if(script::seekBackwardsForCommentToken(esdat, posNow) != size_t(-1)) {
+			posNow += 2; // skip "/*"
+			continue; // a commented '//' multiline comment init token shall be ignored like in cpp
+		}
+		
+		if(!createSingleLineComment(esdat, posNow)) return; // replaces "/*"
+		
+		posEnd = esdat.find("*/", posNow);
+		if(posEnd == std::string_view::npos) {
+			posEnd = esdat.size();
+		}
+		
+		for(; posNow < posEnd; posNow++) {
+			if(esdat[posNow] == '\n') {
+				posNow++; // seek to the begin of the next line
+				if(esdat[posNow] == '\n' || esdat[posNow + 1] == '\n') { // a line with 0 or 1 text char is invalid
+					LogError << "MultilineCommentScript: every line, inside a multiline comment, must have at least 2 characters. Obs.: a single tab on it counts only as 1 character!"; // show just a simple user instruction. must have at least 2 characters and one newline at it's end because this is the only way to replace both chars with a single line comment resulting in '//\n'. obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+				}
+				if(!createSingleLineComment(esdat, posNow)) return; // replaces 2 chars in the begin of the line
+			}
+		}
+		
+		if(!createSingleLineComment(esdat, posNow)) return; // replaces "*/"
+		
+		if(posNow < esdat.size() && esdat[posNow] == '\r') {
+			posNow++;
+		}
+		if(posNow < esdat.size() && esdat[posNow] != '\n') {
+			LogError << "MultilineCommentScript: the closing '*/' token shall always be followed by a newline but found '" << esdat[posNow] << "' instead."; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+		}
+	}
 }
 
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
@@ -2212,6 +2274,8 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	
 	script.valid = true;
 	script.file = pathScript.string();
+	
+	std::string strScriptData;
 	
 	const char * moddingOpt = std::getenv("ARX_MODDING"); // set ARX_MODDING=1 to let dumped scripts cache always be loaded, this will also ignore changes to mod files and to original files that would be patched/overriden
 	int moddingMode = 0;
@@ -2231,7 +2295,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		if (fileModCache.is_open()) {
 			std::stringstream fileData;
 			fileData << fileModCache.rdbuf();
-			script.data = util::toLowercase(fileData.str());
+			strScriptData = util::toLowercase(fileData.str());
 			script.file = pathModdedDump.string();
 			fileModCache.close();
 			usedCache = true;
@@ -2239,7 +2303,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	}
 	
 	if(!usedCache) {
-		script.data = util::toLowercase(file->read());
+		strScriptData = util::toLowercase(file->read());
 		
 		std::string strBaseModPath = "mods";
 		static std::vector<std::string> vModList;
@@ -2313,7 +2377,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					}
 					
 					res::path pathScriptToBePatched = pathModdedDump;
-					writeScriptAtModDumpFolder(pathScriptToBePatched, script);
+					writeScriptAtModDumpFolder(pathScriptToBePatched, strScriptData);
 					
 					std::string strPatchOutputFile = pathModPatchToApply.string() + ".log";
 					std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatchToApply.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
@@ -2346,7 +2410,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					if (fileModPatched.is_open()) {
 						std::stringstream fileData;
 						fileData << fileModPatched.rdbuf();
-						script.data = util::toLowercase(fileData.str());
+						strScriptData = util::toLowercase(fileData.str());
 						fileModPatched.close();
 						LogInfo << "│   ├─ applied patch    : " << pathModPatchToApply.string().substr(cleanTo);;
 						modPatchApplyCount++;
@@ -2372,7 +2436,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				
 				std::stringstream fileData;
 				fileData << fileModOverride.rdbuf();
-				script.data = util::toLowercase(fileData.str()) + "\n" + script.data;
+				strScriptData = util::toLowercase(fileData.str()) + "\n" + strScriptData;
 				fileModOverride.close();
 				LogInfo << "│   ├─ applied overrides: " << pathModOverride.string().substr(cleanTo);;
 				modOverrideApplyCount++;
@@ -2385,11 +2449,15 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		}
 		
 		if((modOverrideApplyCount + modPatchApplyCount) > 0) {
-			writeScriptAtModDumpFolder(pathModdedDump, script);
+			writeScriptAtModDumpFolder(pathModdedDump, strScriptData);
 			script.file = pathModdedDump.string();
 			LogInfo << "└─ All Mods: Dumping result of " << modOverrideApplyCount << " applied overrides and " << modPatchApplyCount << " applied patches at: " << pathModdedDump;
 		}
 	}
+	
+	detectAndTransformMultilineCommentIntoSingleLineComments(strScriptData);
+	
+	script.data = strScriptData;
 	
 	ARX_SCRIPT_ComputeShortcuts(script);
 	
