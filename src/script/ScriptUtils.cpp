@@ -157,34 +157,6 @@ bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool ski
 	}
 	return false;
 }
-//bool Context::detectAndSkipComment(size_t & pos, bool skipNewlines) {
-	//std::string_view esdat = m_script->data;
-	
-	//if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
-		//pos = esdat.find('\n', pos + 2);
-		//if(pos == std::string::npos) {
-			//pos = esdat.size();
-		//} else {
-			//if(skipNewlines) {
-				//pos++; //after \n
-			//}
-		//}
-		//return true;
-	//}
-	
-	////// multiline comment TODO do not use! transform multiline comments into single line comments (at loadScript()) because of other parts of the code that seek back for the single line comment token "//" !
-	////if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '*') {
-		////pos = esdat.find("*/", pos + 2);
-		////if(pos == std::string::npos) {
-			////pos = esdat.size();
-		////} else {
-			////pos += 2; //after */
-		////}
-		////return true;
-	////}
-	
-	//return false;
-//}
 
 void Context::skipWhitespaceAndComment() { // TODO refactor to skipWhitespacesCommentsAndNewLines
 	//if(m_script->data[m_pos] == '\x01' todoa

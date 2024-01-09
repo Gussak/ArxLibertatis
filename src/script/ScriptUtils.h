@@ -213,23 +213,6 @@ size_t seekBackwardsForCommentToken(const std::string_view & esdat, size_t posTo
 
 bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool skipNewlines);
 
-struct PreCompiled { // sketch studing script pre-compilation
-	// these shall not be saved, so no need to keep the values unchanged, but they shall not clash, like in an enum.
-	static const unsigned char REFERENCE = 1; // is the hint telling there is a reference to a command
-	static const unsigned char WHITESPACE = 2; // is the hint telling to skip up to 255-1=254 chars of comments or white spaces (because \x00 shall not be used in the middle of a string).
-	
-	// commands
-	static const unsigned char IF = 5;
-	static const unsigned char SET = 6;
-};
-//enum PreCompileReference { //TODO sketch studing script pre-compilation
-	//// \x01 is the hint telling there is a reference
-	//// \x02 is the hint telling to skip up to 255-1=254 chars of comments or white spaces (because \x00 shall not be used in the middle of a string).
-	//// commands
-	//IF = 3,
-	//SET,
-//};
-
 } // namespace script
 
 #endif // ARX_SCRIPT_SCRIPTUTILS_H

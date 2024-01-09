@@ -2186,13 +2186,13 @@ void ManageCasseDArme(Entity * io) {
 	
 }
 
-static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, EERIE_SCRIPT & script) {
+static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, std::string & esdat) {
 	res::path folder = pathModdedDump.parent();
 	std::filesystem::create_directories(folder.string());
 	static std::ofstream flModdedDump;
 	flModdedDump.open(pathModdedDump.string(), std::ios_base::trunc); //std::ios_base::app);
 	if(!flModdedDump.fail()) {
-		flModdedDump << script.data << "\n";
+		flModdedDump << esdat << "\n";
 		flModdedDump.flush();
 		flModdedDump.close();
 		return true;
@@ -2251,8 +2251,11 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 		
 		if(!createSingleLineComment(esdat, posNow)) return; // replaces "*/"
 		
+		if(posNow < esdat.size() && esdat[posNow] == '\r') {
+			posNow++;
+		}
 		if(posNow < esdat.size() && esdat[posNow] != '\n') {
-			LogError << "MultilineCommentScript: the closing '*/' token shall always be followed by a newline '\n'."; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+			LogError << "MultilineCommentScript: the closing '*/' token shall always be followed by a newline but found '" << esdat[posNow] << "' instead."; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
 		}
 	}
 }
@@ -2374,7 +2377,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					}
 					
 					res::path pathScriptToBePatched = pathModdedDump;
-					writeScriptAtModDumpFolder(pathScriptToBePatched, script);
+					writeScriptAtModDumpFolder(pathScriptToBePatched, strScriptData);
 					
 					std::string strPatchOutputFile = pathModPatchToApply.string() + ".log";
 					std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatchToApply.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
@@ -2446,7 +2449,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		}
 		
 		if((modOverrideApplyCount + modPatchApplyCount) > 0) {
-			writeScriptAtModDumpFolder(pathModdedDump, script);
+			writeScriptAtModDumpFolder(pathModdedDump, strScriptData);
 			script.file = pathModdedDump.string();
 			LogInfo << "└─ All Mods: Dumping result of " << modOverrideApplyCount << " applied overrides and " << modPatchApplyCount << " applied patches at: " << pathModdedDump;
 		}
