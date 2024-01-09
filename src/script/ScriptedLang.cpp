@@ -113,6 +113,8 @@ public:
 		std::string label = context.getWord();
 		DebugScript(' ' << label);
 		
+		Entity* io = context.getEntity();
+		
 		if(hasParams) {
 			std::string strParams = context.getWord();
 			DebugScript(' ' << strParams);
@@ -124,19 +126,19 @@ public:
 					std::string var = strVarValue.substr(0,equalPos);
 					std::string val = strVarValue.substr(equalPos+1);
 					
-					std::string varNew = std::string()+var[0]+label+"_"+var.substr(1)
+					std::string varNew = std::string()+var[0]+label+"_"+var.substr(1);
 					DebugScript(' ' << varNew);
 					SCRIPT_VAR * sv = nullptr;
 					switch(var[0]) {
-						case '\xA3': sv = SETVarValueText(entWriteTo->m_variables, varNew,      context.getStringVar(val,context->getEntity())); break;
-						case '\xA7': sv = SETVarValueLong(entWriteTo->m_variables, varNew, long(context.getFloatVar(val,context->getEntity()))); break;
-						case '@':    sv = SETVarValueFloat(entWriteTo->m_variables, varNew,     context.getFloatVar(val,context->getEntity())); break;
+						case '\xA3': sv = SETVarValueText(io->m_variables, varNew, context.getStringVar(val,io)); break;
+						case '\xA7': sv = SETVarValueLong(io->m_variables, varNew, long(context.getFloatVar(val,io))); break;
+						case '@':    sv = SETVarValueFloat(io->m_variables, varNew, context.getFloatVar(val,io)); break;
 						default:
 							ScriptError << "invalid param variable type \"" << strVarValue << "\" at \"" << strParams << "\"";
 							return AbortError;
 					}
 					if(!sv) {
-						ScriptWarning << "Unable to create variable " << strVar;
+						ScriptWarning << "Unable to create variable " << var;
 						return Failed;
 					}
 				} else {

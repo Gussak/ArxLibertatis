@@ -166,9 +166,9 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 	// detect and cache GoTo and GoSub call target IDs and the position just after them.
 	size_t pos = 0;
 	size_t posEnd = 0;
-	bool bContinue = false;
+	//bool bContinue = false;
 	while(true) {
-		bContinue=false;
+		//bContinue=false;
 		
 		if(pos == es.data.size() || pos == std::string::npos) {
 			break;
@@ -180,30 +180,36 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		}
 		LogDebug("pos="<<pos<<",datasize="<<es.data.size());
 		
-		// Check if the line is commented out! Back track. TODO a generic function and use also at Script.cpp at least
-		for(size_t p = pos;; p--) {
-			if(p == 0) {
-				break; // is valid
-			}
-			if(es.data[p] == '\n') {
-				break; // is valid
-			}
+		if(script::seekBackwardsForCommentToken(es.data, pos) == size_t(-1)) {
+			// is not commented, therefore is a valid code line
+		} else {
 			if(script::detectAndSkipComment(es.data, pos, true)) {
-				bContinue = true;
-				break; // break the back track for comment token
+				continue; // to imediately seek for next call target after the comment
 			}
-			//if(es.data[p] == '/' && es.data[p + 1] == '/') {
-				//pos = es.data.find('\n', pos); //skip to the end of the commented line
-				//if(pos != std::string::npos) {
-					//pos++; //skip \n
-				//}
+		}
+		//for(size_t p = pos;; p--) {
+			//if(p == 0) {
+				//break; // is valid
+			//}
+			//if(es.data[p] == '\n') {
+				//break; // is valid
+			//}
+			//if(script::detectAndSkipComment(es.data, pos, true)) {
 				//bContinue = true;
 				//break; // break the back track for comment token
 			//}
-		}
-		if(bContinue) {
-			continue;
-		}
+			////if(es.data[p] == '/' && es.data[p + 1] == '/') {
+				////pos = es.data.find('\n', pos); //skip to the end of the commented line
+				////if(pos != std::string::npos) {
+					////pos++; //skip \n
+				////}
+				////bContinue = true;
+				////break; // break the back track for comment token
+			////}
+		//}
+		//if(bContinue) {
+			//continue;
+		//}
 		
 		static std::string strValidCallIdChars = "0123456789abcdefghijklmnopqrstuvwxyz_";
 		posEnd = es.data.find_first_not_of(strValidCallIdChars, pos+2); //skip ">>"
@@ -317,6 +323,7 @@ static const char * toString(ScriptResult ret) {
 }
 #endif
 
+/*
 ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
                                ScriptEventName event, ScriptParameters parameters,
                                size_t position) {
@@ -372,44 +379,23 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	
 	for(;;) {
 		
-		static std::vector<Command*> vCmd = {nullptr}; // lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data
-		script::Command * pCmd = nullptr;
-		int iCmd = -1;
-		bool isCmd = false;
-		std::string word;
-		size_t posCmd = context.getPosition();
-		if(es->data[posCmd] == PreCompiled.REFERENCE) {
-			pCmd = vCmd[(size_t)es->data[posCmd+1]]
-			isCmd = true;
-		} else {
-			word = context.getCommand(event != SM_EXECUTELINE);
-			if(word.empty()) {
-				if(event == SM_EXECUTELINE && context.getPosition() != es->data.size()) {
-					arx_assert(es->data[context.getPosition()] == '\n');
-					LogDebug("<-- line end");
-					return ACCEPT;
-				}
-				ScriptEventWarning << "<-- reached script end without accept / refuse / return";
+		std::string word = context.getCommand(event != SM_EXECUTELINE);
+		if(word.empty()) {
+			if(event == SM_EXECUTELINE && context.getPosition() != es->data.size()) {
+				arx_assert(es->data[context.getPosition()] == '\n');
+				LogDebug("<-- line end");
 				return ACCEPT;
 			}
-			
-			// Remove all underscores from the command.
-			word.resize(std::remove(word.begin(), word.end(), '_') - word.begin());
-			
-			auto it = commands.find(word);
-			if(it != commands.end()) {
-				pCmd = it->second;
-				iCmd = vCmd.size();
-				vCmd.push_back(pCmd);
-				arx_assert_msg(vCmd.size() <= 255, "to have more than 255 pre-compiled references, this code need to be reviewed (to use 2 chars to create the reference for 65535 instead of 1 limited to 255)");
-				writePreCompiledData(es->data, posCmd, (unsigned char)iCmd);
-				isCmd = true;
-			}
+			ScriptEventWarning << "<-- reached script end without accept / refuse / return";
+			return ACCEPT;
 		}
 		
-		if(isCmd) {
+		// Remove all underscores from the command.
+		word.resize(std::remove(word.begin(), word.end(), '_') - word.begin());
+		
+		if(auto it = commands.find(word); it != commands.end()) {
 			
-			script::Command & command = *(pCmd);
+			script::Command & command = *(it->second);
 			
 			script::Command::Result res;
 			if(command.getEntityFlags()
@@ -485,6 +471,211 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	
 	return ret;
 }
+*/
+
+ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
+                               ScriptEventName event, ScriptParameters parameters,
+                               size_t position) {
+	
+	ScriptResult ret = ACCEPT;
+	
+	totalCount++;
+	
+	arx_assert(entity);
+	
+	arx_assert_msg(es == &entity->script || es == &entity->over_script, "*es is expected to be == (entity->script OR entity->over_script)");
+	
+	//if(es == &entity->over_script) { // entity->over_script.valid && entity->over_script.data.size() > 0 && 
+		//LogDebug << "Using override script file=" << entity->over_script.file << ", size=" << entity->over_script.data.size() << ", id=" << entity->idString(); // << ", event=" << event.getName();
+	//}
+	
+	if(checkInteractiveObject(entity, event.getId(), ret)) {
+		return ret;
+	}
+	
+	if(!es->valid) {
+		return ACCEPT;
+	}
+	
+	if(entity->m_disabledEvents & event.toDisabledEventsMask()) {
+		return REFUSE;
+	}
+	
+	// Finds script position to execute code...
+	size_t pos = position;
+	if(!event.getName().empty()) {
+		arx_assert(event.getId() == SM_NULL);
+		arx_assert_msg(ScriptEventName::parse(event.getName()).getId() == SM_NULL, "non-canonical event name");
+		pos = FindScriptPos(es, "on " + event.getName());
+	} else if(event != SM_EXECUTELINE) {
+		arx_assert(event.getId() < SM_MAXCMD);
+		pos = es->shortcut[event.getId()];
+		arx_assert(pos == size_t(-1) || pos <= es->data.size());
+	}
+
+	if(pos == size_t(-1)) {
+		return ACCEPT;
+	}
+	
+	LogDebug("--> " << event << " params=\"" << parameters << "\"" << " entity=" << entity->idString()
+	         << (es == &entity->script ? " base" : " overriding") << " pos=" << pos);
+	
+	script::Context context(es, pos, sender, entity, event.getId(), std::move(parameters));
+	
+	if(event != SM_EXECUTELINE) {
+		std::string word = context.getCommand();
+		if(word != "{") {
+			ScriptEventWarning << "<-- missing bracket after event, got \"" << word << "\"";
+			return ACCEPT;
+		}
+	}
+	
+	size_t brackets = 1;
+	
+	for(;;) {
+		
+		//static std::vector<script::Command*> vCmd = {nullptr}; // lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data
+		//static std::vector<std::map<std::string_view, std::unique_ptr<script::Command>>::iterator*> vItCmd = {nullptr}; // lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data
+		static std::vector<std::string> vStrCmd = {""}; // lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data TODO: this vector could be filled when initializing
+		//script::Command * pCmd = nullptr;
+		//std::map<std::string_view, std::unique_ptr<script::Command>>::iterator pItCmd;
+		std::string strCmd;
+		size_t iCmd = size_t(-1);
+		bool isCmd = false;
+		std::string word;
+		size_t posCmd = context.getPosition();
+		EERIE_SCRIPT * esPreCompiled = nullptr;
+		if(es == &entity->script) esPreCompiled = &entity->script;
+		if(es == &entity->over_script) esPreCompiled = &entity->over_script;
+		if(esPreCompiled->data[posCmd] == script::PreCompiled::REFERENCE) {
+			//pCmd = vCmd[(size_t)esPreCompiled->data[posCmd + 1]];
+			//pItCmd = vItCmd[static_cast<size_t>(esPreCompiled->data[posCmd + 1])];
+			strCmd = vStrCmd[static_cast<size_t>(esPreCompiled->data[posCmd + 1])];
+			size_t skipChars = static_cast<size_t>(esPreCompiled->data[posCmd + 2]);
+			context.seekToPosition(posCmd + skipChars);
+			isCmd = true;
+			LogWarning << "Using precompilation " << es->file << ", cmd=" << strCmd;
+		} else {
+			size_t posBeforeCmd = context.getPosition();
+			word = context.getCommand(event != SM_EXECUTELINE);
+			size_t skipChars = context.getPosition() - posBeforeCmd;
+			if(word.empty()) {
+				if(event == SM_EXECUTELINE && context.getPosition() != es->data.size()) {
+					arx_assert(es->data[context.getPosition()] == '\n');
+					LogDebug("<-- line end");
+					return ACCEPT;
+				}
+				ScriptEventWarning << "<-- reached script end without accept / refuse / return";
+				return ACCEPT;
+			}
+			
+			// Remove all underscores from the command.
+			word.resize(std::remove(word.begin(), word.end(), '_') - word.begin());
+			
+			auto it = commands.find(word);
+			if(it != commands.end()) {
+				//pCmd = &it->second;
+				//pItCmd = it;
+				iCmd = size_t(-1);
+				strCmd = it->first;
+				for(size_t iCmdChk = 0; iCmdChk < vStrCmd.size(); iCmdChk++) { 
+					if(vStrCmd[iCmdChk] == strCmd) {
+						iCmd = iCmdChk;
+						break;
+					}
+				}
+				//vItCmd.push_back(pItCmd);
+				if(iCmd == size_t(-1)) {
+					iCmd = vStrCmd.size();
+					vStrCmd.push_back(strCmd);
+				}
+				arx_assert_msg(vStrCmd.size() <= 255, "to have more than 255 pre-compiled references, this code need to be reviewed (to use 2 chars to create the reference for 65535 instead of 1 limited to 255)");
+				context.writePreCompiledData(esPreCompiled->data, posCmd, static_cast<unsigned char>(iCmd), static_cast<unsigned char>(skipChars));
+				isCmd = true;
+			}
+		}
+		
+		if(isCmd) {
+			
+			//script::Command & command = *(pCmd);
+			//script::Command & command = (*pItCmd)->second);
+			script::Command & command = *(commands[strCmd]); // TODO the vector could store a pointer to the script::Command if it wasnt a unique_ptr, but std::map seek to that id is super fast too right?
+			
+			script::Command::Result res;
+			if(command.getEntityFlags()
+			   && (command.getEntityFlags() != script::Command::AnyEntity
+			       && !(command.getEntityFlags() & long(entity->ioflags)))) {
+				ScriptEventWarning << "Command " << command.getName() << " needs an entity of type "
+				                   << command.getEntityFlags();
+				context.skipCommand();
+				res = script::Command::Failed;
+			} else if(context.getParameters().isPeekOnly()) {
+				res = command.peek(context);
+			} else {
+				res = command.execute(context);
+			}
+			
+			if(res == script::Command::AbortAccept) {
+				ret = ACCEPT;
+				break;
+			} else if(res == script::Command::AbortRefuse) {
+				ret = REFUSE;
+				break;
+			} else if(res == script::Command::AbortError) {
+				ret = BIGERROR;
+				break;
+			} else if(res == script::Command::AbortDestructive) {
+				ret = DESTRUCTIVE;
+				break;
+			} else if(res == script::Command::Jumped) {
+				if(event == SM_EXECUTELINE) {
+					event = SM_DUMMY;
+				}
+				brackets = size_t(-1);
+			}
+			
+		} else if(!word.compare(0, 2, ">>", 2)) {
+			context.skipCommand(); // labels
+		} else if(!word.compare(0, 5, "timer", 5)) {
+			if(context.getParameters().isPeekOnly()) {
+				ret = DESTRUCTIVE;
+				break;
+			}
+			script::timerCommand(word.substr(5), context);
+		} else if(word == "{") {
+			if(brackets != size_t(-1)) {
+				brackets++;
+			}
+		} else if(word == "}") {
+			if(brackets != size_t(-1)) {
+				brackets--;
+				if(brackets == 0) {
+					if(isBlockEndSuprressed(context, word)) { // TODO(broken-scripts)
+						brackets++;
+					} else {
+						ScriptEventWarning << "<-- event block ended without accept or refuse!";
+						return ACCEPT;
+					}
+				}
+			}
+		} else {
+			
+			if(isBlockEndSuprressed(context, word)) { // TODO(broken-scripts)
+				return ACCEPT;
+			}
+			
+			ScriptEventWarning << "<-- unknown command: " << word;
+			
+			context.skipCommand();
+		}
+		
+	}
+	
+	LogDebug("<-- " << event << " finished: " << toString(ret));
+	
+	return ret;
+}
+
 
 void ScriptEvent::registerCommand(std::unique_ptr<script::Command> command) {
 	std::string_view name = command->getName();

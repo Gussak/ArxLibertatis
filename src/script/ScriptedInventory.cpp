@@ -449,20 +449,21 @@ class InventoryCommand : public Command {
 				return Failed;
 			}
 			
+			std::string val;
 			switch(mode) {
 				case 'c': { // GetItemCount
 					std::string itemPrefix = context.getWord();
-					val = getItemCountAtInventory(entReadFrom, itemPrefix); 
+					val = getItemCountAtInventory(entInvReadFrom, itemPrefix); 
 					break;
 				}
 				case 'l': { // GetItemList
 					std::string itemPrefix = context.getWord();
-					val = getItemListAtInventory(entReadFrom, itemPrefix); 
+					val = getItemListAtInventory(entInvReadFrom, itemPrefix); 
 					break;
 				}
 				case 'a': { // GetItemCountList
 					std::string itemPrefix = context.getWord();
-					val = getItemListAtInventory(entReadFrom, itemPrefix, true); 
+					val = getItemListAtInventory(entInvReadFrom, itemPrefix, true); 
 					break;
 				}
 				default: arx_assert_msg(false, "invalid inventory GetItem mode '%c'", mode);
@@ -473,19 +474,19 @@ class InventoryCommand : public Command {
 			switch(var[0]) {
 				case '$':      // global text
 				case '\xA3': { // local text
-					sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val,entReadFrom));
+					sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val,entInvReadFrom));
 					break;
 				}
 				
 				case '#':      // global long
 				case '\xA7': { // local long
-					sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val,entReadFrom)));
+					sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val,entInvReadFrom)));
 					break;
 				}
 				
 				case '&':      // global float
 				case '@': {    // local float
-					sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val,entReadFrom));
+					sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val,entInvReadFrom));
 					break;
 				}
 				

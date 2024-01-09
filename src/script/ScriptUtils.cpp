@@ -143,7 +143,7 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
 
-bool detectAndSkipComment(std::string_view & esdat, size_t & pos, bool skipNewlines) {
+bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool skipNewlines) {
 	if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
 		pos = esdat.find('\n', pos + 2);
 		if(pos == std::string::npos) {
@@ -302,12 +302,18 @@ void Context::seekToPosition(size_t pos) {
  * TODO clean all comments
  * TODO convert all \n to ' '
  */
-void Context::writePreCompiledData(std::string_view & esdat, size_t pos, unsigned char c); //std::string word, PreCompileReference & ref) { //std::string reference) {
+void Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount) { //std::string word, PreCompileReference & ref) { //std::string reference) {
+	static int allowPreCompilation = [](){const char * pc = std::getenv("ARX_AllowScriptPreCompilation"); if(pc) { LogWarning << "[ARX_AllowScriptPreCompilation] = \"" << pc << "\""; return util::parseInt(pc);} return 0;}();  // warns only once. set ARX_AllowScriptPreCompilation=1
+	if(!allowPreCompilation) return;
+	
 	//arx_assert_msg(!(word.size() < reference.size()),"pre-compiled reference=%s needs to be at most word=%s size", reference.c_str(), word.c_str());
-	m_script->data[pos] = PreCompiled.REFERENCE;
-	m_script->data[pos+1] = c;
+	//m_script->data[pos] = PreCompiled::REFERENCE;
+	//m_script->data[pos+1] = c;
 	//m_script->data[pos+1] = ref;
 	//m_script->data[pos+2] = word.size();
+	esdat[pos] = script::PreCompiled::REFERENCE;
+	esdat[pos+1] = cCmd;
+	esdat[pos+2] = cSkipCharsCount;
 }
 
 std::string Context::getWord() {
@@ -510,6 +516,21 @@ size_t Context::skipCommand() {
 	}
 	
 	return oldpos;
+}
+
+size_t seekBackwardsForCommentToken(const std::string_view & esdat, const size_t posToBackTrackFrom) {
+	for(size_t p = posToBackTrackFrom;; p--) {
+		if(esdat[p] == '/' && esdat[p + 1] == '/') {
+			return p;
+		}
+		//if(esdat[p] == '/' && esdat[p + 1] == '*') { // multiline comments are dynamicall pre-applied to become single line comments!
+			//return p;
+		//}
+		if(esdat[p] == '\n' || p == 0) {
+			break;
+		}
+	}
+	return size_t(-1); // is not commented, therefore is a valid code line
 }
 
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, const std::string strScriptStringVariableID, const Context * context, size_t callStackIndexFromLast) {

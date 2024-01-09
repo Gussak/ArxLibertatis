@@ -146,6 +146,8 @@ public:
 	
 	void seekToPosition(size_t pos);
 	
+	void writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount);
+	
 };
 
 class Command {
@@ -195,7 +197,7 @@ bool isBlockEndSuprressed(const Context & context, std::string_view command);
 
 size_t initSuppressions();
 
-#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPositionAndLineNumber() << (context).getGoSubCallStack(" {CallStackId(FromPosition): ", " ) ") << "] "
+#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPositionAndLineNumber() << (context).getGoSubCallStack(" {CallStackId(FromPosition): ", " } ") << "] "
 #define ScriptPrefix ScriptContextPrefix(context) << getName() <<
 #define DebugScript(args) LogDebug(ScriptPrefix args)
 #define ScriptInfo(args) LogInfo << ScriptPrefix args
@@ -207,16 +209,18 @@ size_t initSuppressions();
 
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails = "", const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr, size_t callStackIndexFromLast = 0);
 
-bool detectAndSkipComment(std::string_view & esdat, size_t & pos, bool skipNewlines);
+size_t seekBackwardsForCommentToken(const std::string_view & esdat, size_t posToBackTrackFrom);
+
+bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool skipNewlines);
 
 struct PreCompiled { // sketch studing script pre-compilation
 	// these shall not be saved, so no need to keep the values unchanged, but they shall not clash, like in an enum.
-	unsigned char REFERENCE = 1; // is the hint telling there is a reference to a command
-	unsigned char WHITESPACE = 2; // is the hint telling to skip up to 255-1=254 chars of comments or white spaces (because \x00 shall not be used in the middle of a string).
+	static const unsigned char REFERENCE = 1; // is the hint telling there is a reference to a command
+	static const unsigned char WHITESPACE = 2; // is the hint telling to skip up to 255-1=254 chars of comments or white spaces (because \x00 shall not be used in the middle of a string).
 	
 	// commands
-	unsigned char IF = 5;
-	unsigned char SET = 6;
+	static const unsigned char IF = 5;
+	static const unsigned char SET = 6;
 };
 //enum PreCompileReference { //TODO sketch studing script pre-compilation
 	//// \x01 is the hint telling there is a reference
