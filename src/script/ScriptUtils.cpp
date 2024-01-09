@@ -143,20 +143,25 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
 
-void Context::skipWhitespaceAndComment() {
-	skipWhitespace(true);
-	
-	std::string_view esdat = m_script->data;
-	char c = esdat[m_pos];
-	if(c == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-		m_pos = esdat.find('\n', m_pos + 2);
-		if(m_pos == std::string::npos) {
-			m_pos = esdat.size();
+bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool skipNewlines) {
+	if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
+		pos = esdat.find('\n', pos + 2);
+		if(pos == std::string::npos) {
+			pos = esdat.size();
 		} else {
-			m_pos++;
+			if(skipNewlines) {
+				pos++; //after \n
+			}
 		}
+		return true;
 	}
-	
+	return false;
+}
+
+void Context::skipWhitespaceAndComment() { // TODO refactor to skipWhitespacesCommentsAndNewLines
+	//if(m_script->data[m_pos] == '\x01' todoa
+	skipWhitespace(true);
+	script::detectAndSkipComment(m_script->data, m_pos, true);
 	skipWhitespace(true);
 }
 
@@ -477,6 +482,21 @@ size_t Context::skipCommand() {
 	}
 	
 	return oldpos;
+}
+
+size_t seekBackwardsForCommentToken(const std::string_view & esdat, const size_t posToBackTrackFrom) {
+	for(size_t p = posToBackTrackFrom;; p--) {
+		if(esdat[p] == '/' && esdat[p + 1] == '/') {
+			return p;
+		}
+		//if(esdat[p] == '/' && esdat[p + 1] == '*') { // multiline comments are dynamicall pre-applied to become single line comments!
+			//return p;
+		//}
+		if(esdat[p] == '\n' || p == 0) {
+			break;
+		}
+	}
+	return size_t(-1); // is not commented, therefore is a valid code line
 }
 
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, const std::string strScriptStringVariableID, const Context * context, size_t callStackIndexFromLast) {

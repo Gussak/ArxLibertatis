@@ -387,46 +387,117 @@ class InventoryCommand : public Command {
 		
 	public:
 		
-		/**
-		 * INVENTORY GetItemCount [-e] <e?entityId> <IntVar> <strItemIdPrefix>
-		 * INVENTORY GetItemList [-e] <e?entityId> <StrVar> <strItemIdPrefix>
-		 * INVENTORY GetItemCountList [-e] <e?entityId> <StrVar> <strItemIdPrefix>
-		 */
 		GetItemCommand(std::string_view name, char _mode) : SubCommand(name), mode(_mode) { }
 		
+		std::string getItemListAtInventory(Entity * ent, std::string prefix, bool getCountToo=false) {
+			std::string list;
+			if(ent && ent->inventory) {
+				for(auto slot : ent->inventory->slots()) {
+					if(slot.entity && (boost::starts_with(slot.entity->idString(), prefix) || prefix == "*")) {
+						if(list != "") {
+							list += " ";
+						}
+						
+						list += slot.entity->idString();
+						
+						if(getCountToo) {
+							list += " " + slot.entity->_itemdata->count;
+						}
+					}
+				}
+			}
+			return list;
+		}
+		
+		int getItemCountAtInventory(Entity * ent, std::string prefix) {
+			int count = 0;
+			if(ent && ent->inventory) {
+				for(auto slot : ent->inventory->slots()) {
+					if(slot.entity && boost::starts_with(slot.entity->idString(), prefix)) {
+						count += slot.entity->_itemdata->count;
+					}
+				}
+			}
+			return count;
+		}
+		
+		/**
+		 * TODO remove related code (that was moved to here) from SetCommand at ScriptedVariable.cpp
+		 * INVENTORY GetItemCount     [-e] <e?entityId> <IntVar> <strItemIdPrefix>
+		 * INVENTORY GetItemList      [-e] <e?entityId> <StrVar> <strItemIdPrefix>
+		 * INVENTORY GetItemCountList [-e] <e?entityId> <StrVar> <strItemIdPrefix>
+		 */
 		Result execute(Context & context) override {
 			
-			Entity * entInventory = context.getEntity();
+			Entity * entInvReadFrom = context.getEntity();
+			Entity * entWriteTo = context.getEntity();
 			std::string strEntId;
 			
 			HandleFlags("e") {
 				if(flg & flag('e')) {
 					strEntId = context.getWord();
 					if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
-					entInventory = entities.getById(strEntId);
+					entInvReadFrom = entities.getById(strEntId);
 				}
 			}
 			
-			std::string strVar = context.getWord();
+			std::string var = context.getWord();
 			std::string strItemIdPrefix = context.getStringVar(context.getWord());
 			
-			if(!entInventory) {
+			if(!entInvReadFrom) {
 				ScriptWarning << "Invalid target entity " << strEntId;
 				return Failed;
 			}
 			
-			// TODOA migrate code from ScriptedVariable.cpp/SetCommand
+			std::string val;
 			switch(mode) {
-				case 'c': {
+				case 'c': { // GetItemCount
+					std::string itemPrefix = context.getWord();
+					val = getItemCountAtInventory(entInvReadFrom, itemPrefix); 
 					break;
 				}
-				case 'l': {
+				case 'l': { // GetItemList
+					std::string itemPrefix = context.getWord();
+					val = getItemListAtInventory(entInvReadFrom, itemPrefix); 
 					break;
 				}
-				case 'a': {
+				case 'a': { // GetItemCountList
+					std::string itemPrefix = context.getWord();
+					val = getItemListAtInventory(entInvReadFrom, itemPrefix, true); 
 					break;
 				}
-				default: arx_assert_msg(false, "invalid inventory getitem mode '%c'", mode);
+				default: arx_assert_msg(false, "invalid inventory GetItem mode '%c'", mode);
+			}
+			
+			SCRIPT_VARIABLES & variablesWriteTo = isLocalVariable(var) ? entWriteTo->m_variables : svar;
+			SCRIPT_VAR * sv = nullptr;
+			switch(var[0]) {
+				case '$':      // global text
+				case '\xA3': { // local text
+					sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val,entInvReadFrom));
+					break;
+				}
+				
+				case '#':      // global long
+				case '\xA7': { // local long
+					sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val,entInvReadFrom)));
+					break;
+				}
+				
+				case '&':      // global float
+				case '@': {    // local float
+					sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val,entInvReadFrom));
+					break;
+				}
+				
+				default: {
+					ScriptWarning << "Unknown variable type: " << var;
+					return Failed;
+				}
+			}
+			if(!sv) {
+				ScriptWarning << "Unable to set variable " << var;
+				return Failed;
 			}
 			
 			return Success;

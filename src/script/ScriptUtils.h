@@ -206,6 +206,10 @@ size_t initSuppressions();
 
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails = "", const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr, size_t callStackIndexFromLast = 0);
 
+size_t seekBackwardsForCommentToken(const std::string_view & esdat, size_t posToBackTrackFrom);
+
+bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool skipNewlines);
+
 } // namespace script
 
 #endif // ARX_SCRIPT_SCRIPTUTILS_H
