@@ -274,9 +274,9 @@ void Context::seekToPosition(size_t pos) {
  * TODO clean all comments
  * TODO convert all \n to ' '
  */
-void Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount) { //std::string word, PreCompileReference & ref) { //std::string reference) {
+bool Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount) { //std::string word, PreCompileReference & ref) { //std::string reference) {
 	static int allowPreCompilation = [](){const char * pc = std::getenv("ARX_AllowScriptPreCompilation"); if(pc) { LogWarning << "[ARX_AllowScriptPreCompilation] = \"" << pc << "\""; return util::parseInt(pc);} return 0;}();  // warns only once. set ARX_AllowScriptPreCompilation=1
-	if(!allowPreCompilation) return;
+	if(!allowPreCompilation) return false;
 	
 	//arx_assert_msg(!(word.size() < reference.size()),"pre-compiled reference=%s needs to be at most word=%s size", reference.c_str(), word.c_str());
 	//m_script->data[pos] = PreCompiled::REFERENCE;
@@ -284,8 +284,14 @@ void Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned cha
 	//m_script->data[pos+1] = ref;
 	//m_script->data[pos+2] = word.size();
 	esdat[pos] = script::PreCompiled::REFERENCE;
-	esdat[pos+1] = cCmd;
-	esdat[pos+2] = cSkipCharsCount;
+	//pos++;arx_assert_msg(pos<esdat.size(),"beyond esdat size for cCmd=%d",cCmd);
+	pos++;arx_assert_msg(pos<esdat.size(),"%lu should be < esdat size=%lu for cCmd=%d",pos,esdat.size(),cCmd);
+	esdat[pos] = cCmd;
+	//pos++;arx_assert_msg(pos<esdat.size(),"beyond esdat size for cSkipCharsCount=%d",cSkipCharsCount);
+	pos++;arx_assert_msg(pos<esdat.size(),"%lu should be < esdat size=%lu for cSkipCharsCount=%d",pos,esdat.size(),cSkipCharsCount);
+	esdat[pos] = cSkipCharsCount;
+	
+	return true;
 }
 
 std::string Context::getWord() {
