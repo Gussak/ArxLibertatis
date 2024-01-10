@@ -190,6 +190,23 @@ size_t initSuppressions();
 
 #define HandleFlags(expected) std::string options = context.getFlags(); \
 	for(u64 run = !options.empty(), flg = 0; run && ((flg = flagsToMask(options), (flg && !(flg & ~flagsToMask(expected)))) || (ScriptWarning << "unexpected flags: " << options, true)); run = 0)
+struct PreCompiled { // sketch studing script pre-compilation
+	// these shall not be saved, so no need to keep the values unchanged, but they shall not clash, like in an enum.
+	static const unsigned char REFERENCE = 1; // is the hint telling there is a reference to a command
+	static const unsigned char JUSTSKIP = 2; // used in a skip loop that can skip at most 255 chars per time
+	//static const unsigned char WHITESPACE = 3; // is the hint telling to skip up to 255-1=254 chars of comments or white spaces (because \x00 shall not be used in the middle of a string).
+	
+	// commands
+	//static const unsigned char IF = 5;
+	//static const unsigned char SET = 6;
+};
+//enum PreCompileReference { //TODO sketch studing script pre-compilation
+	//// \x01 is the hint telling there is a reference
+	//// \x02 is the hint telling to skip up to 255-1=254 chars of comments or white spaces (because \x00 shall not be used in the middle of a string).
+	//// commands
+	//IF = 3,
+	//SET,
+//};
 
 } // namespace script
 
