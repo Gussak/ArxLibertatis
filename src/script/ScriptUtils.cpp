@@ -475,7 +475,7 @@ size_t seekBackwardsForCommentToken(const std::string_view & esdat, const size_t
 		if(esdat[p] == '/' && esdat[p + 1] == '/') {
 			return p;
 		}
-		//if(esdat[p] == '/' && esdat[p + 1] == '*') { // multiline comments are dynamicall pre-applied to become single line comments!
+		//if(esdat[p] == '/' && esdat[p + 1] == '*') { // multiline comments are dynamically pre-applied to become single line comments now, therefore they do not exist
 			//return p;
 		//}
 		if(esdat[p] == '\n' || p == 0) {

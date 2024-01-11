@@ -2214,7 +2214,7 @@ bool createSingleLineComment(std::string & esdat, size_t & posNow) {
 }
 /**
  * Necessary because of other parts of the code that seek back for the single line comment token "//" !
- * This is destructive. Will replace initial chars of each line in the multiline comment with "//", but only in the RAM.
+ * IMPORTANT: This is destructive. Will replace initial chars of each line in the multiline comment with "//", but only in the RAM.
  */
 void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat) {
 	size_t posNow = 0;
