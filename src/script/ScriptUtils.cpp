@@ -323,16 +323,11 @@ std::string Context::getWord() {
 				tilde = !tilde;
 			} else if(tilde) {
 				var.push_back(esdat[m_pos]);
-			} else if(esdat[m_pos] == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-				m_pos = esdat.find('\n', m_pos + 2);
-				if(m_pos == std::string::npos) {
-					m_pos = esdat.size();
-				}
+			} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
 				break;
 			} else {
 				word.push_back(esdat[m_pos]);
 			}
-			
 		}
 		
 	}
