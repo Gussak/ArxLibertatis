@@ -43,6 +43,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/ScriptedInterface.h"
 
+#include <boost/algorithm/string/predicate.hpp>
+#include <regex>
 #include <utility>
 
 #include "core/GameTime.h"
@@ -207,12 +209,28 @@ public:
 	
 };
 
-struct PrintGlobalVariables { };
-
-std::ostream & operator<<(std::ostream & os, const PrintGlobalVariables & /* unused */) {
+struct PrintGlobalVariables {
 	
-	for(const SCRIPT_VAR & var : svar) {
-		os << var << '\n';
+	std::string m_filter;
+	
+	explicit PrintGlobalVariables(std::string_view filter = "") : m_filter(filter) { }
+	
+};
+
+std::ostream & operator<<(std::ostream & os, const PrintGlobalVariables & data) {
+	
+	if(data.m_filter.size() > 0) {
+		std::regex re(data.m_filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
+		for(const SCRIPT_VAR & var : svar) {
+			//if(boost::contains(var.name, data.m_filter)) {
+			if (std::regex_search(var.name, re)) {
+				os << var << '\n';
+			}
+		}
+	} else {
+		for(const SCRIPT_VAR & var : svar) {
+			os << var << '\n';
+		}
 	}
 	
 	return os;
@@ -240,15 +258,26 @@ public:
 struct PrintLocalVariables {
 	
 	Entity * m_entity;
+	std::string m_filter;
 	
-	explicit PrintLocalVariables(Entity * entity) : m_entity(entity) { }
+	explicit PrintLocalVariables(Entity * entity, std::string_view filter = "") : m_entity(entity), m_filter(filter) { }
 	
 };
 
 std::ostream & operator<<(std::ostream & os, const PrintLocalVariables & data) {
 	
-	for(const SCRIPT_VAR & var : data.m_entity->m_variables) {
-		os << var << '\n';
+	if(data.m_filter.size() > 0) {
+		std::regex re(data.m_filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
+		for(const SCRIPT_VAR & var : data.m_entity->m_variables) {
+			//if(boost::contains(var.name, data.m_filter)) {
+			if (std::regex_search(var.name, re)) {
+				os << var << '\n';
+			}
+		}
+	} else {
+		for(const SCRIPT_VAR & var : data.m_entity->m_variables) {
+			os << var << '\n';
+		}
 	}
 	
 	return os;
@@ -286,10 +315,17 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		DebugScript("");
+		std::string filter;
+		HandleFlags("f") {
+			if(flg & flag('f')) {
+				filter = context.getStringVar(context.getWord());
+			}
+		}
+		
+		DebugScript("" << filter);
 		
 		LogInfo << "Local variables for " << context.getEntity()->idString() << getEventAndStackInfo(context) << ":\n"
-			<< PrintLocalVariables(context.getEntity());
+			<< PrintLocalVariables(context.getEntity(), filter);
 		
 		return Success;
 	}
@@ -304,11 +340,18 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		DebugScript("");
+		std::string filter;
+		HandleFlags("f") {
+			if(flg & flag('f')) {
+				filter = context.getStringVar(context.getWord());
+			}
+		}
+		
+		DebugScript("" << filter);
 		
 		LogInfo << "Local variables for " << context.getEntity()->idString() << getEventAndStackInfo(context) << ":\n"
-			<< PrintLocalVariables(context.getEntity());
-		LogInfo << "Global variables:\n" << PrintGlobalVariables();
+			<< PrintLocalVariables(context.getEntity(), filter);
+		LogInfo << "Global variables:\n" << PrintGlobalVariables(filter);
 		
 		return Success;
 	}
