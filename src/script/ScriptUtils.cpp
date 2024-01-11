@@ -159,7 +159,6 @@ bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool ski
 }
 
 void Context::skipWhitespaceAndComment() { // TODO refactor to skipWhitespacesCommentsAndNewLines
-	//if(m_script->data[m_pos] == '\x01' todoa
 	skipWhitespace(true);
 	script::detectAndSkipComment(m_script->data, m_pos, true);
 	skipWhitespace(true);
@@ -183,15 +182,13 @@ std::string Context::getCommand(bool skipNewlines) {
 			ScriptParserWarning << "unexpected '~' in command name";
 		} else if(c == '\n') {
 			break;
-		} else {
-			if(script::detectAndSkipComment(esdat, m_pos, false)) {
-				if(!word.empty()) {
-					break;
-				}
-				skipWhitespace(skipNewlines), m_pos--;
-			} else {
-				word.push_back(c);
+		} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
+			if(!word.empty()) {
+				break;
 			}
+			skipWhitespace(skipNewlines), m_pos--;
+		} else {
+			word.push_back(c);
 		}
 	}
 	
@@ -351,12 +348,10 @@ std::string Context::getWord() {
 				tilde = !tilde;
 			} else if(tilde) {
 				var.push_back(esdat[m_pos]);
+			} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
+				break;
 			} else {
-				if(script::detectAndSkipComment(esdat, m_pos, false)) {
-					break;
-				} else {
-					word.push_back(esdat[m_pos]);
-				}
+				word.push_back(esdat[m_pos]);
 			}
 		}
 		
@@ -490,7 +485,11 @@ size_t Context::skipCommand() {
 	
 	if(script::detectAndSkipComment(esdat, m_pos, false)) {
 		oldpos = size_t(-1);
-		m_pos += 2;
+	} else { // skips to the end of the line even if it is not commented
+		m_pos = esdat.find('\n', m_pos);
+		if(m_pos == std::string::npos) {
+			m_pos = esdat.size();
+		}
 	}
 	
 	return oldpos;
@@ -498,10 +497,10 @@ size_t Context::skipCommand() {
 
 size_t seekBackwardsForCommentToken(const std::string_view & esdat, const size_t posToBackTrackFrom) {
 	for(size_t p = posToBackTrackFrom;; p--) {
-		if(esdat[p] == '/' && esdat[p + 1] == '/') {
+		if(esdat[p] == '/' && (p + 1 != esdat.size()) && esdat[p + 1] == '/') {
 			return p;
 		}
-		//if(esdat[p] == '/' && esdat[p + 1] == '*') { // multiline comments are dynamicall pre-applied to become single line comments!
+		//if(esdat[p] == '/' && esdat[p + 1] == '*') { // multiline comments are dynamically pre-applied to become single line comments now, therefore they do not exist
 			//return p;
 		//}
 		if(esdat[p] == '\n' || p == 0) {

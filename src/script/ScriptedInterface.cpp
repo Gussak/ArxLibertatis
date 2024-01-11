@@ -273,7 +273,7 @@ static std::string getEventAndStackInfo(Context & context) {
 		s << ")";
 	}
 	
-	s << context.getGoSubCallStack(" at GoSub callStack ", ", " + context.getPositionAndLineNumber());
+	s << context.getGoSubCallStack(" at GoSub {CallStackId(FromPosition): ", " }, " + context.getPositionAndLineNumber());
 	
 	return s.str();
 }
