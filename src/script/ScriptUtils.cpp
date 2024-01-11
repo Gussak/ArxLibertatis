@@ -159,7 +159,6 @@ bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool ski
 }
 
 void Context::skipWhitespaceAndComment() { // TODO refactor to skipWhitespacesCommentsAndNewLines
-	//if(m_script->data[m_pos] == '\x01' todoa
 	skipWhitespace(true);
 	script::detectAndSkipComment(m_script->data, m_pos, true);
 	skipWhitespace(true);
@@ -472,7 +471,7 @@ size_t Context::skipCommand() {
 
 size_t seekBackwardsForCommentToken(const std::string_view & esdat, const size_t posToBackTrackFrom) {
 	for(size_t p = posToBackTrackFrom;; p--) {
-		if(esdat[p] == '/' && esdat[p + 1] == '/') {
+		if(esdat[p] == '/' && (p + 1 != esdat.size()) && esdat[p + 1] == '/') {
 			return p;
 		}
 		//if(esdat[p] == '/' && esdat[p + 1] == '*') { // multiline comments are dynamically pre-applied to become single line comments now, therefore they do not exist

@@ -166,11 +166,10 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 	// detect and cache GoTo and GoSub call target IDs and the position just after them.
 	size_t pos = 0;
 	size_t posEnd = 0;
-	bool bContinue = false;
+	size_t posComment = 0;
 	while(true) {
-		bContinue=false;
 		
-		if(pos == std::string::npos) {
+		if(pos == es.data.size() || pos == std::string::npos) {
 			break;
 		}
 		
@@ -180,25 +179,12 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		}
 		LogDebug("pos="<<pos<<",datasize="<<es.data.size());
 		
-		// Check if the line is commented out! Back track. TODO a generic function and use also at Script.cpp at least
-		for(size_t p = pos;; p--) {
-			if(p == 0) {
-				break; // is valid
+		posComment = script::seekBackwardsForCommentToken(es.data, pos);
+		if(posComment != size_t(-1)) {
+			pos = posComment;
+			if(script::detectAndSkipComment(es.data, pos, true)) {
+				continue; // to imediately seek for next call target after the comment and after the newline
 			}
-			if(es.data[p] == '\n') {
-				break; // is valid
-			}
-			if(es.data[p] == '/' && es.data[p + 1] == '/') {
-				pos = es.data.find('\n', pos); //skip to the end of the commented line
-				if(pos != std::string::npos) {
-					pos++; //skip \n
-				}
-				bContinue = true;
-				break;
-			}
-		}
-		if(bContinue) {
-			continue;
 		}
 		
 		static std::string strValidCallIdChars = "0123456789abcdefghijklmnopqrstuvwxyz_";
