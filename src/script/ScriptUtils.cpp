@@ -366,11 +366,7 @@ void Context::skipWord() {
 		for(; m_pos != esdat.size() && !isWhitespace(esdat[m_pos]); m_pos++) {
 			if(esdat[m_pos] == '"') {
 				ScriptParserWarning << "unexpected '\"' inside token";
-			} else if(esdat[m_pos] == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-				m_pos = esdat.find('\n', m_pos + 2);
-				if(m_pos == std::string::npos) {
-					m_pos = esdat.size();
-				}
+			} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
 				break;
 			}
 		}
@@ -462,6 +458,7 @@ size_t Context::skipCommand() {
 	
 	size_t oldpos = m_pos;
 	
+//*SwapCommentBlockTrick
 	if(esdat[m_pos] == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
 		oldpos = size_t(-1);
 		m_pos += 2;
@@ -471,6 +468,11 @@ size_t Context::skipCommand() {
 	if(m_pos == std::string::npos) {
 		m_pos = esdat.size();
 	}
+/*/
+	if(script::detectAndSkipComment(esdat, m_pos, false)) {
+		oldpos = size_t(-1);
+	}
+//*/
 	
 	return oldpos;
 }
