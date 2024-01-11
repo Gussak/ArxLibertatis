@@ -44,6 +44,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "script/ScriptedInterface.h"
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <regex>
 #include <utility>
 
 #include "core/GameTime.h"
@@ -210,7 +211,7 @@ public:
 
 struct PrintGlobalVariables {
 	
-	std::string_view m_filter;
+	std::string m_filter;
 	
 	explicit PrintGlobalVariables(std::string_view filter = "") : m_filter(filter) { }
 	
@@ -219,8 +220,10 @@ struct PrintGlobalVariables {
 std::ostream & operator<<(std::ostream & os, const PrintGlobalVariables & data) {
 	
 	if(data.m_filter.size() > 0) {
+		std::regex re(data.m_filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
 		for(const SCRIPT_VAR & var : svar) {
-			if(boost::contains(var.name, data.m_filter)) {
+			//if(boost::contains(var.name, data.m_filter)) {
+			if (std::regex_search(var.name, re)) {
 				os << var << '\n';
 			}
 		}
@@ -255,7 +258,7 @@ public:
 struct PrintLocalVariables {
 	
 	Entity * m_entity;
-	std::string_view m_filter;
+	std::string m_filter;
 	
 	explicit PrintLocalVariables(Entity * entity, std::string_view filter = "") : m_entity(entity), m_filter(filter) { }
 	
@@ -264,8 +267,10 @@ struct PrintLocalVariables {
 std::ostream & operator<<(std::ostream & os, const PrintLocalVariables & data) {
 	
 	if(data.m_filter.size() > 0) {
+		std::regex re(data.m_filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
 		for(const SCRIPT_VAR & var : data.m_entity->m_variables) {
-			if(boost::contains(var.name, data.m_filter)) {
+			//if(boost::contains(var.name, data.m_filter)) {
+			if (std::regex_search(var.name, re)) {
 				os << var << '\n';
 			}
 		}
