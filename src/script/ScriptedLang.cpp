@@ -94,12 +94,43 @@ public:
 	
 	GotoCommand(std::string_view command, bool _sub = false) : Command(command), sub(_sub) { }
 	
+	Result createParamVar(std::string strVarValue) {
+		size_t equalPos = strVarValue.find('=');
+		if(equalPos != std::string::npos) {
+			std::string var = strVarValue.substr(0,equalPos);
+			std::string val = strVarValue.substr(equalPos+1);
+			
+			std::string varNew = std::string()+var[0]+label+"_"+var.substr(1);
+			DebugScript(' ' << varNew);
+			SCRIPT_VAR * sv = nullptr;
+			switch(var[0]) {
+				case '\xA3': sv = SETVarValueText(io->m_variables, varNew, context.getStringVar(val,io)); break;
+				case '\xA7': sv = SETVarValueLong(io->m_variables, varNew, long(context.getFloatVar(val,io))); break;
+				case '@':    sv = SETVarValueFloat(io->m_variables, varNew, context.getFloatVar(val,io)); break;
+				default:
+					ScriptError << "invalid param variable type \"" << strVarValue << "\" at \"" << strParams << "\"";
+					return AbortError;
+			}
+			if(!sv) {
+				ScriptWarning << "Unable to create variable " << var;
+				return Failed;
+			}
+		} else {
+			ScriptError << "invalid param assignment \"" << strVarValue << "\" at \"" << strParams << "\"";
+			return AbortError;
+		}
+		
+		return Success;
+	}
+	
 	/**
-	 * <GoTo|GoSub> [-p] <label> <p?params>
-	 * ex.: GoSub -p FUNCTarget "@testFloat=10.3 @testFloat2=5.7" // it will create localvars (not globals) so only use localvar token chars for float, int and string. It is intended to get only numeric values and entity IDs, not custom concatenated strings.
+	 * <GoTo|GoSub> [-p] <label> <p?params... ;>
+	 * ex.: GoSub -p FUNCTarget @testFloat=10.3 \xA7testFloat2=5 "\xA3TestString=a b c" ; // it will create localvars (not globals) so only use localvar token chars for float, int and string.
+	 *  required single word as ';' is required to know when to stop collecting params
 	 *  it will automatically create the following local vars that you can use at the GoTo/GoSub target: 
 	 *   @FUNCTarget_testFloat1 = 10.3
-	 *   @FUNCTarget_testFloat2 = 5.7
+	 *   \xA7FUNCTarget_testFloat2 = 5.7
+	 *   \xA3FUNCTarget_TestString = "a b c"
 	 */
 	Result execute(Context & context) override {
 		
@@ -116,34 +147,23 @@ public:
 		Entity* io = context.getEntity();
 		
 		if(hasParams) {
-			std::string strParams = context.getWord();
-			DebugScript(' ' << strParams);
-			std::vector<std::string> vParams;
-			boost::split(vParams, strParams, boost::is_any_of(" "), boost::token_compress_on);
-			for(std::string strVarValue : vParams) {
-				size_t equalPos = strVarValue.find('=');
-				if(equalPos != std::string::npos) {
-					std::string var = strVarValue.substr(0,equalPos);
-					std::string val = strVarValue.substr(equalPos+1);
-					
-					std::string varNew = std::string()+var[0]+label+"_"+var.substr(1);
-					DebugScript(' ' << varNew);
-					SCRIPT_VAR * sv = nullptr;
-					switch(var[0]) {
-						case '\xA3': sv = SETVarValueText(io->m_variables, varNew, context.getStringVar(val,io)); break;
-						case '\xA7': sv = SETVarValueLong(io->m_variables, varNew, long(context.getFloatVar(val,io))); break;
-						case '@':    sv = SETVarValueFloat(io->m_variables, varNew, context.getFloatVar(val,io)); break;
-						default:
-							ScriptError << "invalid param variable type \"" << strVarValue << "\" at \"" << strParams << "\"";
-							return AbortError;
-					}
-					if(!sv) {
-						ScriptWarning << "Unable to create variable " << var;
-						return Failed;
-					}
-				} else {
-					ScriptError << "invalid param assignment \"" << strVarValue << "\" at \"" << strParams << "\"";
-					return AbortError;
+			//std::string strParams = context.getWord();
+			//DebugScript(' ' << strParams);
+			//std::vector<std::string> vParams;
+			//boost::split(vParams, strParams, boost::is_any_of(" "), boost::token_compress_on);
+			//for(std::string strVarValue : vParams) {
+				//Result res = createParamVar(strVarValue);
+				//if(res != Success) {
+					//return res;
+				//}
+			//}
+			std::string strVarValue;
+			while(true) {
+				strVarValue = context.getWord();
+				if(strVarValue == ";") break;
+				Result res = createParamVar(strVarValue);
+				if(res != Success) {
+					return res;
 				}
 			}
 		}
