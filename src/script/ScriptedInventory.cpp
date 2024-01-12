@@ -423,9 +423,9 @@ class InventoryCommand : public Command {
 		
 		/**
 		 * TODO remove related code (that was moved to here) from SetCommand at ScriptedVariable.cpp
-		 * INVENTORY GetItemCount     [-e] <e?entityId> <IntVar> <strItemIdPrefix>
-		 * INVENTORY GetItemList      [-e] <e?entityId> <StrVar> <strItemIdPrefix>
-		 * INVENTORY GetItemCountList [-e] <e?entityId> <StrVar> <strItemIdPrefix>
+		 * INVENTORY GetItemCount     [-e] <e?entInvReadFrom> <IntVar> <strItemIdPrefix>
+		 * INVENTORY GetItemList      [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
+		 * INVENTORY GetItemCountList [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
 		 */
 		Result execute(Context & context) override {
 			
@@ -435,8 +435,7 @@ class InventoryCommand : public Command {
 			
 			HandleFlags("e") {
 				if(flg & flag('e')) {
-					strEntId = context.getWord();
-					if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
+					strEntId = context.getStringVar(context.getWord());
 					entInvReadFrom = entities.getById(strEntId);
 				}
 			}

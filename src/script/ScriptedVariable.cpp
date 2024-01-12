@@ -147,11 +147,18 @@ public:
 	 * 
 	 * The Modes below are exclusive. Use only one.
 	 * 
-	 * TODO: new command ARRAY [-rw] <w?entWriteTo> <r?entReadFrom> <var> <a?array> <a?index>
-	 ** <-a> Mode: Array: assigns to var the array entry at index
-	 * Set -a[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?array> <a?index>
-	 * 		<array> is a string that contains words separated by spaces ' '
+	 * TODO?: new command ARRAY [-rw] <w?entWriteTo> <r?entReadFrom> <var> <a?array> <a?index>
+	 ** <-v> Mode: Array: assigns to var the array entry at index
+	 * Set -v[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array...> ;
 	 * 		<index> array index that begins in 0
+	 * 		<array...> are words terminated with ';' word
+	 * 		; is required to know the list ended
+	 * 		returns "void" meaning index out of bounds
+	 * 
+	 ** <-a> Mode: Array: assigns to var the array entry at index
+	 * Set -a[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array>
+	 * 		<index> array index that begins in 0
+	 * 		<array> is a string that contains words separated by spaces ' '
 	 * 
 	 * TODO: new command (at INVENTORY as sub command) GetItemCount [-rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
 	 ** <-i> Mode: Item count at inventory: assigns to var the count of items beggining with entityIdPrefix
@@ -172,8 +179,8 @@ public:
 	 * Set -r <entReadFrom> <var> <val>
 	 * Set -w <entWriteTo> <var> <val>
 	 * Set -rw <entWriteTo> <entReadFrom> <var> <val> //with both rw, first w then r, matching var val order
-	 * Set -a <var> <array> <index>
-	 * Set -rwa <entWriteTo> <entReadFrom> <var> <array> <index>
+	 * Set -v <var> <index> <array...> ;
+	 * Set -rwv <entWriteTo> <entReadFrom> <var> <index> <array...> ;
 	 * Set -i <var> <entityIdPrefix>
 	 * Set -rwi <entWriteTo> <entReadFrom> <var> <entityIdPrefix>
 	 * Set -l <var> <entityIdPrefix>
@@ -230,24 +237,28 @@ public:
 			}
 		}
 		
-		if(bFail) { //discards following words coherently
-			context.skipWord(); //var
+		if(bFail) { // discards following words coherently
+			context.skipWord(); // var
 			if(mode != '.') {
 				switch(mode) {
 					// array mode
 					case 'a': 
-						context.skipWord(); //array
-						context.skipWord(); //index
+						context.skipWord(); // index
+						context.skipWord(); // array
+						break;
+					case 'v': 
+						context.skipWord(); // index
+						while(context.getWord() != ";"); // array... and terminator ;
 						break;
 					case 'i': // item count at inventory mode
 					case 'l': // item list mode
 					case 'm': // bi-dimentional item list mode
-						context.skipWord(); //item prefix
+						context.skipWord(); // item prefix
 						break;
 					default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
 				}
 			} else {
-				context.skipWord(); //val
+				context.skipWord(); // val
 			}
 			return Failed;
 		}
@@ -260,10 +271,22 @@ public:
 				val = context.getWord();
 			}; break;
 			case 'a': { // array mode
+				long index = long(context.getFloatVar(context.getWord(), entReadFrom));
 				std::string array = context.getWord();
-				std::string indexVarName = context.getWord();
-				long index = long(context.getFloatVar(indexVarName,entReadFrom));
 				val = getWordAtIndex(array, index); 
+			}; break;
+			case 'v': { // array... mode
+				long index = long(context.getFloatVar(context.getWord(), entReadFrom));
+				std::string word = "void"; // means index out of bounds
+				long count = 0;
+				while(true) {
+					word = context.getWord();
+					if(word == ";") break; // must continue til the end of the list
+					if(count == index) {
+						val = word;
+					}
+					count++;
+				}
 			}; break;
 			case 'i': { // item count at inventory mode
 				std::string itemPrefix = context.getWord();
