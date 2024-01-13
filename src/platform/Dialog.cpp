@@ -493,7 +493,7 @@ bool askOkCancel(const std::string & question, const std::string & title) {
  * This means the user must be careful when setting the env vars for requested commands, or just copy the below examples:
  * 
  * 	For Linux:
- * 		export ARX_ScriptErrorPopupCommand='yad --selectable-labels --title="%{title}" --text="%{message}" --form --field="%{details}":LBL --scroll --on-top --center'
+ * 		export ARX_ScriptErrorPopupCommand='yad --no-markup --selectable-labels --title="%{title}" --text="%{message}" --form --field="%{details}":LBL --scroll --on-top --center'
  * 		export ARX_ScriptCodeEditorCommand='geany "%{file}":%{line}'
  * 	For Windows:
  * 		TODO
@@ -526,9 +526,11 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 			ssMsg << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
 		}
 		
-		util::applyTokenAt(strSysPopupCmd, "%{message}", util::escapeString(ssMsg.str()));
+		static std::string strEscapeChars = "\\ \"'!@#$%^&*<>()[]{}";
 		
-		util::applyTokenAt(strSysPopupCmd, "%{details}", std::string() + " [DETAILS] \n" + util::escapeString(strDetails));
+		util::applyTokenAt(strSysPopupCmd, "%{message}", util::escapeString(ssMsg.str(), strEscapeChars));
+		
+		util::applyTokenAt(strSysPopupCmd, "%{details}", std::string() + " [DETAILS] \n" + util::escapeString(strDetails, strEscapeChars));
 		
 		int retPopupCmd = platform::runUserCommand(strSysPopupCmd.c_str());
 		if(retPopupCmd == 0 && codeEditorCmd && strFileToEdit.size() > 0) { // clicked ok

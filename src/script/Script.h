@@ -552,7 +552,7 @@ void CloneLocalVars(Entity * ioo, Entity * io);
 void ARX_SCRIPT_Free_All_Global_Variables();
 
 bool createSingleLineComment(std::string & esdat, size_t & posNow);
-void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat);
+void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript);
 
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript);
 void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript);

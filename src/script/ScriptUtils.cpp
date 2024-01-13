@@ -242,16 +242,28 @@ size_t Context::getGoSubCallFromPos(size_t indexFromLast) const {
 	return m_stackIdCalledFromPos[m_stackIdCalledFromPos.size() - indexFromLast - 1].first;
 }
 
-std::string Context::getGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between) const {
+std::string Context::getGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between, size_t indexFromLast) const {
 	std::stringstream ss;
 	
 	if(m_stackIdCalledFromPos.size() > 0) {
 		ss << prepend;
 		
+		size_t indexHighlight = size_t(-1);
+		if(indexFromLast != size_t(-1)) {
+			if(indexFromLast >= m_stackIdCalledFromPos.size()) {
+				indexHighlight = 0;
+			} else {
+				indexHighlight = m_stackIdCalledFromPos.size() - indexFromLast - 1;
+			}
+		}
+		
 		size_t index = 0;
 		for(auto pair : m_stackIdCalledFromPos) {
 			if(index >= 1) ss << between;
-			ss << pair.second << getPositionAndLineNumber(true, m_stackIdCalledFromPos[index].first);
+			if(indexHighlight == index) ss << "!!!";
+			ss << pair.second;
+			if(indexHighlight == index) ss << "!!!";
+			ss << getPositionAndLineNumber(true, m_stackIdCalledFromPos[index].first);
 			index++;
 		}
 		
@@ -494,7 +506,7 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 		size_t column;
 		context->getLineColumn(lineAtFileToEdit, column, context->getGoSubCallFromPos(callStackIndexFromLast));
 		ss << ScriptContextPrefix(*context) << " [CallStackIndexFromLast=" << callStackIndexFromLast << "]\n"
-			 << " [ScriptDebugMessage] " << context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)) << "\n"; // must become lowercase or wont match
+			 << " [!!!ScriptDebugMessage!!!] " << context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)) << "\n"; // must become lowercase or wont match
 	}
 	
 	return platform::askOkCancelCustomUserSystemPopupCommand(strTitle, ss.str(), strDetails, strFileToEdit, lineAtFileToEdit);
@@ -512,7 +524,20 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 	if(boost::contains(target, "debugbreakpoint")) { // this must be on the script call target name
 		static int iDbgBrkPCount = 0;
 		iDbgBrkPCount++; // put breakpoint here if using a debugger
-		askOkCancelCustomUserSystemPopupCommand("Debug", "Script Debug BreakPoint", context.getGoSubCallStack("Script GoSub CallStack (targed ID was called from that line,column):\n ", "\n", " -> \n "), (context).getScript()->file, "DebugMessage", &context, 1); // CallFrom: 0 (size-1(-0)=last) would return where FUNCDebugBreakpoint was called from. 1 (size-1(-1)=last-1) would return where FUNCCustomCmdsB4DbgBreakpoint was called from.
+		size_t callStackIndexFromLast = 1; // callStackIndexFromLast: n=0 (size-1(-n)=last) would return where FUNCDebugBreakpoint was called from. n=1 (size-1(-n)=last-1) would return where FUNCCustomCmdsB4DbgBreakpoint was called from.
+		askOkCancelCustomUserSystemPopupCommand(
+			"Debug",
+			"Script Debug BreakPoint",
+			context.getGoSubCallStack(
+				"Script GoSub CallStack (targed ID was called from that line,column):\n ",
+				"\n",
+				" -> \n ",
+				callStackIndexFromLast + 1), // +1 as getGoSubCallStack doesnt know about debugbreakpoint target
+			(context).getScript()->file,
+			"DebugMessage",
+			&context,
+			callStackIndexFromLast
+		);
 	}
 }
 #pragma GCC pop_options

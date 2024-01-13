@@ -141,7 +141,7 @@ public:
 	std::string getPositionAndLineNumber(bool compact = false, size_t pos = static_cast<size_t>(-1)) const;
 	
 	size_t getGoSubCallFromPos(size_t  indexFromLast) const;
-	std::string getGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between = " -> ") const;
+	std::string getGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between = " -> ", size_t indexFromLast = size_t(-1)) const;
 	
 	void seekToPosition(size_t pos);
 	
