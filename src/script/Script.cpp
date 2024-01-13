@@ -898,32 +898,44 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 		}
 		
 		case 'd': {
+			if(boost::starts_with(name, "^debugcalledfrom_")) { // ^debugcalledfrom_<indexFromLastOnTheCallStack>
+				txtcontent = "void";
+				std::string str = context.getGoSubCallStack("", "", "\n", util::parseInt(name.substr(17)));
+				size_t i = str.find("!!!", 0);
+				if(i != std::string::npos) {
+					i += 3;
+					size_t i2 = str.find("!!!", i);
+					txtcontent = str.substr(i, i2 - i);
+				}
+				return TYPE_TEXT;
+			}
+			
 			if(name == "^degrees") {
-				*fcontent = getDegrees(context,name,-1,'y');
+				*fcontent = getDegrees(context, name, -1, 'y');
 				return TYPE_FLOAT;
 			}
-			if(boost::starts_with(name,"^degrees_")){
-				*fcontent = getDegrees(context,name, 9,'y');
+			if(boost::starts_with(name, "^degrees_")){
+				*fcontent = getDegrees(context, name, 9, 'y');
 				return TYPE_FLOAT;
 			}
-			if(boost::starts_with(name,"^degreesx_")){
-				*fcontent = getDegrees(context,name,10,'x');
+			if(boost::starts_with(name, "^degreesx_")){
+				*fcontent = getDegrees(context, name, 10, 'x');
 				return TYPE_FLOAT;
 			}
-			if(boost::starts_with(name,"^degreesy_")){
-				*fcontent = getDegrees(context,name,10,'y');
+			if(boost::starts_with(name, "^degreesy_")){
+				*fcontent = getDegrees(context, name, 10, 'y');
 				return TYPE_FLOAT;
 			}
-			if(boost::starts_with(name,"^degreesz_")){
-				*fcontent = getDegrees(context,name,10,'z');
+			if(boost::starts_with(name, "^degreesz_")){
+				*fcontent = getDegrees(context, name, 10, 'z');
 				return TYPE_FLOAT;
 			}
-			if(boost::starts_with(name,"^degreesto_")){
-				*fcontent = getDegrees(context,name,11,'Y');
+			if(boost::starts_with(name, "^degreesto_")){
+				*fcontent = getDegrees(context, name, 11, 'Y');
 				return TYPE_FLOAT;
 			}
-			if(boost::starts_with(name,"^degreesyto_")){
-				*fcontent = getDegrees(context,name,12,'Y');
+			if(boost::starts_with(name, "^degreesyto_")){
+				*fcontent = getDegrees(context, name, 12, 'Y');
 				return TYPE_FLOAT;
 			}
 			
@@ -2216,7 +2228,7 @@ bool createSingleLineComment(std::string & esdat, size_t & posNow) {
  * Necessary because of other parts of the code that seek back for the single line comment token "//" !
  * IMPORTANT: This is destructive. Will replace initial chars of each line in the multiline comment with "//", but only in the RAM.
  */
-void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat) {
+void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript) {
 	size_t posNow = 0;
 	size_t posEnd = 0;
 	
@@ -2239,11 +2251,13 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 			posEnd = esdat.size();
 		}
 		
+		std::stringstream ssErrMsg;
+		ssErrMsg << "MultilineCommentScript at '" << pathScript.string() << "' [pos=" << posNow << "]: ";
 		for(; posNow < posEnd; posNow++) {
 			if(esdat[posNow] == '\n') {
 				posNow++; // seek to the begin of the next line
 				if(esdat[posNow] == '\n' || esdat[posNow + 1] == '\n') { // a line with 0 or 1 text char is invalid
-					LogError << "MultilineCommentScript: every line, inside a multiline comment, must have at least 2 characters. Obs.: a single tab on it counts only as 1 character!"; // show just a simple user instruction. must have at least 2 characters and one newline at it's end because this is the only way to replace both chars with a single line comment resulting in '//\n'. obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+					LogError << ssErrMsg.str() << "every line, inside a multiline comment, must have at least 2 characters. Obs.: a single tab on it counts only as 1 character!"; // show just a simple user instruction. must have at least 2 characters and one newline at it's end because this is the only way to replace both chars with a single line comment resulting in '//\n'. obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
 				}
 				if(!createSingleLineComment(esdat, posNow)) return; // replaces 2 chars in the begin of the line
 			}
@@ -2255,7 +2269,7 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 			posNow++;
 		}
 		if(posNow < esdat.size() && esdat[posNow] != '\n') {
-			LogError << "MultilineCommentScript: the closing '*/' token shall always be followed by a newline but found '" << esdat[posNow] << "' instead."; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+			LogError << ssErrMsg.str() << "the closing '*/' token shall always be followed by a newline but found '" << esdat[posNow] << "' instead."; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
 		}
 	}
 }
@@ -2455,7 +2469,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		}
 	}
 	
-	detectAndTransformMultilineCommentIntoSingleLineComments(strScriptData);
+	detectAndTransformMultilineCommentIntoSingleLineComments(strScriptData, pathModdedDump);
 	
 	script.data = strScriptData;
 	

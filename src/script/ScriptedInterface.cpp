@@ -222,7 +222,6 @@ std::ostream & operator<<(std::ostream & os, const PrintGlobalVariables & data) 
 	if(data.m_filter.size() > 0) {
 		std::regex re(data.m_filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
 		for(const SCRIPT_VAR & var : svar) {
-			//if(boost::contains(var.name, data.m_filter)) {
 			if (std::regex_search(var.name, re)) {
 				os << var << '\n';
 			}
@@ -269,7 +268,6 @@ std::ostream & operator<<(std::ostream & os, const PrintLocalVariables & data) {
 	if(data.m_filter.size() > 0) {
 		std::regex re(data.m_filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
 		for(const SCRIPT_VAR & var : data.m_entity->m_variables) {
-			//if(boost::contains(var.name, data.m_filter)) {
 			if (std::regex_search(var.name, re)) {
 				os << var << '\n';
 			}

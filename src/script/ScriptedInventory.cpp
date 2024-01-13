@@ -422,10 +422,10 @@ class InventoryCommand : public Command {
 		}
 		
 		/**
-		 * TODO remove related code (that was moved to here) from SetCommand at ScriptedVariable.cpp
 		 * INVENTORY GetItemCount     [-e] <e?entInvReadFrom> <IntVar> <strItemIdPrefix>
 		 * INVENTORY GetItemList      [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
 		 * INVENTORY GetItemCountList [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
+		 * Obs.: if <strItemIdPrefix> is "*" it will match all entities.
 		 */
 		Result execute(Context & context) override {
 			

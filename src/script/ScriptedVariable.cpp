@@ -147,44 +147,26 @@ public:
 	 * 
 	 * The Modes below are exclusive. Use only one.
 	 * 
-	 * TODO?: new command ARRAY [-rw] <w?entWriteTo> <r?entReadFrom> <var> <a?array> <a?index>
-	 ** <-v> Mode: Array: assigns to var the array entry at index
+	 ** <-v> Mode: Array of words: assigns to var the array entry at index
 	 * Set -v[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array...> ;
 	 * 		<index> array index that begins in 0
 	 * 		<array...> are words terminated with ';' word
 	 * 		; is required to know the list ended
 	 * 		returns "void" meaning index out of bounds
 	 * 
-	 ** <-a> Mode: Array: assigns to var the array entry at index
+	 ** <-a> Mode: Array concatenated in a string: assigns to var the array entry at index
 	 * Set -a[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array>
 	 * 		<index> array index that begins in 0
 	 * 		<array> is a string that contains words separated by spaces ' '
-	 * 
-	 * TODO: new command (at INVENTORY as sub command) GetItemCount [-rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
-	 ** <-i> Mode: Item count at inventory: assigns to var the count of items beggining with entityIdPrefix
-	 * Set -i[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
-	 * 
-	 * TODO: new command (at INVENTORY as sub command) GetItemList [-rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
-	 ** <-l> Mode: List: assigns to var an array of item IDs that begin with entityIdPrefix
-	 * Set -l[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
-	 * 
-	 * TODO: new command (at INVENTORY as sub command) GetItemCountList [-rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
-	 ** <-m> Mode: List2D: assigns to var a bi-dimentional list containing the item ID (beggining with entityIdPrefix) and it's count like: "itemIDa 2 itemIDb 78"
-	 * Set -m[rw] <w?entWriteTo> <r?entReadFrom> <var> <entityIdPrefix>
-	 * 
-	 * Obs.: if <entityIdPrefix> is "*" it will match all entities.
 	 * 
 	 * Usage examples:
 	 * Set <var> <val>
 	 * Set -r <entReadFrom> <var> <val>
 	 * Set -w <entWriteTo> <var> <val>
 	 * Set -rw <entWriteTo> <entReadFrom> <var> <val> //with both rw, first w then r, matching var val order
+	 * Set -a <var> <index> <arrayString> 
 	 * Set -v <var> <index> <array...> ;
 	 * Set -rwv <entWriteTo> <entReadFrom> <var> <index> <array...> ;
-	 * Set -i <var> <entityIdPrefix>
-	 * Set -rwi <entWriteTo> <entReadFrom> <var> <entityIdPrefix>
-	 * Set -l <var> <entityIdPrefix>
-	 * Set -m <var> <entityIdPrefix>
 	 */
 	Result execute(Context & context) override {
 		
@@ -195,24 +177,18 @@ public:
 		bool bReadFrom=false;
 		bool bWriteTo=false;
 		
-		HandleFlags("mailrw") {
-			if(flg & flag('m')) {
-				mode = 'm';
-			}
-			if(flg & flag('a')) {
-				mode = 'a';
-			}
-			if(flg & flag('i')) {
-				mode = 'i';
-			}
-			if(flg & flag('l')) {
-				mode = 'l';
-			}
+		HandleFlags("rwav") {
 			if(flg & flag('r')) {
 				bReadFrom=true;
 			}
 			if(flg & flag('w')) {
 				bWriteTo=true;
+			}
+			if(flg & flag('a')) {
+				mode = 'a';
+			}
+			if(flg & flag('v')) {
+				mode = 'v';
 			}
 		}
 		
@@ -250,11 +226,6 @@ public:
 						context.skipWord(); // index
 						while(context.getWord() != ";"); // array... and terminator ;
 						break;
-					case 'i': // item count at inventory mode
-					case 'l': // item list mode
-					case 'm': // bi-dimentional item list mode
-						context.skipWord(); // item prefix
-						break;
 					default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
 				}
 			} else {
@@ -287,18 +258,6 @@ public:
 					}
 					count++;
 				}
-			}; break;
-			case 'i': { // item count at inventory mode
-				std::string itemPrefix = context.getWord();
-				val = getItemCountAtInventory(entReadFrom, itemPrefix); 
-			}; break;
-			case 'l': { // item list at inventory mode
-				std::string itemPrefix = context.getWord();
-				val = getItemListAtInventory(entReadFrom, itemPrefix); 
-			}; break;
-			case 'm': { // bi-dimentional list mode
-				std::string itemPrefix = context.getWord();
-				val = getItemListAtInventory(entReadFrom, itemPrefix, true); 
 			}; break;
 			default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
 		}

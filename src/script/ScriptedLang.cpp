@@ -94,21 +94,23 @@ public:
 	
 	GotoCommand(std::string_view command, bool _sub = false) : Command(command), sub(_sub) { }
 	
-	Result createParamVar(std::string strVarValue) {
+	Result createParamVar(Context & context, std::string label, std::string strVarValue) {
 		size_t equalPos = strVarValue.find('=');
 		if(equalPos != std::string::npos) {
 			std::string var = strVarValue.substr(0,equalPos);
 			std::string val = strVarValue.substr(equalPos+1);
 			
-			std::string varNew = std::string()+var[0]+label+"_"+var.substr(1);
-			DebugScript(' ' << varNew);
+			Entity* io = context.getEntity();
+			
+			std::string varNew = std::string() + var[0] + label + "_" + var.substr(1);
+			DebugScript(' ' << varNew << ' ' << var << ' ' << val);
 			SCRIPT_VAR * sv = nullptr;
 			switch(var[0]) {
 				case '\xA3': sv = SETVarValueText(io->m_variables, varNew, context.getStringVar(val,io)); break;
 				case '\xA7': sv = SETVarValueLong(io->m_variables, varNew, long(context.getFloatVar(val,io))); break;
 				case '@':    sv = SETVarValueFloat(io->m_variables, varNew, context.getFloatVar(val,io)); break;
 				default:
-					ScriptError << "invalid param variable type \"" << strVarValue << "\" at \"" << strParams << "\"";
+					ScriptError << "invalid param local variable type \"" << var[0] << "\" at \"" << strVarValue << "\"";
 					return AbortError;
 			}
 			if(!sv) {
@@ -116,7 +118,7 @@ public:
 				return Failed;
 			}
 		} else {
-			ScriptError << "invalid param assignment \"" << strVarValue << "\" at \"" << strParams << "\"";
+			ScriptError << "invalid param assignment, needs to be var=value at \"" << strVarValue << "\"";
 			return AbortError;
 		}
 		
@@ -144,24 +146,12 @@ public:
 		std::string label = context.getWord();
 		DebugScript(' ' << label);
 		
-		Entity* io = context.getEntity();
-		
 		if(hasParams) {
-			//std::string strParams = context.getWord();
-			//DebugScript(' ' << strParams);
-			//std::vector<std::string> vParams;
-			//boost::split(vParams, strParams, boost::is_any_of(" "), boost::token_compress_on);
-			//for(std::string strVarValue : vParams) {
-				//Result res = createParamVar(strVarValue);
-				//if(res != Success) {
-					//return res;
-				//}
-			//}
 			std::string strVarValue;
 			while(true) {
 				strVarValue = context.getWord();
 				if(strVarValue == ";") break;
-				Result res = createParamVar(strVarValue);
+				Result res = createParamVar(context, label, strVarValue);
 				if(res != Success) {
 					return res;
 				}
