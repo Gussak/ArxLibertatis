@@ -21,6 +21,7 @@
 
 #include <cstdlib>
 #include <cstring>
+//#include <ctime>
 #include <iostream>
 #include <sstream>
 #include <string_view>
@@ -39,11 +40,12 @@
 #include <SDL.h>
 #endif
 
+//#include "core/GameTime.h"
+//#include "platform/Time.h"
 #include "core/Version.h"
 #include "platform/Process.h"
 #include "platform/WindowsUtils.h"
 #include "util/String.h"
-
 
 namespace platform {
 
@@ -493,7 +495,7 @@ bool askOkCancel(const std::string & question, const std::string & title) {
  * This means the user must be careful when setting the env vars for requested commands, or just copy the below examples:
  * 
  * 	For Linux:
- * 		export ARX_ScriptErrorPopupCommand='yad --no-markup --selectable-labels --title="%{title}" --text="%{message}" --form --field="%{details}":LBL --scroll --on-top --center'
+ * 		export ARX_ScriptErrorPopupCommand='yad --no-markup --selectable-labels --title="%{title}" --text="%{message}" --form --field="%{details}":LBL --scroll --on-top --center --button="Edit:0" --button="Ignore:1" --button="Ignore10s:2" --button="Ignore60s:3" --button="Ignore10m:4" --button="Ignore1h:5"'
  * 		export ARX_ScriptCodeEditorCommand='geany "%{file}":%{line}'
  * 	For Windows:
  * 		TODO
@@ -504,7 +506,11 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 	static std::string strEnvVarCmdPopup = "ARX_ScriptErrorPopupCommand";
 	//static const char * systemPopupCmd = std::getenv(strEnvVarCmdPopup.c_str());
 	static const char * systemPopupCmd = [](){const char * pc = std::getenv(strEnvVarCmdPopup.c_str()); LogWarning << "[CustomUserCommand] " << strEnvVarCmdPopup << "=\"" << pc << "\""; return pc;}(); // warns only once
-	if(systemPopupCmd) {
+	//static long ignoreTimes = 0;if(ignoreTimes > 0) ignoreTimes--;
+	static time_t ignoreTo = time(0);time_t now = time(0);
+	//static PlatformInstant ignoreTo = platform::getTime();PlatformInstant now = platform::getTime();
+	//if(systemPopupCmd && ignoreTimes == 0) {
+	if(systemPopupCmd && now >= ignoreTo) {
 		std::string strSysPopupCmd = std::string() + systemPopupCmd;
 		//static bool bWarnPopupOnce = [strSysPopupCmd](){LogWarning << "[CustomUserCommand] " << strEnvVarCmdPopup << "=\"" << strSysPopupCmd << "\""; return true;}();
 		
@@ -546,6 +552,25 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 		
 		if(retPopupCmd == 0) {
 			return true;
+		}
+		
+		if(retPopupCmd == 2) {
+			//ignoreTo = platform::getTime() + 10*1000000 ;
+			ignoreTo = time(0) + 10;
+			//ignoreTimes += 10;
+		}
+		if(retPopupCmd == 3) {
+			//ignoreTo = platform::getTime() + 60*1000000 ;
+			ignoreTo = time(0) + 60;
+			//ignoreTimes += 100;
+		}
+		if(retPopupCmd == 4) {
+			//ignoreTo = platform::getTime() + 600*1000000 ;
+			ignoreTo = time(0) + 600;
+		}
+		if(retPopupCmd == 5) {
+			//ignoreTo = platform::getTime() + 3600*1000000 ;
+			ignoreTo = time(0) + 3600;
 		}
 	}
 	
