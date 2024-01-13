@@ -58,6 +58,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <stddef.h>
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
+#include <boost/algorithm/string/split.hpp> // Include for boost::split
 
 #include "ai/Paths.h"
 
@@ -2228,51 +2230,137 @@ bool createSingleLineComment(std::string & esdat, size_t & posNow) {
  * Necessary because of other parts of the code that seek back for the single line comment token "//" !
  * IMPORTANT: This is destructive. Will replace initial chars of each line in the multiline comment with "//", but only in the RAM.
  */
+//*
+void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript) {
+	std::stringstream ssErrMsg;
+	ssErrMsg << "MultilineCommentScript at '" << pathScript.string();
+	
+	std::string strNL = esdat.find("\r\n", 0) != std::string::npos ? "\r\n" : "\n";
+	
+	std::vector<std::string> lines;
+	boost::split(lines, esdat, boost::is_any_of("\n"));
+	
+	esdat="";
+	bool bSeekBeginMLC = true;
+	size_t lineCount = 0;
+	for(std::string line : lines) {
+		lineCount++;
+		if(bSeekBeginMLC) {
+			size_t posBeginMLC = line.find("/*");
+			if(posBeginMLC == std::string::npos) { // not found, is normal line
+				esdat += line + "\n";
+				continue;
+			} else { // is begin of multiline comment?
+				size_t posComment = line.find("//");
+				if(posComment != std::string::npos && posComment < posBeginMLC) { // a line like "// ... /* " is not a begin of a multiline comment
+					esdat += line + "\n";
+					continue;
+				} else {  // is begin of multiline comment!
+					// replaces "/*" with "//"
+					line[posBeginMLC  ] = '/';
+					line[posBeginMLC+1] = '/';
+					bSeekBeginMLC = false;
+				}
+			}
+		} else { //seek end
+			size_t posEndMLC = line.find("*/");
+			
+			if(line.size() == 1) { // transform into empty line
+				line=" ";
+			} else if(line.size() >= 2) { // transform in single line comment
+				line[0] = '/';
+				line[1] = '/';
+			}
+			
+			if(posEndMLC == std::string::npos) { // not found, is simple commented line
+				esdat += line + "\n";
+				continue;
+			} else { // is end of multiline comment
+				if((posEndMLC+2+(strNL.size()-1)) < line.size()) {
+					LogError << ssErrMsg.str() << "' [line=" << lineCount << "]: " << "the closing '*/' token shall always be followed by a newline. line content is: \"" << line << "\""; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+				}
+				esdat += line + "\n";
+				bSeekBeginMLC = true;
+			}
+		}
+	}
+	
+	res::path pathFileToDebug;
+	pathFileToDebug = pathScript.string() + ".debug";
+	writeScriptAtModDumpFolder(pathFileToDebug, esdat);
+}
+/*/
 void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript) {
 	size_t posNow = 0;
 	size_t posEnd = 0;
+	size_t posNL = 0;
+	std::stringstream ssErrMsg;
+	ssErrMsg << "MultilineCommentScript at '" << pathScript.string();
+	bool bFoundClose = false;
 	
 	while(true) {
 		if(posEnd == esdat.size()) return;
 		
-		posNow = esdat.find("/*", posNow);
+		posNow = esdat.find("/\*", posNow);
 		if(posNow == std::string_view::npos) {
 			return;
 		}
+		arx_assert_msg(esdat[posNow] == '/' && esdat[posNow+1] == '*', "should be '/\*' but found '%c%c'", esdat[posNow], esdat[posNow + 1]);
 		if(script::seekBackwardsForCommentToken(esdat, posNow) != size_t(-1)) {
-			posNow += 2; // skip "/*"
+			posNow += 2; // skip "/\*"
 			continue; // a commented '//' multiline comment init token shall be ignored like in cpp
 		}
 		
-		if(!createSingleLineComment(esdat, posNow)) return; // replaces "/*"
+		if(!createSingleLineComment(esdat, posNow)) return; // replaces "/\*"
 		
-		posEnd = esdat.find("*/", posNow);
+		posNL = esdat.find("\n", posNow);
+		
+		posEnd = esdat.find("*\/", posNow);
 		if(posEnd == std::string_view::npos) {
 			posEnd = esdat.size();
+			bFoundClose = false;
+		} else {
+			bFoundClose = true;
 		}
 		
-		std::stringstream ssErrMsg;
-		ssErrMsg << "MultilineCommentScript at '" << pathScript.string() << "' [pos=" << posNow << "]: ";
-		for(; posNow < posEnd; posNow++) {
-			if(esdat[posNow] == '\n') {
-				posNow++; // seek to the begin of the next line
-				if(esdat[posNow] == '\n' || esdat[posNow + 1] == '\n') { // a line with 0 or 1 text char is invalid
-					LogError << ssErrMsg.str() << "every line, inside a multiline comment, must have at least 2 characters. Obs.: a single tab on it counts only as 1 character!"; // show just a simple user instruction. must have at least 2 characters and one newline at it's end because this is the only way to replace both chars with a single line comment resulting in '//\n'. obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+		if(posEnd > posNL) {
+			for(; posNow < posEnd; posNow++) {
+				if(esdat[posNow] == '\n') {
+					posNow++; // seek to the begin of the next line
+					if(posNow >= posEnd) return;
+					
+					bool bLogError = false;
+					
+					if(esdat[posNow] == '\n') bLogError = true;
+					
+					if((posNow+1) >= posEnd) return;
+					if(esdat[posNow+1] == '\n') bLogError = true;
+					
+					if(bLogError) { // a line with 0 or 1 text char is invalid
+						LogError << ssErrMsg.str() << "' [pos=" << posNow << "]: " << "every line, inside a multiline comment, must have at least 2 characters. Obs.: a single tab on it counts only as 1 character!"; // show just a simple user instruction. must have at least 2 characters and one newline at it's end because this is the only way to replace both chars with a single line comment resulting in '//\n'. obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+					}
+					
+					if(!createSingleLineComment(esdat, posNow)) return; // replaces 2 chars in the begin of the line
 				}
-				if(!createSingleLineComment(esdat, posNow)) return; // replaces 2 chars in the begin of the line
 			}
+		} else {
+			posNow = posEnd;
 		}
 		
-		if(!createSingleLineComment(esdat, posNow)) return; // replaces "*/"
-		
-		if(posNow < esdat.size() && esdat[posNow] == '\r') {
-			posNow++;
-		}
-		if(posNow < esdat.size() && esdat[posNow] != '\n') {
-			LogError << ssErrMsg.str() << "the closing '*/' token shall always be followed by a newline but found '" << esdat[posNow] << "' instead."; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+		if(bFoundClose) {
+			arx_assert_msg(esdat[posNow] == '*' && esdat[posNow+1] == '/', "should be '*\/' but found '%c%c'", esdat[posNow], esdat[posNow + 1]);
+			if(!createSingleLineComment(esdat, posNow)) return; // replaces "*\/" that must be \n just after it!
+			
+			if(posNow < esdat.size() && esdat[posNow] == '\r') {
+				posNow++;
+			}
+			if(posNow < esdat.size() && esdat[posNow] != '\n') {
+				LogError << ssErrMsg.str() << "' [pos=" << posNow << "]: " << "the closing '*\/' token shall always be followed by a newline but found '" << esdat[posNow] << "' instead."; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+			}
 		}
 	}
 }
+*/
 
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);
