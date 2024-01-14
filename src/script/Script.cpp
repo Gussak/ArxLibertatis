@@ -54,6 +54,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <fstream>
 #include <limits>
 #include <map>
+#include <regex>
 #include <sstream>
 #include <stddef.h>
 
@@ -2215,16 +2216,15 @@ static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, std::string &
 	return false;
 }
 
-bool createSingleLineComment(std::string & esdat, size_t & posNow) {
-	if(posNow == esdat.size()) return false;
-	esdat[posNow] = '/';
-	posNow++;
-	
-	if(posNow == esdat.size()) return false;
-	esdat[posNow] = '/';
-	posNow++;
-	
-	return true;
+void detectAndFixGoToGoSubParam(std::string & line) { // transform goto/gosub param var=value into var value (replace '=' with space)
+	std::regex reSearch("_*g_*o_*(t_*o|s_*u_*b)_*", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	if (std::regex_search(line, reSearch)) {
+		std::regex reReplace("([ \t][@\xA3\xA7][a-z0-9_]*)=([^ \t])", std::regex_constants::ECMAScript | std::regex_constants::icase);
+		line = std::regex_replace(line, reReplace, "$1 $2");
+	}
+}
+void adaptScriptCode(std::string & line) {
+	detectAndFixGoToGoSubParam(line);
 }
 /**
  * Necessary because of other parts of the code that seek back for the single line comment token "//" !
@@ -2245,6 +2245,9 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 	size_t lineCount = 0;
 	for(std::string line : lines) {
 		lineCount++;
+		
+		adaptScriptCode(line);
+		
 		if(bSeekBeginMLC) {
 			size_t posBeginMLC = line.find("/*");
 			if(posBeginMLC == std::string::npos) { // not found, is normal line
@@ -2290,6 +2293,17 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 	writeScriptAtModDumpFolder(pathFileToDebug, esdat);
 }
 /*/
+bool createSingleLineComment(std::string & esdat, size_t & posNow) {
+	if(posNow == esdat.size()) return false;
+	esdat[posNow] = '/';
+	posNow++;
+	
+	if(posNow == esdat.size()) return false;
+	esdat[posNow] = '/';
+	posNow++;
+	
+	return true;
+}
 void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript) {
 	size_t posNow = 0;
 	size_t posEnd = 0;
@@ -2494,7 +2508,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 						
 						// TODO terminal input is not capturable? is there some way to let it work w/o system windowed popup? while debugging with nemiver at least, none of these work to wait terminal user input (hitting enter does nothing, so it wont continue running, the app stays there forever): std::cin >> dummy; dummy = platform::runUserCommand("read"); getchar(); do { ... } while (std::cin.get() != '\n');
 						std::string strTitle = "Modding";
-						if(platform::askOkCancelCustomUserSystemPopupCommand(strTitle, std::string() + "Applying a mod patch failed.\n [SCRIPT] '" + pathScriptToBePatched.string() + "'", ssPatchingOutput.str(), pathModPatch.string())) { // pathModPatch will be lower cased again
+						if(platform::askOkCancelCustomUserSystemPopupCommand(strTitle, std::string() + "ERROR: Applying a mod patch failed.\n [SCRIPT] '" + pathScriptToBePatched.string() + "'", ssPatchingOutput.str(), pathModPatch.string())) { // pathModPatch will be lower cased again
 							platform::showInfoDialog(std::string() + "ArxLibertatis" + strTitle + "\n" + "After editing:\n [PATCH] '" + pathModPatch.string() + "'\nClose this dialog to retry the patch.", "ArxLibertatis" + strTitle); // TODO zenity is not showing the specified title
 							continue;
 						}

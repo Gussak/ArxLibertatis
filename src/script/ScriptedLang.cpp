@@ -94,32 +94,23 @@ public:
 	
 	GotoCommand(std::string_view command, bool _sub = false) : Command(command), sub(_sub) { }
 	
-	Result createParamVar(Context & context, std::string label, std::string strVarValue) {
-		size_t equalPos = strVarValue.find('=');
-		if(equalPos != std::string::npos) {
-			std::string var = strVarValue.substr(0,equalPos);
-			std::string val = strVarValue.substr(equalPos+1);
-			
-			Entity* io = context.getEntity();
-			
-			std::string varNew = std::string() + var[0] + label + "_" + var.substr(1);
-			DebugScript(' ' << varNew << ' ' << var << ' ' << val);
-			SCRIPT_VAR * sv = nullptr;
-			switch(var[0]) {
-				case '\xA3': sv = SETVarValueText(io->m_variables, varNew, context.getStringVar(val,io)); break;
-				case '\xA7': sv = SETVarValueLong(io->m_variables, varNew, long(context.getFloatVar(val,io))); break;
-				case '@':    sv = SETVarValueFloat(io->m_variables, varNew, context.getFloatVar(val,io)); break;
-				default:
-					ScriptError << "invalid param local variable type \"" << var[0] << "\" at \"" << strVarValue << "\"";
-					return AbortError;
-			}
-			if(!sv) {
-				ScriptWarning << "Unable to create variable " << var;
-				return Failed;
-			}
-		} else {
-			ScriptError << "invalid param assignment, needs to be var=value at \"" << strVarValue << "\"";
-			return AbortError;
+	Result createParamVar(Context & context, std::string label, std::string var, std::string val) {
+		Entity* io = context.getEntity();
+		
+		std::string varNew = std::string() + var[0] + label + "_" + var.substr(1);
+		DebugScript(' ' << varNew << ' ' << var << ' ' << val);
+		SCRIPT_VAR * sv = nullptr;
+		switch(var[0]) {
+			case '\xA3': sv = SETVarValueText(io->m_variables, varNew, context.getStringVar(val,io)); break;
+			case '\xA7': sv = SETVarValueLong(io->m_variables, varNew, long(context.getFloatVar(val,io))); break;
+			case '@':    sv = SETVarValueFloat(io->m_variables, varNew, context.getFloatVar(val,io)); break;
+			default:
+				ScriptError << "invalid param local variable type \"" << var[0] << "\" at \"" << var << "=" << val << "\"";
+				return AbortError;
+		}
+		if(!sv) {
+			ScriptWarning << "Unable to create variable " << var;
+			return Failed;
 		}
 		
 		return Success;
@@ -127,7 +118,7 @@ public:
 	
 	/**
 	 * <GoTo|GoSub> [-p] <label> <p?params... ;>
-	 * ex.: GoSub -p FUNCTarget @testFloat=10.3 \xA7testFloat2=5 "\xA3TestString=a b c" ; // it will create localvars (not globals) so only use localvar token chars for float, int and string.
+	 * ex.: GoSub -p FUNCTarget @testFloat=10.3 \xA7testFloat2=5 \xA3TestString="a b c" ; // it will create localvars (not globals) so only use localvar token chars for float, int and string.
 	 *  required single word as ';' is required to know when to stop collecting params
 	 *  it will automatically create the following local vars that you can use at the GoTo/GoSub target: 
 	 *   @FUNCTarget_testFloat1 = 10.3
@@ -147,11 +138,19 @@ public:
 		DebugScript(' ' << label);
 		
 		if(hasParams) {
-			std::string strVarValue;
+			std::string strVar; // see Script.cpp::detectAndFixGoToGoSubParam()
+			std::string strValue;
 			while(true) {
-				strVarValue = context.getWord();
-				if(strVarValue == ";") break;
-				Result res = createParamVar(context, label, strVarValue);
+				//strVar = context.getWord(true, '='); // if a string value it may be like var="value"
+				strVar = context.getWord();
+				if(strVar == ";") break;
+				//if(context.getScript()->data[context.getPosition()] != '=') {
+					//ScriptError << "wrong call param assignment, should be var=value or var=\"value\"";
+					//return AbortError;
+				//}
+				//context.seekToPosition(context.getPosition()+1); // skip '='
+				strValue = context.getWord(); // value may be inside double quotes
+				Result res = createParamVar(context, label, strVar, strValue);
 				if(res != Success) {
 					return res;
 				}
