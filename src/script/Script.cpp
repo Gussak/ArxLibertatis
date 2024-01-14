@@ -2230,7 +2230,6 @@ void adaptScriptCode(std::string & line) {
  * Necessary because of other parts of the code that seek back for the single line comment token "//" !
  * IMPORTANT: This is destructive. Will replace initial chars of each line in the multiline comment with "//", but only in the RAM.
  */
-//*
 void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript) {
 	std::stringstream ssErrMsg;
 	ssErrMsg << "MultilineCommentScript at '" << pathScript.string();
@@ -2292,89 +2291,6 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 	pathFileToDebug = pathScript.string() + ".debug";
 	writeScriptAtModDumpFolder(pathFileToDebug, esdat);
 }
-/*/
-bool createSingleLineComment(std::string & esdat, size_t & posNow) {
-	if(posNow == esdat.size()) return false;
-	esdat[posNow] = '/';
-	posNow++;
-	
-	if(posNow == esdat.size()) return false;
-	esdat[posNow] = '/';
-	posNow++;
-	
-	return true;
-}
-void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript) {
-	size_t posNow = 0;
-	size_t posEnd = 0;
-	size_t posNL = 0;
-	std::stringstream ssErrMsg;
-	ssErrMsg << "MultilineCommentScript at '" << pathScript.string();
-	bool bFoundClose = false;
-	
-	while(true) {
-		if(posEnd == esdat.size()) return;
-		
-		posNow = esdat.find("/\*", posNow);
-		if(posNow == std::string_view::npos) {
-			return;
-		}
-		arx_assert_msg(esdat[posNow] == '/' && esdat[posNow+1] == '*', "should be '/\*' but found '%c%c'", esdat[posNow], esdat[posNow + 1]);
-		if(script::seekBackwardsForCommentToken(esdat, posNow) != size_t(-1)) {
-			posNow += 2; // skip "/\*"
-			continue; // a commented '//' multiline comment init token shall be ignored like in cpp
-		}
-		
-		if(!createSingleLineComment(esdat, posNow)) return; // replaces "/\*"
-		
-		posNL = esdat.find("\n", posNow);
-		
-		posEnd = esdat.find("*\/", posNow);
-		if(posEnd == std::string_view::npos) {
-			posEnd = esdat.size();
-			bFoundClose = false;
-		} else {
-			bFoundClose = true;
-		}
-		
-		if(posEnd > posNL) {
-			for(; posNow < posEnd; posNow++) {
-				if(esdat[posNow] == '\n') {
-					posNow++; // seek to the begin of the next line
-					if(posNow >= posEnd) return;
-					
-					bool bLogError = false;
-					
-					if(esdat[posNow] == '\n') bLogError = true;
-					
-					if((posNow+1) >= posEnd) return;
-					if(esdat[posNow+1] == '\n') bLogError = true;
-					
-					if(bLogError) { // a line with 0 or 1 text char is invalid
-						LogError << ssErrMsg.str() << "' [pos=" << posNow << "]: " << "every line, inside a multiline comment, must have at least 2 characters. Obs.: a single tab on it counts only as 1 character!"; // show just a simple user instruction. must have at least 2 characters and one newline at it's end because this is the only way to replace both chars with a single line comment resulting in '//\n'. obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
-					}
-					
-					if(!createSingleLineComment(esdat, posNow)) return; // replaces 2 chars in the begin of the line
-				}
-			}
-		} else {
-			posNow = posEnd;
-		}
-		
-		if(bFoundClose) {
-			arx_assert_msg(esdat[posNow] == '*' && esdat[posNow+1] == '/', "should be '*\/' but found '%c%c'", esdat[posNow], esdat[posNow + 1]);
-			if(!createSingleLineComment(esdat, posNow)) return; // replaces "*\/" that must be \n just after it!
-			
-			if(posNow < esdat.size() && esdat[posNow] == '\r') {
-				posNow++;
-			}
-			if(posNow < esdat.size() && esdat[posNow] != '\n') {
-				LogError << ssErrMsg.str() << "' [pos=" << posNow << "]: " << "the closing '*\/' token shall always be followed by a newline but found '" << esdat[posNow] << "' instead."; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
-			}
-		}
-	}
-}
-*/
 
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);

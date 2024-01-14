@@ -277,7 +277,6 @@ void Context::seekToPosition(size_t pos) {
 	m_pos=pos; 
 }
 
-//std::string Context::getWord(bool evaluateVars, char cExtraWhiteSpace) {
 std::string Context::getWord(bool evaluateVars) {
 	
 	std::string_view esdat = m_script->data;
@@ -325,7 +324,6 @@ std::string Context::getWord(bool evaluateVars) {
 	} else {
 		
 		// now take chars until it finds a space or unused char
-		//for(; m_pos != esdat.size() && !isWhitespace(esdat[m_pos]) && esdat[m_pos] != cExtraWhiteSpace; m_pos++) {
 		for(; m_pos != esdat.size() && !isWhitespace(esdat[m_pos]); m_pos++) {
 			
 			if(esdat[m_pos] == '"') {

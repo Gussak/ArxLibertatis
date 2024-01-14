@@ -141,14 +141,8 @@ public:
 			std::string strVar; // see Script.cpp::detectAndFixGoToGoSubParam()
 			std::string strValue;
 			while(true) {
-				//strVar = context.getWord(true, '='); // if a string value it may be like var="value"
 				strVar = context.getWord();
 				if(strVar == ";") break;
-				//if(context.getScript()->data[context.getPosition()] != '=') {
-					//ScriptError << "wrong call param assignment, should be var=value or var=\"value\"";
-					//return AbortError;
-				//}
-				//context.seekToPosition(context.getPosition()+1); // skip '='
 				strValue = context.getWord(); // value may be inside double quotes
 				Result res = createParamVar(context, label, strVar, strValue);
 				if(res != Success) {
