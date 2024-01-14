@@ -99,7 +99,7 @@ public:
 	
 	std::string getStringVar(std::string_view name, Entity * entOverride = nullptr) const;
 	std::string getFlags();
-	std::string getWord();
+	std::string getWord(bool evaluateVars = true);
 	void skipWord();
 	std::string formatString(std::string format, float var) const;
 	std::string formatString(std::string format, long var) const;

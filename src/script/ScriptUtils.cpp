@@ -303,7 +303,7 @@ bool Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned cha
 	return true;
 }
 
-std::string Context::getWord() {
+std::string Context::getWord(bool evaluateVars) {
 	
 	std::string_view esdat = m_script->data;
 	
@@ -328,12 +328,14 @@ std::string Context::getWord() {
 				return word;
 			} else if(esdat[m_pos] == '~') {
 				if(tilde) {
-					word += getStringVar(var);
-					var.clear();
+					if(evaluateVars) {
+						word += getStringVar(var);
+						var.clear();
+					}
 				}
 				tilde = !tilde;
 			} else if(tilde) {
-				var.push_back(esdat[m_pos]);
+				if(evaluateVars) var.push_back(esdat[m_pos]);
 			} else {
 				word.push_back(esdat[m_pos]);
 			}
@@ -351,15 +353,20 @@ std::string Context::getWord() {
 		for(; m_pos != esdat.size() && !isWhitespace(esdat[m_pos]); m_pos++) {
 			
 			if(esdat[m_pos] == '"') {
+				int i;
 				ScriptParserWarning << "unexpected '\"' inside token";
+				i++;
+				i++;
 			} else if(esdat[m_pos] == '~') {
 				if(tilde) {
-					word += getStringVar(var);
-					var.clear();
+					if(evaluateVars) {
+						word += getStringVar(var);
+						var.clear();
+					}
 				}
 				tilde = !tilde;
 			} else if(tilde) {
-				var.push_back(esdat[m_pos]);
+				if(evaluateVars) var.push_back(esdat[m_pos]);
 			} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
 				break;
 			} else {
@@ -523,19 +530,32 @@ size_t seekBackwardsForCommentToken(const std::string_view & esdat, const size_t
 }
 
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, const std::string strScriptStringVariableID, const Context * context, size_t callStackIndexFromLast) {
-	std::stringstream ss;
+	std::stringstream ssPopupMsg; ssPopupMsg << strCustomMessage << "\n";
 	
-	ss << strCustomMessage << "\n";
+	std::stringstream ssWarn;
+	std::stringstream ssError;
+	if(boost::starts_with(util::toLowercase(strCustomMessage), "warn:" )) ssWarn  << strCustomMessage.substr(5);
+	if(boost::starts_with(util::toLowercase(strCustomMessage), "error:")) ssError << strCustomMessage.substr(6);
 	
 	size_t lineAtFileToEdit = 0;
 	if(context) {
-		size_t column;
-		context->getLineColumn(lineAtFileToEdit, column, context->getGoSubCallFromPos(callStackIndexFromLast));
-		ss << ScriptContextPrefix(*context) << " [CallStackIndexFromLast=" << callStackIndexFromLast << "]\n"
-			 << " [!!!ScriptDebugMessage!!!] " << context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)) << "\n"; // must become lowercase or wont match
+		std::string strScriptMsg = context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)); // must become lowercase or wont match
+		
+		if(boost::starts_with(util::toLowercase(strScriptMsg), "warn:" )) ssWarn  << " " << strScriptMsg.substr(5);
+		if(boost::starts_with(util::toLowercase(strScriptMsg), "error:")) ssError << " " << strScriptMsg.substr(6);
+		
+		size_t columnDummy;
+		context->getLineColumn(lineAtFileToEdit, columnDummy, context->getGoSubCallFromPos(callStackIndexFromLast));
+		
+		ssPopupMsg << ScriptContextPrefix(*context) << " [CallStackIndexFromLast=" << callStackIndexFromLast << "]\n"
+			 << " [!!!ScriptDebugMessage!!!] " << strScriptMsg << "\n";
 	}
 	
-	return platform::askOkCancelCustomUserSystemPopupCommand(strTitle, ss.str(), strDetails, strFileToEdit, lineAtFileToEdit);
+	std::stringstream ssFlInfo; ssFlInfo << " at \"" << strFileToEdit << "\"";
+	if(ssWarn.str().size()  > 0) LogWarning << ssWarn.str()  << ssFlInfo.str();
+	if(ssError.str().size() > 0) LogError   << ssError.str() << ssFlInfo.str();
+	
+	return platform::askOkCancelCustomUserSystemPopupCommand(strTitle, ssPopupMsg.str(), strDetails, strFileToEdit, lineAtFileToEdit);
 }
 
 #pragma GCC push_options
@@ -610,7 +630,7 @@ void Context::skipBlock() {
 		while(brackets > 0) {
 			
 			skipWhitespace(true);
-			word = getWord(); // TODO should not evaluate ~var~
+			word = getWord(false);
 			if(m_pos == m_script->data.size()) {
 				ScriptParserWarning << "missing '}' before end of script";
 				return;
