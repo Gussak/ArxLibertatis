@@ -2366,11 +2366,13 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		int logInfoForScript = 0;
 		size_t modOverrideApplyCount = 0;
 		size_t modPatchApplyCount = 0;
+		size_t modAppendApplyCount = 0;
 		for(std::string strMod : vModList) {
 			std::string strModBase = std::string() + strBaseModPath + "/" + strMod + "/" + pathScript.string();
 			int cleanTo = strBaseModPath.size() + 1 + strMod.size() + 1;
-			res::path pathModOverride = strModBase + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
+			res::path pathModOverride = strModBase + ".override.asl"; // the final .asl is to keep it easy to be detected by code editors
 			res::path pathModPatch = strModBase + ".patch";
+			res::path pathModAppend = strModBase + ".append.asl"; // this file is more useful to mod developers that want to split test code from the main mod file. combine with a patch to let the test code be reachable.
 			int logInfoForMod = 0;
 			int logInfoAppliedForMod = 0;
 			
@@ -2475,15 +2477,36 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				logInfoAppliedForMod++;
 			}
 			
+			// apply simple append. Should be accompained by a patch also to let the appended code be reachable.
+			std::ifstream fileModAppend(pathModAppend.string());
+			if (fileModAppend.is_open()) {
+				if(logInfoForScript == 0) {
+					LogInfo << "Modding script file: " << pathScript.string();
+					logInfoForScript++;
+				}
+				if(logInfoForMod == 0) {
+					LogInfo << "├─ Mod name: " << strMod;
+					logInfoForMod++;
+				}
+				
+				std::stringstream fileData;
+				fileData << fileModAppend.rdbuf();
+				strScriptData = strScriptData + "\n" + util::toLowercase(fileData.str());
+				fileModAppend.close();
+				LogInfo << "│   ├─ applied append   : " << pathModAppend.string().substr(cleanTo);;
+				modAppendApplyCount++;
+				logInfoAppliedForMod++;
+			}
+			
 			if(logInfoAppliedForMod > 0) {
 				LogInfo << "│   └─ End apply all for: " << strMod;
 			}
 		}
 		
-		if((modOverrideApplyCount + modPatchApplyCount) > 0) {
+		if((modOverrideApplyCount + modPatchApplyCount + modAppendApplyCount) > 0) {
 			writeScriptAtModDumpFolder(pathModdedDump, strScriptData);
 			script.file = pathModdedDump.string();
-			LogInfo << "└─ All Mods: Dumping result of " << modOverrideApplyCount << " applied overrides and " << modPatchApplyCount << " applied patches at: " << pathModdedDump;
+			LogInfo << "└─ All Mods: Dumping applied result(s) of " << modOverrideApplyCount << " override(s), " << modPatchApplyCount << " patch(es) and " << modAppendApplyCount << " append(s) at: " << pathModdedDump;
 		}
 	}
 	
