@@ -97,6 +97,44 @@ std::string Context::formatString(std::string format, std::string var) const {
 }
 #pragma GCC diagnostic pop
 
+std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride) const {
+	if(!isLocalVariable(name)) {
+		return name;
+	}
+	
+	if(privateScopeOnly) { // only if private scope is requested on the var name thru the special char
+		if(name[1] != '\xB7') { // bullet char
+			return name;
+		}
+	}
+	
+	std::string label;
+	if(labelOverride.size() > 0){
+		label = labelOverride;
+	} else {
+		if(m_stackIdCalledFromPos.size() == 0) { //TODO use event name instead
+			return name;
+		}
+		label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
+	}
+	if(label.size() == 0) {
+		return name;
+	}
+	
+	char cSeparator = '_'; // local scope
+	size_t posID = 1;
+	if(name[1] == '\xB7') { // bullet char
+		cSeparator = '\xB7'; // private scope
+		posID = 2;
+	}
+	
+	if(!boost::starts_with(name.substr(1), label)) { // only prefix with label if not already
+		name = std::string() + name[0] + label + cSeparator + name.substr(posID);
+	}
+	
+	return name;
+}
+
 std::string Context::getStringVar(std::string_view name, Entity * entOverride) const {
 	
 	if(name.empty()) {
@@ -104,10 +142,12 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 	}
 	
 	std::string format;
-	if(name[0] == '%') { //printf format syntax
-		format = name.substr( 0, name.find(',',0) );
-		name   = name.substr( format.size()+1 ); //+1 skips the ','
+	if(name[0] == '%') { // printf format syntax. ex.: this happens when using var expansion like ~%.2f,@var~
+		format = name.substr( 0, name.find(',', 0) );
+		name   = name.substr( format.size() + 1 ); // +1 skips the ','
 	}
+	
+	name = autoVarNameForScope(true, name);
 	
 	if(name[0] == '^') {
 		long lv;
@@ -480,11 +520,11 @@ float Context::getFloatVar(std::string_view name, Entity * entOverride) const {
 	} else if(name[0] == '#') {
 		return float(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name));
+		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, autoVarNameForScope(true, name)));
 	} else if(name[0] == '&') {
 		return GETVarValueFloat(svar, name);
 	} else if(name[0] == '@') {
-		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
+		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, autoVarNameForScope(true, name));
 	}
 	
 	return util::parseFloat(name);
@@ -590,18 +630,19 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
-	if(substack) {
-		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
-	}
-	
-	DebugBreakpoint(target, *this);
-	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
 	if(targetpos == size_t(-1)) {
 		return false;
 	}
 	
 	m_pos = targetpos;
+	
+	if(substack) {
+		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
+	}
+	
+	DebugBreakpoint(target, *this);
+	
 	return true;
 }
 
