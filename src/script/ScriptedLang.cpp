@@ -98,6 +98,10 @@ public:
 		Entity* io = context.getEntity();
 		
 		if(sub) {
+			if(var[1] == '\xAB') {
+				ScriptError << "the expected symbol should point to the right \xBB, but found \xAB at param name requested to be created " << var << "=" << val " at target to be called " << label;
+				return AbortError;
+			}
 			// private variables easily accessible only in GoSub scope, never need to prefix with label at .asl
 			// ex.: GoSub -p FUNCwork \xA3\xBBmode="init" ; // becomes \xA3FUNCwork\xABmode, can be accessed that way anywhere, but inside the current GoSub call you just need to use \xA3\xABmode
 			// ex.: Set \xA3\xABtest "dummy" // becomes \xA3FUNCwork\xABtest if used inside FUNCwork
