@@ -104,7 +104,7 @@ public:
 	std::string formatString(std::string format, float var) const;
 	std::string formatString(std::string format, long var) const;
 	std::string formatString(std::string format, std::string var) const;
-	std::string autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride = "") const;
+	std::string autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride = "", char cTokenCheck = '\xAB') const;
 	
 	std::string getCommand(bool skipNewlines = true);
 	

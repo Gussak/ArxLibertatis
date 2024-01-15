@@ -99,9 +99,9 @@ public:
 		
 		if(sub) {
 			// private variables easily accessible only in GoSub scope, never need to prefix with label at .asl
-			// ex.: GoSub -p FUNCwork \xA3\xB7mode="init" ; // becomes \xA3FUNCwork\xB7mode, can be accessed that way anywhere, but inside the current GoSub call you just need to use \xA3\xB7mode
-			// ex.: Set \xA3\xB7test "dummy" // becomes \xA3FUNCwork\xB7test if used inside FUNCwork
-			var = context.autoVarNameForScope(false, var, label);
+			// ex.: GoSub -p FUNCwork \xA3\xBBmode="init" ; // becomes \xA3FUNCwork\xABmode, can be accessed that way anywhere, but inside the current GoSub call you just need to use \xA3\xABmode
+			// ex.: Set \xA3\xABtest "dummy" // becomes \xA3FUNCwork\xABtest if used inside FUNCwork
+			var = context.autoVarNameForScope(false, var, label, '\xBB');
 		} else {
 			ScriptError << "invalid private scope variable creation \"" << name[0] << "\" at \"" << name << "=" << val << "\", only GoSub (that create a call stack) can create them.";
 			return AbortError;

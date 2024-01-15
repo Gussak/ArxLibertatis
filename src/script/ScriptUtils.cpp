@@ -29,6 +29,7 @@
 #include "graphics/data/Mesh.h"
 #include "platform/Dialog.h"
 #include "platform/Process.h"
+#include "script/ScriptEvent.h"
 #include "util/Number.h"
 #include "util/String.h"
 
@@ -97,13 +98,13 @@ std::string Context::formatString(std::string format, std::string var) const {
 }
 #pragma GCC diagnostic pop
 
-std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride) const {
+std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, char cTokenCheck) const {
 	if(!isLocalVariable(name)) {
 		return name;
 	}
 	
 	if(privateScopeOnly) { // only if private scope is requested on the var name thru the special char
-		if(name[1] != '\xB7') { // bullet char
+		if(name[1] != cTokenCheck) {
 			return name;
 		}
 	}
@@ -112,10 +113,11 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 	if(labelOverride.size() > 0){
 		label = labelOverride;
 	} else {
-		if(m_stackIdCalledFromPos.size() == 0) { //TODO use event name instead
-			return name;
+		if(m_stackIdCalledFromPos.size() == 0) {
+			label = ScriptEvent::name(m_message);
+		} else {
+			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
 		}
-		label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
 	}
 	if(label.size() == 0) {
 		return name;
@@ -123,8 +125,8 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 	
 	char cSeparator = '_'; // local scope
 	size_t posID = 1;
-	if(name[1] == '\xB7') { // bullet char
-		cSeparator = '\xB7'; // private scope
+	if(name[1] == cTokenCheck) {
+		cSeparator = '\xAB'; // private scope
 		posID = 2;
 	}
 	
