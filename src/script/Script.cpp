@@ -2308,15 +2308,15 @@ void fixLineEnding(std::string & strData, char cLineEndingMode) {
 	}
 }
 
-void fixTo8859_1(std::string & strData) {
+void fixTo8859_1(std::string strFilename, std::string & strData) {
 	if(strData.find('\xC2') != std::string::npos) {
-		LogWarning << "fixing to ISO-8859-1"; // TODO assert instead?
+		LogWarning << "fixing data to ISO-8859-1 read from '" << strFilename << "'"; // TODO assert instead?
 		boost::replace_all(strData, "\xC2", ""); // UTF-8 seems to only prepend special chars with 0xC2
 	}
 }
 
-std::string loadAndFixScriptData(std::ifstream & file, char cLineEndingMode) {
-	return fixScriptData(loadScriptData(file), cLineEndingMode);
+std::string loadAndFixScriptData(std::string strFilename, std::ifstream & file, char cLineEndingMode) {
+	return fixScriptData(strFilename, loadScriptData(file), cLineEndingMode);
 }
 std::string loadScriptData(std::ifstream & file) {
 	std::stringstream fileData;
@@ -2324,10 +2324,10 @@ std::string loadScriptData(std::ifstream & file) {
 	file.close();
 	return fileData.str();
 }
-std::string fixScriptData(std::string strData, char cLineEndingMode) {
+std::string fixScriptData(std::string strFilename, std::string strData, char cLineEndingMode) {
 	strData = util::toLowercase(strData);
 	fixLineEnding(strData, cLineEndingMode);
-	fixTo8859_1(strData);
+	fixTo8859_1(strFilename, strData);
 	return strData;
 }
 
@@ -2364,7 +2364,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	if(moddingMode == 0) {
 		std::ifstream fileModCache(pathModdedDump.string());
 		if (fileModCache.is_open()) {
-			strScriptData = fixScriptData(loadScriptData(fileModCache), '.');
+			strScriptData = fixScriptData(pathModdedDump.string(), loadScriptData(fileModCache), '.');
 			script.file = pathModdedDump.string();
 			//fileModCache.close();
 			usingFileFromCache = true;
@@ -2375,7 +2375,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		strScriptData = file->read();
 		char cLineEndingMode = strScriptData.find("\r\n") != std::string::npos ? 'w' : 'l';
 		
-		strScriptData = fixScriptData(strScriptData, cLineEndingMode);
+		strScriptData = fixScriptData(pathScript.string(), strScriptData, cLineEndingMode);
 		
 		std::string strBaseModPath = "mods";
 		static std::vector<std::string> vModList;
@@ -2443,7 +2443,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 							arx_assert_msg(false, "failed to write required lowercase patch file '%s'", pathModPatchLowerCase.string().c_str());
 						}
 						
-						strFileDataPatch = fixScriptData(strFileDataPatch, cLineEndingMode);
+						strFileDataPatch = fixScriptData(pathModPatch.string(), strFileDataPatch, cLineEndingMode);
 						//fixLineEnding(strFileDataPatch, bLineEndingIsCRLF);
 						//fileModPatchLowerCase << util::toLowercase(strFileDataPatch);
 						fileModPatchLowerCase << strFileDataPatch;
@@ -2497,7 +2497,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 						//strScriptData = strData;
 						//strScriptData = loadAndFixScriptData(fileModPatched, bLineEndingIsCRLF);
 						//fixLineEnding(strScriptData, bLineEndingIsCRLF);
-						strScriptData = loadAndFixScriptData(fileModPatched, cLineEndingMode);
+						strScriptData = loadAndFixScriptData(pathScriptToBePatched.string(), fileModPatched, cLineEndingMode);
 						//fileModPatched.close();
 						LogInfo << "│   ├─ applied patch    : " << pathModPatchToApply.string().substr(cleanTo);;
 						modPatchApplyCount++;
@@ -2531,7 +2531,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				//strScriptData = strData + "\n" + strScriptData;
 				//strScriptData = loadAndFixScriptData(fileModOverride, bLineEndingIsCRLF) + "\n" + strScriptData;
 				//fixLineEnding(strScriptData, bLineEndingIsCRLF);
-				strScriptData = fixScriptData(loadScriptData(fileModOverride) + "\n" + strScriptData, cLineEndingMode);
+				strScriptData = fixScriptData(pathModOverride.string(), loadScriptData(fileModOverride) + "\n" + strScriptData, cLineEndingMode);
 				//fileModOverride.close();
 				LogInfo << "│   ├─ applied overrides: " << pathModOverride.string().substr(cleanTo);;
 				modOverrideApplyCount++;
@@ -2559,7 +2559,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 				//strScriptData = strScriptData + "\n" + util::toLowercase(strData);
 				//strScriptData = strScriptData + "\n" + loadAndFixScriptData(fileModAppend, cLineEndingMode);
 				//fixLineEnding(strScriptData, bLineEndingIsCRLF);
-				strScriptData = fixScriptData(strScriptData + "\n" + loadScriptData(fileModAppend), cLineEndingMode);
+				strScriptData = fixScriptData(pathModAppend.string(), strScriptData + "\n" + loadScriptData(fileModAppend), cLineEndingMode);
 				//fileModAppend.close();
 				LogInfo << "│   ├─ applied append   : " << pathModAppend.string().substr(cleanTo);;
 				modAppendApplyCount++;
