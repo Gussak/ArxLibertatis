@@ -97,13 +97,27 @@ public:
 	Result createParamVar(Context & context, std::string label, std::string var, std::string val) {
 		Entity* io = context.getEntity();
 		
-		std::string varNew = std::string() + var[0] + label + "_" + var.substr(1);
-		DebugScript(' ' << varNew << ' ' << var << ' ' << val);
+		if(sub) {
+			if(var[1] == '\xAB') {
+				ScriptError << "the expected symbol should point to the right \xBB, but found \xAB at param name requested to be created " << var << "=" << val << " at target to be called " << label;
+				return AbortError;
+			}
+			// private variables easily accessible only in GoSub scope, never need to prefix with label at .asl
+			// ex.: GoSub -p FUNCwork \xA3\xBBmode="init" ; // becomes \xA3FUNCwork\xABmode, can be accessed that way anywhere, but inside the current GoSub call you just need to use \xA3\xABmode
+			// ex.: Set \xA3\xABtest "dummy" // becomes \xA3FUNCwork\xABtest if used inside FUNCwork
+			var = context.autoVarNameForScope(false, var, label, '\xBB');
+		} else {
+			ScriptError << "invalid private scope variable creation \"" << var[0] << "\" at \"" << var << "=" << val << "\", only GoSub (that create a call stack) can create them.";
+			return AbortError;
+		}
+		
+		DebugScript(' ' << var << ' ' << val);
+		
 		SCRIPT_VAR * sv = nullptr;
 		switch(var[0]) {
-			case '\xA3': sv = SETVarValueText(io->m_variables, varNew, context.getStringVar(val,io)); break;
-			case '\xA7': sv = SETVarValueLong(io->m_variables, varNew, long(context.getFloatVar(val,io))); break;
-			case '@':    sv = SETVarValueFloat(io->m_variables, varNew, context.getFloatVar(val,io)); break;
+			case '\xA3': sv = SETVarValueText(io->m_variables, var, context.getStringVar(val,io)); break;
+			case '\xA7': sv = SETVarValueLong(io->m_variables, var, long(context.getFloatVar(val,io))); break;
+			case '@':    sv = SETVarValueFloat(io->m_variables, var, context.getFloatVar(val,io)); break;
 			default:
 				ScriptError << "invalid param local variable type \"" << var[0] << "\" at \"" << var << "=" << val << "\"";
 				return AbortError;
@@ -137,18 +151,22 @@ public:
 		std::string label = context.getWord();
 		DebugScript(' ' << label);
 		
+		Result res;
 		if(hasParams) {
 			std::string strVar; // see Script.cpp::detectAndFixGoToGoSubParam()
 			std::string strValue;
-			while(true) {
+			while(true) { // collect all params before checking if any of them failed
 				strVar = context.getWord();
 				if(strVar == ";") break;
+				
 				strValue = context.getWord(); // value may be inside double quotes
-				Result res = createParamVar(context, label, strVar, strValue);
-				if(res != Success) {
-					return res;
-				}
+				
+				Result resChk = createParamVar(context, label, strVar, strValue);
+				if(resChk != Success) res = resChk;
 			}
+		}
+		if(res != Success) {
+			return res;
 		}
 		
 		if(!sub) {
@@ -514,7 +532,7 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA7': {
-				f = GETVarValueLong(context.getEntity()->m_variables, var);
+				f = GETVarValueLong(context.getEntity()->m_variables, context.autoVarNameForScope(true, var));
 				return TYPE_FLOAT;
 			}
 			
@@ -524,7 +542,7 @@ class IfCommand : public Command {
 			}
 			
 			case '@': {
-				f = GETVarValueFloat(context.getEntity()->m_variables, var);
+				f = GETVarValueFloat(context.getEntity()->m_variables, context.autoVarNameForScope(true, var));
 				return TYPE_FLOAT;
 			}
 			
@@ -534,7 +552,7 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA3': {
-				s = GETVarValueText(context.getEntity()->m_variables, var);
+				s = GETVarValueText(context.getEntity()->m_variables, context.autoVarNameForScope(true, var));
 				return TYPE_TEXT;
 			}
 			

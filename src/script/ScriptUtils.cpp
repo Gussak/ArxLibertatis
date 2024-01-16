@@ -29,6 +29,7 @@
 #include "graphics/data/Mesh.h"
 #include "platform/Dialog.h"
 #include "platform/Process.h"
+#include "script/ScriptEvent.h"
 #include "util/Number.h"
 #include "util/String.h"
 
@@ -97,6 +98,47 @@ std::string Context::formatString(std::string format, std::string var) const {
 }
 #pragma GCC diagnostic pop
 
+std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, char cTokenCheck) const {
+	std::string nameAuto = std::string(name);
+	
+	if(!isLocalVariable(nameAuto)) {
+		return nameAuto;
+	}
+	
+	if(privateScopeOnly) { // only if private scope is requested on the var name thru the special char
+		if(nameAuto[1] != cTokenCheck) {
+			return nameAuto;
+		}
+	}
+	
+	std::string label;
+	if(labelOverride.size() > 0){
+		label = labelOverride;
+	} else {
+		if(m_stackIdCalledFromPos.size() == 0) {
+			label = ScriptEvent::name(m_message);
+		} else {
+			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
+		}
+	}
+	if(label.size() == 0) {
+		return nameAuto;
+	}
+	
+	char cSeparator = '_'; // local scope
+	size_t posID = 1;
+	if(nameAuto[1] == cTokenCheck) {
+		cSeparator = '\xAB'; // private scope
+		posID = 2;
+	}
+	
+	if(!boost::starts_with(nameAuto.substr(1), label)) { // only prefix with label if not already
+		nameAuto = std::string() + nameAuto[0] + label + cSeparator + nameAuto.substr(posID);
+	}
+	
+	return nameAuto;
+}
+
 std::string Context::getStringVar(std::string_view name, Entity * entOverride) const {
 	
 	if(name.empty()) {
@@ -104,41 +146,43 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 	}
 	
 	std::string format;
-	if(name[0] == '%') { //printf format syntax
-		format = name.substr( 0, name.find(',',0) );
-		name   = name.substr( format.size()+1 ); //+1 skips the ','
+	if(name[0] == '%') { // printf format syntax. ex.: this happens when using var expansion like ~%.2f,@var~
+		format = name.substr( 0, name.find(',', 0) );
+		name   = name.substr( format.size() + 1 ); // +1 skips the ','
 	}
 	
-	if(name[0] == '^') {
+	std::string nameAuto = autoVarNameForScope(true, name);
+	
+	if(nameAuto[0] == '^') {
 		long lv;
 		float fv;
 		std::string tv;
-		switch(getSystemVar(*this, name, tv, &fv, &lv)) {
+		switch(getSystemVar(*this, nameAuto, tv, &fv, &lv)) {
 			case TYPE_TEXT: return format.size() > 0 ? formatString(format, tv) : tv;
 			case TYPE_LONG: return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
 			default: return format.size() > 0 ? formatString(format, fv) : std::to_string(fv);
 		}
-	} else if(name[0] == '#') {
-		long lv = GETVarValueLong(svar, name);
+	} else if(nameAuto[0] == '#') {
+		long lv = GETVarValueLong(svar, nameAuto);
 		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
-	} else if(name[0] == '\xA7') {
-		long lv = GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name);
+	} else if(nameAuto[0] == '\xA7') {
+		long lv = GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
-	} else if(name[0] == '&') {
-		float fv = GETVarValueFloat(svar, name);
+	} else if(nameAuto[0] == '&') {
+		float fv = GETVarValueFloat(svar, nameAuto);
 		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
-	} else if(name[0] == '@') {
-		float fv = GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
+	} else if(nameAuto[0] == '@') {
+		float fv = GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
-	} else if(name[0] == '$') {
-		const SCRIPT_VAR * var = GetVarAddress(svar, name);
+	} else if(nameAuto[0] == '$') {
+		const SCRIPT_VAR * var = GetVarAddress(svar, nameAuto);
 		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
-	} else if(name[0] == '\xA3') {
-		const SCRIPT_VAR * var = GetVarAddress((entOverride ? entOverride : getEntity())->m_variables, name);
+	} else if(nameAuto[0] == '\xA3') {
+		const SCRIPT_VAR * var = GetVarAddress((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
 	}
 	
-	return std::string(name);
+	return nameAuto;
 }
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
@@ -454,11 +498,11 @@ float Context::getFloatVar(std::string_view name, Entity * entOverride) const {
 	} else if(name[0] == '#') {
 		return float(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name));
+		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, autoVarNameForScope(true, name)));
 	} else if(name[0] == '&') {
 		return GETVarValueFloat(svar, name);
 	} else if(name[0] == '@') {
-		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
+		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, autoVarNameForScope(true, name));
 	}
 	
 	return util::parseFloat(name);
@@ -564,18 +608,19 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
-	if(substack) {
-		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
-	}
-	
-	DebugBreakpoint(target, *this);
-	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
 	if(targetpos == size_t(-1)) {
 		return false;
 	}
 	
 	m_pos = targetpos;
+	
+	if(substack) {
+		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
+	}
+	
+	DebugBreakpoint(target, *this);
+	
 	return true;
 }
 
