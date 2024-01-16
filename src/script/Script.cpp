@@ -60,7 +60,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
-#include <boost/algorithm/string/split.hpp> // Include for boost::split
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include "ai/Paths.h"
 
@@ -519,7 +520,7 @@ static float getDegrees(const script::Context & context, const std::string_view 
 			}
 			degrees = Camera::getLookAtAngle(context.getEntity()->pos, entity->pos).getYaw();  
 			break;
-		default: /*TODO: generate some warning on log?*/ break;
+		default: LogWarning << "invalid xyz = " << xyz; break;
 	}
 	
 	degrees = MAKEANGLE(degrees);
@@ -952,17 +953,17 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 						
 						size_t iStrPosIni=iStrPosNext+1; //skip '['
 						iStrPosNext=name.find(',',iStrPosIni);
-						if(iStrPosNext == std::string::npos) return TYPE_FLOAT; //TODO warn message
+						if(iStrPosNext == std::string::npos) { return TYPE_FLOAT; LogError << "missing 1st ','"; }
 						pos.x = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
 						
 						iStrPosIni=iStrPosNext+1; //skip ','
 						iStrPosNext=name.find(',',iStrPosIni);
-						if(iStrPosNext == std::string::npos) return TYPE_FLOAT; //TODO warn message
+						if(iStrPosNext == std::string::npos) { return TYPE_FLOAT; LogError << "missing 2nd ','"; }
 						pos.y = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
 						
 						iStrPosIni=iStrPosNext+1; //skip ','
 						iStrPosNext=name.find(']',iStrPosIni);
-						if(iStrPosNext == std::string::npos) return TYPE_FLOAT; //TODO warn message
+						if(iStrPosNext == std::string::npos) { return TYPE_FLOAT; LogError << "missing ']'"; }
 						pos.z = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
 						
 						LogDebug(' ' << pos.x <<' ' << pos.y <<' ' << pos.z);
@@ -2292,6 +2293,60 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 	writeScriptAtModDumpFolder(pathFileToDebug, esdat);
 }
 
+void fixLineEnding(std::string & strData, char cLineEndingMode) {
+	switch(cLineEndingMode) {
+		case 'w':
+			boost::replace_all(strData, "\r", "");
+			boost::replace_all(strData, "\n", "\r\n");
+			break;
+		case 'l':
+			boost::replace_all(strData, "\r\n", "\n");
+			break;
+		case '.': // to ignore
+			break;
+		default: arx_assert_msg(false, "invalid LineEndingMode = '%c'", cLineEndingMode); break;
+	}
+}
+
+void fixTo8859_1(std::string strFilename, std::string & strData) {
+	if(strData.find('\xC2') != std::string::npos) {
+		LogWarning << "fixing data to ISO-8859-1 read from '" << strFilename << "'"; // TODO assert instead?
+		boost::replace_all(strData, "\xC2", ""); // UTF-8 seems to only prepend special chars with 0xC2
+	}
+}
+
+std::string loadAndFixScriptData(std::string strFilename, std::ifstream & file, char cLineEndingMode) {
+	return fixScriptData(strFilename, loadScriptData(file), cLineEndingMode);
+}
+std::string loadScriptData(std::ifstream & file) {
+	std::stringstream fileData;
+	fileData << file.rdbuf();
+	file.close();
+	return fileData.str();
+}
+std::string fixScriptData(std::string strFilename, std::string strData, char cLineEndingMode) {
+	strData = util::toLowercase(strData);
+	fixLineEnding(strData, cLineEndingMode);
+	fixTo8859_1(strFilename, strData);
+	return strData;
+}
+
+/*MultiLineCommentSectionToggleTrick
+void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
+	loadScript(script, g_resources->getFile(pathScript), pathScript);
+}
+void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
+	if(!file) {
+		return;
+	}
+	
+	script.valid = true;
+	
+	script.data = util::toLowercase(file->read());
+	
+	ARX_SCRIPT_ComputeShortcuts(script);
+}
+/*/
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);
 }
@@ -2321,21 +2376,22 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		bShowModeOnce = false;
 	}
 	
-	bool usedCache = false;
+	bool usingFileFromCache = false;
 	if(moddingMode == 0) {
 		std::ifstream fileModCache(pathModdedDump.string());
 		if (fileModCache.is_open()) {
-			std::stringstream fileData;
-			fileData << fileModCache.rdbuf();
-			strScriptData = util::toLowercase(fileData.str());
+			strScriptData = fixScriptData(pathModdedDump.string(), loadScriptData(fileModCache), '.');
 			script.file = pathModdedDump.string();
-			fileModCache.close();
-			usedCache = true;
+			//fileModCache.close();
+			usingFileFromCache = true;
 		}
 	}
 	
-	if(!usedCache) {
-		strScriptData = util::toLowercase(file->read());
+	if(!usingFileFromCache) {
+		strScriptData = file->read();
+		char cLineEndingMode = strScriptData.find("\r\n") != std::string::npos ? 'w' : 'l';
+		
+		strScriptData = fixScriptData(pathScript.string(), strScriptData, cLineEndingMode);
 		
 		std::string strBaseModPath = "mods";
 		static std::vector<std::string> vModList;
@@ -2357,20 +2413,20 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 			}
 		}
 		
-		/**
-		 * Patches are meant to be applied at originals (of other mods) and vanilla scripts.
-		 * Patches are applied before overrides.
-		 * Overrides are prepended script code.
-		 * To apply a patch in a script code override, create a new folder (mod) containing it and being loaded after.
-		 */
+		//* 1st) Patches are meant to be applied at originals (of other mods) and vanilla scripts.
+		//* 2nd) Overrides are prepended script code, they will be found before others.
+		//* 3rd) Appended code shall have unique identifiers as will be at the end, is more a mod developer helper as it's contents could also be at overrides file as the final result wont change.
+		//* To apply a patch in a script code override, create a new folder (mod) containing it and being loaded after.
 		int logInfoForScript = 0;
 		size_t modOverrideApplyCount = 0;
 		size_t modPatchApplyCount = 0;
+		size_t modAppendApplyCount = 0;
 		for(std::string strMod : vModList) {
 			std::string strModBase = std::string() + strBaseModPath + "/" + strMod + "/" + pathScript.string();
 			int cleanTo = strBaseModPath.size() + 1 + strMod.size() + 1;
-			res::path pathModOverride = strModBase + ".override.asl"; //the final .asl is to keep it easy to be detected by code editors
+			res::path pathModOverride = strModBase + ".override.asl"; // the final .asl is to keep it easy to be detected by code editors
 			res::path pathModPatch = strModBase + ".patch";
+			res::path pathModAppend = strModBase + ".append.asl"; // this file is more useful to mod developers that want to split test code from the main mod file. combine with a patch to let the test code be reachable.
 			int logInfoForMod = 0;
 			int logInfoAppliedForMod = 0;
 			
@@ -2387,19 +2443,24 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 						logInfoForMod++;
 					}
 
-					std::stringstream fileDataPatch;
-					fileDataPatch << fileModPatch.rdbuf();
-					fileModPatch.close();
+					//std::stringstream fileDataPatch;
+					//fileDataPatch << fileModPatch.rdbuf();
+					//fileModPatch.close();
+					std::string strFileDataPatch = loadScriptData(fileModPatch);
 					
 					res::path pathModPatchToApply;
-					if(fileDataPatch.str().find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
+					if(strFileDataPatch.find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
 						std::ofstream fileModPatchLowerCase;
 						res::path pathModPatchLowerCase = pathModPatch.string()+".lowercase.patch";
 						fileModPatchLowerCase.open(pathModPatchLowerCase.string(), std::ios_base::trunc);
 						if(fileModPatchLowerCase.fail()) {
 							arx_assert_msg(false, "failed to write required lowercase patch file '%s'", pathModPatchLowerCase.string().c_str());
 						}
-						fileModPatchLowerCase << util::toLowercase(fileDataPatch.str());
+						
+						strFileDataPatch = fixScriptData(pathModPatch.string(), strFileDataPatch, cLineEndingMode);
+						//fixLineEnding(strFileDataPatch, bLineEndingIsCRLF);
+						//fileModPatchLowerCase << util::toLowercase(strFileDataPatch);
+						fileModPatchLowerCase << strFileDataPatch;
 						fileModPatchLowerCase.flush();
 						fileModPatchLowerCase.close();
 						LogInfo << "│   ├─ lower case patch : " << pathModPatchLowerCase.string().substr(cleanTo);
@@ -2440,10 +2501,18 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					
 					std::ifstream fileModPatched(pathScriptToBePatched.string());
 					if (fileModPatched.is_open()) {
-						std::stringstream fileData;
-						fileData << fileModPatched.rdbuf();
-						strScriptData = util::toLowercase(fileData.str());
-						fileModPatched.close();
+						//std::stringstream fileData;
+						//fileData << fileModPatched.rdbuf();
+						//std::string strData = fileData.str();
+						//fixLineEnding(strData, bLineEndingIsCRLF);
+						//fixTo8859_1(strData);
+						//strData = util::toLowercase(strData);
+						
+						//strScriptData = strData;
+						//strScriptData = loadAndFixScriptData(fileModPatched, bLineEndingIsCRLF);
+						//fixLineEnding(strScriptData, bLineEndingIsCRLF);
+						strScriptData = loadAndFixScriptData(pathScriptToBePatched.string(), fileModPatched, cLineEndingMode);
+						//fileModPatched.close();
 						LogInfo << "│   ├─ applied patch    : " << pathModPatchToApply.string().substr(cleanTo);;
 						modPatchApplyCount++;
 					} else {
@@ -2466,12 +2535,48 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					logInfoForMod++;
 				}
 				
-				std::stringstream fileData;
-				fileData << fileModOverride.rdbuf();
-				strScriptData = util::toLowercase(fileData.str()) + "\n" + strScriptData;
-				fileModOverride.close();
+				//std::stringstream fileData;
+				//fileData << fileModOverride.rdbuf();
+				//std::string strData = fileData.str();
+				//fixLineEnding(strData, bLineEndingIsCRLF);
+				//fixTo8859_1(strData);
+				//strData = util::toLowercase(strData);
+				
+				//strScriptData = strData + "\n" + strScriptData;
+				//strScriptData = loadAndFixScriptData(fileModOverride, bLineEndingIsCRLF) + "\n" + strScriptData;
+				//fixLineEnding(strScriptData, bLineEndingIsCRLF);
+				strScriptData = fixScriptData(pathModOverride.string(), loadScriptData(fileModOverride) + "\n" + strScriptData, cLineEndingMode);
+				//fileModOverride.close();
 				LogInfo << "│   ├─ applied overrides: " << pathModOverride.string().substr(cleanTo);;
 				modOverrideApplyCount++;
+				logInfoAppliedForMod++;
+			}
+			
+			// apply simple append. Should be accompained by a patch also to let the appended code be reachable.
+			std::ifstream fileModAppend(pathModAppend.string());
+			if (fileModAppend.is_open()) {
+				if(logInfoForScript == 0) {
+					LogInfo << "Modding script file: " << pathScript.string();
+					logInfoForScript++;
+				}
+				if(logInfoForMod == 0) {
+					LogInfo << "├─ Mod name: " << strMod;
+					logInfoForMod++;
+				}
+				
+				//std::stringstream fileData;
+				//fileData << fileModAppend.rdbuf();
+				//std::string strData = fileData.str();
+				//fixLineEnding(strData, bLineEndingIsCRLF);
+				//fixTo8859_1(strData);
+				
+				//strScriptData = strScriptData + "\n" + util::toLowercase(strData);
+				//strScriptData = strScriptData + "\n" + loadAndFixScriptData(fileModAppend, cLineEndingMode);
+				//fixLineEnding(strScriptData, bLineEndingIsCRLF);
+				strScriptData = fixScriptData(pathModAppend.string(), strScriptData + "\n" + loadScriptData(fileModAppend), cLineEndingMode);
+				//fileModAppend.close();
+				LogInfo << "│   ├─ applied append   : " << pathModAppend.string().substr(cleanTo);;
+				modAppendApplyCount++;
 				logInfoAppliedForMod++;
 			}
 			
@@ -2480,10 +2585,10 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 			}
 		}
 		
-		if((modOverrideApplyCount + modPatchApplyCount) > 0) {
+		if((modOverrideApplyCount + modPatchApplyCount + modAppendApplyCount) > 0) {
 			writeScriptAtModDumpFolder(pathModdedDump, strScriptData);
 			script.file = pathModdedDump.string();
-			LogInfo << "└─ All Mods: Dumping result of " << modOverrideApplyCount << " applied overrides and " << modPatchApplyCount << " applied patches at: " << pathModdedDump;
+			LogInfo << "└─ All Mods: Dumping applied result(s) of " << modOverrideApplyCount << " override(s), " << modPatchApplyCount << " patch(es) and " << modAppendApplyCount << " append(s) at: " << pathModdedDump;
 		}
 	}
 	
@@ -2494,3 +2599,5 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	ARX_SCRIPT_ComputeShortcuts(script);
 	
 }
+//*/
+
