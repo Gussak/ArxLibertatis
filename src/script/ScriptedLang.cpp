@@ -532,7 +532,8 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA7': {
-				f = GETVarValueLong(context.getEntity()->m_variables, context.autoVarNameForScope(true, var));
+				std::string name = context.autoVarNameForScope(true, var);
+				f = GETVarValueLong(context.getEntity()->m_variables, name);
 				return TYPE_FLOAT;
 			}
 			
@@ -542,7 +543,8 @@ class IfCommand : public Command {
 			}
 			
 			case '@': {
-				f = GETVarValueFloat(context.getEntity()->m_variables, context.autoVarNameForScope(true, var));
+				std::string name = context.autoVarNameForScope(true, var);
+				f = GETVarValueFloat(context.getEntity()->m_variables, name);
 				return TYPE_FLOAT;
 			}
 			
@@ -552,7 +554,8 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA3': {
-				s = GETVarValueText(context.getEntity()->m_variables, context.autoVarNameForScope(true, var));
+				std::string name = context.autoVarNameForScope(true, var);
+				s = GETVarValueText(context.getEntity()->m_variables, name);
 				return TYPE_TEXT;
 			}
 			

@@ -2331,6 +2331,22 @@ std::string fixScriptData(std::string strFilename, std::string strData, char cLi
 	return strData;
 }
 
+/*MultiLineCommentSectionToggleTrick
+void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
+	loadScript(script, g_resources->getFile(pathScript), pathScript);
+}
+void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
+	if(!file) {
+		return;
+	}
+	
+	script.valid = true;
+	
+	script.data = util::toLowercase(file->read());
+	
+	ARX_SCRIPT_ComputeShortcuts(script);
+}
+/*/
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);
 }
@@ -2397,12 +2413,10 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 			}
 		}
 		
-		/**
-		 * 1st) Patches are meant to be applied at originals (of other mods) and vanilla scripts.
-		 * 2nd) Overrides are prepended script code, they will be found before others.
-		 * 3rd) Appended code shall have unique identifiers as will be at the end, is more a mod developer helper as it's contents could also be at overrides file as the final result wont change.
-		 * To apply a patch in a script code override, create a new folder (mod) containing it and being loaded after.
-		 */
+		//* 1st) Patches are meant to be applied at originals (of other mods) and vanilla scripts.
+		//* 2nd) Overrides are prepended script code, they will be found before others.
+		//* 3rd) Appended code shall have unique identifiers as will be at the end, is more a mod developer helper as it's contents could also be at overrides file as the final result wont change.
+		//* To apply a patch in a script code override, create a new folder (mod) containing it and being loaded after.
 		int logInfoForScript = 0;
 		size_t modOverrideApplyCount = 0;
 		size_t modPatchApplyCount = 0;
@@ -2585,3 +2599,5 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	ARX_SCRIPT_ComputeShortcuts(script);
 	
 }
+//*/
+

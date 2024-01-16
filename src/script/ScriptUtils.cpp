@@ -100,7 +100,9 @@ std::string Context::formatString(std::string format, std::string var) const {
 
 std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, char cTokenCheck) const {
 	std::string nameAuto = std::string(name);
-	
+/*MultiLineCommentSectionToggleTrick
+	return nameAuto;
+/*/
 	if(!isLocalVariable(nameAuto)) {
 		return nameAuto;
 	}
@@ -137,6 +139,7 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 	}
 	
 	return nameAuto;
+//*/
 }
 
 std::string Context::getStringVar(std::string_view name, Entity * entOverride) const {
@@ -498,11 +501,13 @@ float Context::getFloatVar(std::string_view name, Entity * entOverride) const {
 	} else if(name[0] == '#') {
 		return float(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, autoVarNameForScope(true, name)));
+		std::string nameAuto = autoVarNameForScope(true, name);
+		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, nameAuto));
 	} else if(name[0] == '&') {
 		return GETVarValueFloat(svar, name);
 	} else if(name[0] == '@') {
-		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, autoVarNameForScope(true, name));
+		std::string nameAuto = autoVarNameForScope(true, name);
+		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 	}
 	
 	return util::parseFloat(name);
