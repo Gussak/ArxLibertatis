@@ -2220,7 +2220,7 @@ static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, std::string &
 void detectAndFixGoToGoSubParam(std::string & line) { // transform goto/gosub param var=value into var value (replace '=' with space)
 	std::regex reSearch("_*g_*o_*(t_*o|s_*u_*b)_*", std::regex_constants::ECMAScript | std::regex_constants::icase);
 	if (std::regex_search(line, reSearch)) {
-		std::regex reReplace("([ \t][@\xA3\xA7][a-z0-9_]*)=([^ \t])", std::regex_constants::ECMAScript | std::regex_constants::icase);
+		std::regex reReplace("([ \t][@\xA3\xA7][\xAB\xBB]{1}[a-z0-9_]*)=([^ \t])", std::regex_constants::ECMAScript | std::regex_constants::icase); // create a strict/precise match as possible. For \xAB and \xBB read ScriptedLand.cpp GotoCommand::createParamVar()
 		line = std::regex_replace(line, reReplace, "$1 $2");
 	}
 }
