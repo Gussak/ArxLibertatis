@@ -613,6 +613,12 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 	if(substack) {
 		// push the position from where the target will be called
 		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
+		
+		static size_t iCountRecursiveCheck = 0;
+		if(m_stackIdCalledFromPos.size() > 100 && iCountRecursiveCheck%100 == 0) {
+			LogWarning << "infinite recursive loop? " << getGoSubCallStack("CallStack(called from line,column):\n ", "", " -> \n ");
+			iCountRecursiveCheck++;
+		}
 	}
 	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);

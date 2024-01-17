@@ -940,7 +940,7 @@ public:
 				}
 			}
 			
-			// logic connector say the next thing is a logical result to process. They also make reading the script more clear. they are always in-between, 2nd 4th 6th... word on.
+			// logic connector say the next thing is a logical result to process. They also make reading the script more clear. they are always in-between: 2nd 4th 6th...
 			if(iCount%2 == 0){
 				if(logicOp == 'n') { //not
 					ScriptError << "the not() logical operator only accepts one comparison or nested logic operator";
