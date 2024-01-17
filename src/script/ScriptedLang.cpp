@@ -95,6 +95,8 @@ public:
 	GotoCommand(std::string_view command, bool _sub = false) : Command(command), sub(_sub) { }
 	
 	Result createParamVar(Context & context, std::string label, std::string var, std::string val) {
+		arx_assert(var.size() > 0);
+		arx_assert(val.size() > 0);
 		Entity* io = context.getEntity();
 		
 		if(sub) {
