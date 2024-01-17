@@ -116,6 +116,7 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 	} else {
 		if(m_stackIdCalledFromPos.size() == 0) {
 			label = ScriptEvent::name(m_message);
+			label[2] = '_'; // ex.: on main becomes on_main
 		} else {
 			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
 		}
@@ -150,36 +151,38 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 		name   = name.substr( format.size() + 1 ); // +1 skips the ','
 	}
 	
-	if(name[0] == '^') {
+	std::string nameAuto = autoVarNameForScope(true, name);
+	
+	if(nameAuto[0] == '^') {
 		long lv;
 		float fv;
 		std::string tv;
-		switch(getSystemVar(*this, name, tv, &fv, &lv)) {
+		switch(getSystemVar(*this, nameAuto, tv, &fv, &lv)) {
 			case TYPE_TEXT: return format.size() > 0 ? formatString(format, tv) : tv;
 			case TYPE_LONG: return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
 			default: return format.size() > 0 ? formatString(format, fv) : std::to_string(fv);
 		}
-	} else if(name[0] == '#') {
-		long lv = GETVarValueLong(svar, name);
+	} else if(nameAuto[0] == '#') {
+		long lv = GETVarValueLong(svar, nameAuto);
 		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
-	} else if(name[0] == '\xA7') {
-		long lv = GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name);
+	} else if(nameAuto[0] == '\xA7') {
+		long lv = GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
-	} else if(name[0] == '&') {
-		float fv = GETVarValueFloat(svar, name);
+	} else if(nameAuto[0] == '&') {
+		float fv = GETVarValueFloat(svar, nameAuto);
 		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
-	} else if(name[0] == '@') {
-		float fv = GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
+	} else if(nameAuto[0] == '@') {
+		float fv = GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
-	} else if(name[0] == '$') {
-		const SCRIPT_VAR * var = GetVarAddress(svar, name);
+	} else if(nameAuto[0] == '$') {
+		const SCRIPT_VAR * var = GetVarAddress(svar, nameAuto);
 		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
-	} else if(name[0] == '\xA3') {
-		const SCRIPT_VAR * var = GetVarAddress((entOverride ? entOverride : getEntity())->m_variables, name);
+	} else if(nameAuto[0] == '\xA3') {
+		const SCRIPT_VAR * var = GetVarAddress((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
 	}
 	
-	return std::string(name);
+	return nameAuto;
 }
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
@@ -495,11 +498,13 @@ float Context::getFloatVar(std::string_view name, Entity * entOverride) const {
 	} else if(name[0] == '#') {
 		return float(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name));
+		std::string nameAuto = autoVarNameForScope(true, name);
+		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, nameAuto));
 	} else if(name[0] == '&') {
 		return GETVarValueFloat(svar, name);
 	} else if(name[0] == '@') {
-		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
+		std::string nameAuto = autoVarNameForScope(true, name);
+		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 	}
 	
 	return util::parseFloat(name);
@@ -605,18 +610,19 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
+	if(substack) {
+		// push the position from where the target will be called
+		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
+	}
+	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
 	if(targetpos == size_t(-1)) {
 		return false;
 	}
 	
-	m_pos = targetpos;
-	
-	if(substack) {
-		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
-	}
-	
 	DebugBreakpoint(target, *this);
+	
+	m_pos = targetpos;
 	
 	return true;
 }

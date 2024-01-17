@@ -152,7 +152,7 @@ public:
 		DebugScript(' ' << label);
 		
 		if(hasParams) {
-			Result res = Success;
+			Result resParams = Success;
 			std::string strVar; // see Script.cpp::detectAndFixGoToGoSubParam()
 			std::string strValue;
 			while(true) { // collect all params before checking if any of them failed
@@ -162,10 +162,10 @@ public:
 				strValue = context.getWord(); // value may be inside double quotes
 				
 				Result resChk = createParamVar(context, label, strVar, strValue);
-				if(resChk != Success) res = resChk;
+				if(resChk != Success) resParams = resChk;
 			}
-			if(res != Success) {
-				return res;
+			if(resParams != Success) {
+				return resParams;
 			}
 		}
 		
@@ -532,7 +532,8 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA7': {
-				f = GETVarValueLong(context.getEntity()->m_variables, var);
+				std::string name = context.autoVarNameForScope(true, var);
+				f = GETVarValueLong(context.getEntity()->m_variables, name);
 				return TYPE_FLOAT;
 			}
 			
@@ -542,7 +543,8 @@ class IfCommand : public Command {
 			}
 			
 			case '@': {
-				f = GETVarValueFloat(context.getEntity()->m_variables, var);
+				std::string name = context.autoVarNameForScope(true, var);
+				f = GETVarValueFloat(context.getEntity()->m_variables, name);
 				return TYPE_FLOAT;
 			}
 			
@@ -552,7 +554,8 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA3': {
-				s = GETVarValueText(context.getEntity()->m_variables, var);
+				std::string name = context.autoVarNameForScope(true, var);
+				s = GETVarValueText(context.getEntity()->m_variables, name);
 				return TYPE_TEXT;
 			}
 			

@@ -118,7 +118,7 @@ class TextInputCommand : public Command {
 		Result execute(Context & context) override {
 			
 			std::string strQuestion = context.getWord();
-			std::string strVar = context.getWord();
+			std::string strVar = context.autoVarNameForScope(true, context.getWord());
 			
 			std::string strVal = context.getStringVar(strVar);
 			

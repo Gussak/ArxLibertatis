@@ -440,7 +440,7 @@ class InventoryCommand : public Command {
 				}
 			}
 			
-			std::string var = context.getWord();
+			std::string var = context.autoVarNameForScope(true, context.getWord());
 			std::string strItemIdPrefix = context.getStringVar(context.getWord());
 			
 			if(!entInvReadFrom) {
