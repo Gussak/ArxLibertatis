@@ -2320,9 +2320,9 @@ void fixTo8859_1(std::string strFilename, std::string & strData) {
 }
 
 std::string loadAndFixScriptData(std::string strFilename, std::ifstream & file, char cLineEndingMode) {
-	return fixScriptData(strFilename, loadScriptDataAndCloseFile(file), cLineEndingMode);
+	return fixScriptData(strFilename, loadFileDataAndCloseIt(file), cLineEndingMode);
 }
-std::string loadScriptDataAndCloseFile(std::ifstream & file) {
+std::string loadFileDataAndCloseIt(std::ifstream & file) {
 	std::stringstream fileData;
 	fileData << file.rdbuf();
 	file.close();
@@ -2384,7 +2384,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	if(moddingMode == 0) {
 		std::ifstream fileModCache(pathModdedDump.string());
 		if (fileModCache.is_open()) {
-			strScriptData = fixScriptData(pathModdedDump.string(), loadScriptDataAndCloseFile(fileModCache), '.');
+			strScriptData = fixScriptData(pathModdedDump.string(), loadFileDataAndCloseIt(fileModCache), '.');
 			script.file = pathModdedDump.string();
 			usingFileFromCache = true;
 		}
@@ -2397,15 +2397,25 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		strScriptData = fixScriptData(pathScript.string(), strScriptData, cLineEndingMode);
 		
 		std::string strBaseModPath = "mods";
+		std::string strFlModLoadOrder = strBaseModPath + "/" + "modloadorder.cfg";
 		static std::vector<std::string> vModList;
+		static std::string strModListFileData;
+		if(strModListFileData.size() == 0 || moddingMode) { // detects changes in the load order in case of modding mode
+			std::ifstream flLoadOrder(strFlModLoadOrder);
+			std::string strModListFileDataNew = loadFileDataAndCloseIt(flLoadOrder);
+			if(strModListFileDataNew != strModListFileData) {
+				vModList.clear();
+				strModListFileData = strModListFileDataNew;
+			}
+		}
 		if(vModList.size() == 0) {
 			//the last in the list wins.
-			std::string strFlModLoadOrder = strBaseModPath + "/" + "modloadorder.cfg";
 			std::ifstream flLoadOrder(strFlModLoadOrder);
 			if (flLoadOrder.is_open()) {
 				std::string line;
 				LogInfo << "Mod load order file found: " << strFlModLoadOrder;
 				while (std::getline(flLoadOrder, line)) {
+					//strModListFileData += line + "\n"; // should detect \r\n
 					if(line.size() == 0) continue; //empty lines are ignored
 					if(line[0] == '#') continue; //lines beggining with # are comments and will be ignored
 					vModList.push_back(line.c_str());
@@ -2446,7 +2456,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 						logInfoForMod++;
 					}
 
-					std::string strFileDataPatch = loadScriptDataAndCloseFile(fileModPatch);
+					std::string strFileDataPatch = loadFileDataAndCloseIt(fileModPatch);
 					
 					res::path pathModPatchToApply;
 					if(strFileDataPatch.find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
@@ -2522,7 +2532,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					logInfoForMod++;
 				}
 				
-				strScriptData = fixScriptData(pathModOverride.string(), loadScriptDataAndCloseFile(fileModOverride) + "\n" + strScriptData, cLineEndingMode);
+				strScriptData = fixScriptData(pathModOverride.string(), loadFileDataAndCloseIt(fileModOverride) + "\n" + strScriptData, cLineEndingMode);
 				LogInfo << "│   ├─ applied overrides: " << pathModOverride.string().substr(cleanTo);;
 				modOverrideApplyCount++;
 				logInfoAppliedForMod++;
@@ -2540,14 +2550,15 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					logInfoForMod++;
 				}
 				
-				strScriptData = fixScriptData(pathModAppend.string(), strScriptData + "\n" + loadScriptDataAndCloseFile(fileModAppend), cLineEndingMode);
+				strScriptData = fixScriptData(pathModAppend.string(), strScriptData + "\n" + loadFileDataAndCloseIt(fileModAppend), cLineEndingMode);
 				LogInfo << "│   ├─ applied append   : " << pathModAppend.string().substr(cleanTo);;
 				modAppendApplyCount++;
 				logInfoAppliedForMod++;
 			}
 			
 			if(logInfoAppliedForMod > 0) {
-				LogInfo << "│   └─ End apply all for: " << strMod;
+				LogInfo << "│   └─ Ended applying all for: " << strMod;
+				// else? LogWarning << "│   └─ Nothing found to apply at: " << strMod;
 			}
 		}
 		
