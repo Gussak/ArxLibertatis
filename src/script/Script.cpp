@@ -2231,7 +2231,7 @@ void adaptScriptCode(std::string & line) {
  * Necessary because of other parts of the code that seek back for the single line comment token "//" !
  * IMPORTANT: This is destructive. Will replace initial chars of each line in the multiline comment with "//", but only in the RAM.
  */
-void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript) {
+bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript) {
 	std::stringstream ssErrMsg;
 	ssErrMsg << "MultilineCommentScript at '" << pathScript.string();
 	
@@ -2243,6 +2243,7 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 	esdat="";
 	bool bSeekBeginMLC = true;
 	size_t lineCount = 0;
+	size_t countMLC = 0;
 	for(std::string line : lines) {
 		lineCount++;
 		
@@ -2263,6 +2264,7 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 					line[posBeginMLC  ] = '/';
 					line[posBeginMLC+1] = '/';
 					bSeekBeginMLC = false;
+					countMLC++;
 				}
 			}
 		} else { //seek end
@@ -2288,9 +2290,11 @@ void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 		}
 	}
 	
-	res::path pathFileToDebug;
-	pathFileToDebug = pathScript.string() + ".debug";
-	writeScriptAtModDumpFolder(pathFileToDebug, esdat);
+	writeScriptAtModDumpFolder(pathScript, esdat);
+	
+	LogDebug("Converted " << countMLC << " multiline comment(s) to single line comments at " << pathScript.string());
+	
+	return countMLC > 0;
 }
 
 void fixLineEnding(std::string & strData, char cLineEndingMode) {
@@ -2316,9 +2320,9 @@ void fixTo8859_1(std::string strFilename, std::string & strData) {
 }
 
 std::string loadAndFixScriptData(std::string strFilename, std::ifstream & file, char cLineEndingMode) {
-	return fixScriptData(strFilename, loadScriptData(file), cLineEndingMode);
+	return fixScriptData(strFilename, loadScriptDataAndCloseFile(file), cLineEndingMode);
 }
-std::string loadScriptData(std::ifstream & file) {
+std::string loadScriptDataAndCloseFile(std::ifstream & file) {
 	std::stringstream fileData;
 	fileData << file.rdbuf();
 	file.close();
@@ -2331,7 +2335,7 @@ std::string fixScriptData(std::string strFilename, std::string strData, char cLi
 	return strData;
 }
 
-/*MultiLineCommentSectionToggleTrick
+/* MultiLineCommentSectionToggleTrick commenting this line will uncomment next block
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);
 }
@@ -2372,7 +2376,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	}
 	static bool bShowModeOnce = true;
 	if(bShowModeOnce) {
-		LogInfo << "Modding mode (" << moddingMode << "): " << (moddingMode == 0 ? "using cached modded scripts if available" : "developer mode always re-patch and re-apply overrides");
+		LogInfo << "Modding mode (" << moddingMode << "): " << (moddingMode == 0 ? "using cached modded scripts if available" : "developer mode always apply patches, overrides and appends, letting you edit .asl files without restarting the game");
 		bShowModeOnce = false;
 	}
 	
@@ -2380,9 +2384,8 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	if(moddingMode == 0) {
 		std::ifstream fileModCache(pathModdedDump.string());
 		if (fileModCache.is_open()) {
-			strScriptData = fixScriptData(pathModdedDump.string(), loadScriptData(fileModCache), '.');
+			strScriptData = fixScriptData(pathModdedDump.string(), loadScriptDataAndCloseFile(fileModCache), '.');
 			script.file = pathModdedDump.string();
-			//fileModCache.close();
 			usingFileFromCache = true;
 		}
 	}
@@ -2443,10 +2446,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 						logInfoForMod++;
 					}
 
-					//std::stringstream fileDataPatch;
-					//fileDataPatch << fileModPatch.rdbuf();
-					//fileModPatch.close();
-					std::string strFileDataPatch = loadScriptData(fileModPatch);
+					std::string strFileDataPatch = loadScriptDataAndCloseFile(fileModPatch);
 					
 					res::path pathModPatchToApply;
 					if(strFileDataPatch.find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
@@ -2458,8 +2458,6 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 						}
 						
 						strFileDataPatch = fixScriptData(pathModPatch.string(), strFileDataPatch, cLineEndingMode);
-						//fixLineEnding(strFileDataPatch, bLineEndingIsCRLF);
-						//fileModPatchLowerCase << util::toLowercase(strFileDataPatch);
 						fileModPatchLowerCase << strFileDataPatch;
 						fileModPatchLowerCase.flush();
 						fileModPatchLowerCase.close();
@@ -2501,18 +2499,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					
 					std::ifstream fileModPatched(pathScriptToBePatched.string());
 					if (fileModPatched.is_open()) {
-						//std::stringstream fileData;
-						//fileData << fileModPatched.rdbuf();
-						//std::string strData = fileData.str();
-						//fixLineEnding(strData, bLineEndingIsCRLF);
-						//fixTo8859_1(strData);
-						//strData = util::toLowercase(strData);
-						
-						//strScriptData = strData;
-						//strScriptData = loadAndFixScriptData(fileModPatched, bLineEndingIsCRLF);
-						//fixLineEnding(strScriptData, bLineEndingIsCRLF);
 						strScriptData = loadAndFixScriptData(pathScriptToBePatched.string(), fileModPatched, cLineEndingMode);
-						//fileModPatched.close();
 						LogInfo << "│   ├─ applied patch    : " << pathModPatchToApply.string().substr(cleanTo);;
 						modPatchApplyCount++;
 					} else {
@@ -2535,18 +2522,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					logInfoForMod++;
 				}
 				
-				//std::stringstream fileData;
-				//fileData << fileModOverride.rdbuf();
-				//std::string strData = fileData.str();
-				//fixLineEnding(strData, bLineEndingIsCRLF);
-				//fixTo8859_1(strData);
-				//strData = util::toLowercase(strData);
-				
-				//strScriptData = strData + "\n" + strScriptData;
-				//strScriptData = loadAndFixScriptData(fileModOverride, bLineEndingIsCRLF) + "\n" + strScriptData;
-				//fixLineEnding(strScriptData, bLineEndingIsCRLF);
-				strScriptData = fixScriptData(pathModOverride.string(), loadScriptData(fileModOverride) + "\n" + strScriptData, cLineEndingMode);
-				//fileModOverride.close();
+				strScriptData = fixScriptData(pathModOverride.string(), loadScriptDataAndCloseFile(fileModOverride) + "\n" + strScriptData, cLineEndingMode);
 				LogInfo << "│   ├─ applied overrides: " << pathModOverride.string().substr(cleanTo);;
 				modOverrideApplyCount++;
 				logInfoAppliedForMod++;
@@ -2564,17 +2540,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					logInfoForMod++;
 				}
 				
-				//std::stringstream fileData;
-				//fileData << fileModAppend.rdbuf();
-				//std::string strData = fileData.str();
-				//fixLineEnding(strData, bLineEndingIsCRLF);
-				//fixTo8859_1(strData);
-				
-				//strScriptData = strScriptData + "\n" + util::toLowercase(strData);
-				//strScriptData = strScriptData + "\n" + loadAndFixScriptData(fileModAppend, cLineEndingMode);
-				//fixLineEnding(strScriptData, bLineEndingIsCRLF);
-				strScriptData = fixScriptData(pathModAppend.string(), strScriptData + "\n" + loadScriptData(fileModAppend), cLineEndingMode);
-				//fileModAppend.close();
+				strScriptData = fixScriptData(pathModAppend.string(), strScriptData + "\n" + loadScriptDataAndCloseFile(fileModAppend), cLineEndingMode);
 				LogInfo << "│   ├─ applied append   : " << pathModAppend.string().substr(cleanTo);;
 				modAppendApplyCount++;
 				logInfoAppliedForMod++;
