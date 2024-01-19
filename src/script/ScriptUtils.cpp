@@ -98,15 +98,16 @@ std::string Context::formatString(std::string format, std::string var) const {
 }
 #pragma GCC diagnostic pop
 
-std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, char cTokenCheck) const {
+std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, bool bCreatingVar) const {
 	std::string nameAuto = std::string(name);
 	if(!isLocalVariable(nameAuto)) {
-		return nameAuto;
+		return nameAuto; //keep on top to be quick, no warning
 	}
 	
-	if(privateScopeOnly) { // only if private scope is requested on the var name thru the special char
+	char cTokenCheck = bCreatingVar ? '\xBB' : '\xAB'; // tiny '>>' : '<<'
+	if(privateScopeOnly) { // only if pseudo-private scope is requested on the var name thru the special char
 		if(nameAuto[1] != cTokenCheck) {
-			return nameAuto;
+			return nameAuto; //keep on top to be quick, no warning
 		}
 	}
 	
@@ -116,20 +117,39 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 	} else {
 		if(m_stackIdCalledFromPos.size() == 0) {
 			label = ScriptEvent::name(m_message);
-			label[2] = '_'; // ex.: on main becomes on_main
+			label[2] = '_'; // ex.: "on main" becomes "on_main"
 		} else {
 			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
 		}
 	}
 	if(label.size() == 0) {
+		LogWarning << getPositionAndLineNumber(true) <<", Empty label for: " << nameAuto;
 		return nameAuto;
+	}
+	
+	if(bCreatingVar) {
+		if(nameAuto[1] == '\xAB') {
+			LogError << getPositionAndLineNumber(true) <<", At GoSub param var name to be created/set, it is expected the tiny symbol \xBB '>>', but found \xAB '<<': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
+	} else {
+		if(nameAuto[1] == '\xBB') {
+			LogError << getPositionAndLineNumber(true) <<", In a \"function\", pseudo-private var name shall use the tiny symbol \xAB '<<', but found \xBB '>>': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
 	}
 	
 	char cSeparator = '_'; // local scope
 	size_t posID = 1;
 	if(nameAuto[1] == cTokenCheck) {
-		cSeparator = '\xAB'; // private scope
+		cSeparator = '\xAB'; // pseudo-private scope tiny '<<' char. vars are ALWAYS created with this, and never with \xBB '>>'
 		posID = 2;
+	}
+	if(cSeparator == '_') {
+		static bool warnLocalScopeParams = [](){const char * pc = std::getenv("ARX_WarnGoSubWithLocalScopeParams"); LogWarning << "[ARX_WarnGoSubWithLocalScopeParams] = \"" << pc << "\""; bool b = pc ? util::toLowercase(pc) == "true" : false; return b;}();  // warns only once. export ARX_WarnGoSubWithLocalScopeParams=true
+		if(warnLocalScopeParams) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
+			LogWarning << getPositionAndLineNumber(true) <<", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB tiny '>>'";
+		}
 	}
 	
 	if(!boost::starts_with(nameAuto.substr(1), label)) { // only prefix with label if not already

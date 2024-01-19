@@ -61,6 +61,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
 #include "util/Number.h"
+#include "util/String.h"
 
 
 namespace script {
@@ -100,17 +101,20 @@ public:
 		Entity* io = context.getEntity();
 		
 		if(sub) {
-			if(var[1] == '\xAB') {
-				ScriptError << "the expected symbol should point to the right \xBB, but found \xAB at param name requested to be created " << var << "=" << val << " at target to be called " << label;
-				return AbortError;
-			}
+			//if(var[1] == '\xAB') {
+				//ScriptError << "the expected symbol should point to the right \xBB, but found \xAB at param name requested to be created " << var << "=" << val << " at target to be called " << label;
+				//return AbortError;
+			//}
+			
 			// private variables easily accessible only in GoSub scope, never need to prefix with label at .asl
 			// ex.: GoSub -p FUNCwork \xA3\xBBmode="init" ; // becomes \xA3FUNCwork\xABmode, can be accessed that way anywhere, but inside the current GoSub call you just need to use \xA3\xABmode
 			// ex.: Set \xA3\xABtest "dummy" // becomes \xA3FUNCwork\xABtest if used inside FUNCwork
-			var = context.autoVarNameForScope(false, var, label, '\xBB');
+			var = context.autoVarNameForScope(false, var, label, true);
 		} else {
-			ScriptError << "invalid private scope variable creation \"" << var[0] << "\" at \"" << var << "=" << val << "\", only GoSub (that create a call stack) can create them.";
-			return AbortError;
+			static bool goToWithParams = [](){const char * pc = std::getenv("ARX_WarnGoToWithParams"); LogInfo << "[ARX_WarnGoToWithParams] = \"" << pc << "\""; bool b = pc ? util::toLowercase(pc) == "true" : false; return b;}();  // warns only once. export ARX_WarnGoToWithParams=true
+			if(goToWithParams) {
+				ScriptWarning << "pseudo-private scope variable creation \"" << var[0] << "\" at \"" << var << "=" << val << "\", only GoSub (that create a call stack) should create them.";
+			}
 		}
 		
 		DebugScript(' ' << var << ' ' << val);
@@ -884,6 +888,7 @@ public:
 		std::string wordCheck;
 		int iCount=0;
 		bool bJustConsumeTheWordsThisLoopAndNestedOnly = bJustConsumeTheWords;
+		bool bSquareBracketsMode = false;
 		while(true){
 			if(res != Success) {return res;}; // in case of errors found in the script.
 			iCount++;
@@ -891,8 +896,22 @@ public:
 			positionBeforeWord = context.getPosition(); //Put after skip new lines.
 			wordCheck = context.getWord();
 			
+			if(wordCheck == "[") { // nesting always happens thru some control word: and|or|not so this opening can be ignored but commands further formatting
+				bSquareBracketsMode = true;
+				break;
+			}
+			
 			//logic operation loop end detected. this is not required in the script if the next thing to be found is a '{'
-			if( boost::equals(wordCheck, ";") ) { 
+			if(wordCheck == ";") {
+				if(bSquareBracketsMode) {
+					ScriptWarning << "logic block started with '[' so it should end with ']'";
+				}
+				break;
+			}
+			if(wordCheck == "]") { 
+				if(!bSquareBracketsMode) {
+					ScriptWarning << "logic block did not start with '[' so it should end with ';'";
+				}
 				break;
 			}
 			
@@ -973,6 +992,10 @@ public:
 		context.skipWhitespaceAndComment();
 		size_t positionBeforeWord = context.getPosition(); //this is used to undo the wordCkeck position. Put after skip new lines.
 		std::string wordCheck = context.getWord();
+		if(wordCheck == "[") {
+			positionBeforeWord = context.getPosition();
+			wordCheck = context.getWord();
+		}
 		if(recursiveLogicOperationByWord(context, wordCheck, condition, res, bJustConsumeTheWords)){
 			// all work already done at recursiveLogicOperationByWord(...)
 		} else {
