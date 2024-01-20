@@ -116,8 +116,10 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 		label = labelOverride;
 	} else {
 		if(m_stackIdCalledFromPos.size() == 0) {
-			label = ScriptEvent::name(m_message);
-			label[2] = '_'; // ex.: "on main" becomes "on_main"
+			if(m_message < SM_MAXCMD) {
+				label = ScriptEvent::name(m_message);
+				label[2] = '_'; // ex.: "on main" becomes "on_main"
+			}
 		} else {
 			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
 		}
