@@ -1091,6 +1091,17 @@ void timerCommand(std::string_view name, Context & context) {
 	
 	SCR_TIMER & timer = createScriptTimer(context.getEntity(), std::move(timername));
 	timer.es = context.getScript();
+	
+	// TODO? warn if timer name doesnt start with a gosub/goto target name. may be pass the timer object and check at GoToCommand?
+	//std::string checkGoSubTo = context.getWord();
+	//if(checkGoSubTo == "gosub" || checkGoSubTo == "goto") {
+		//while(timer.es.data[context.getPosition()] != '\n') {
+			//std::string checkGoSubToTarget = context.getWord();
+			//todoa
+		//}
+	//}
+	//context.seekToPosition(pos);
+	
 	if(mili) {
 		timer.interval = std::chrono::duration<float, std::milli>(interval);
 	} else {
