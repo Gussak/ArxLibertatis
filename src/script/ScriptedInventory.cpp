@@ -393,7 +393,7 @@ class InventoryCommand : public Command {
 			std::string list;
 			if(ent && ent->inventory) {
 				for(auto slot : ent->inventory->slots()) {
-					if(slot.entity && (boost::starts_with(slot.entity->idString(), prefix) || prefix == "*")) {
+					if(slot.entity && (boost::starts_with(slot.entity->idString(), prefix) || prefix == "*" || prefix == "all")) {
 						if(list != "") {
 							list += " ";
 						}
