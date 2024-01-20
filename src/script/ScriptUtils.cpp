@@ -579,9 +579,13 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 	if(boost::starts_with(util::toLowercase(strCustomMessage), "warn:" )) ssWarn  << strCustomMessage.substr(5);
 	if(boost::starts_with(util::toLowercase(strCustomMessage), "error:")) ssError << strCustomMessage.substr(6);
 	
+	std::stringstream ssFlInfo; ssFlInfo << " at \"" << strFileToEdit << "\"";
+	
 	size_t lineAtFileToEdit = 0;
 	if(context) {
 		std::string strScriptMsg = context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)); // must become lowercase or wont match
+		
+		ssFlInfo << " " << context->getPositionAndLineNumber(true);
 		
 		if(boost::starts_with(util::toLowercase(strScriptMsg), "warn:" )) ssWarn  << " " << strScriptMsg.substr(5);
 		if(boost::starts_with(util::toLowercase(strScriptMsg), "error:")) ssError << " " << strScriptMsg.substr(6);
@@ -593,7 +597,6 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 			 << " [!!!ScriptDebugMessage!!!] " << strScriptMsg << "\n";
 	}
 	
-	std::stringstream ssFlInfo; ssFlInfo << " at \"" << strFileToEdit << "\"";
 	if(ssWarn.str().size()  > 0) LogWarning << ssWarn.str()  << ssFlInfo.str();
 	if(ssError.str().size() > 0) LogError   << ssError.str() << ssFlInfo.str();
 	

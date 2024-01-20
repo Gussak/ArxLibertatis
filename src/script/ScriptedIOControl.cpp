@@ -723,13 +723,13 @@ public:
 		
 		DamageType type = getDamageType(context);
 		
-		std::string target = context.getWord();
+		std::string target = context.getStringVar(context.getWord());
 		
 		float damage = context.getFloat();
 		
 		DebugScript(' ' << type << ' ' << target);
 		
-		Entity * entity = entities.getById(context.getStringVar(target), context.getEntity());
+		Entity * entity = entities.getById(target, context.getEntity());
 		if(!entity) {
 			ScriptWarning << "unknown target: " << target;
 			return Failed;

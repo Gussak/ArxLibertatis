@@ -554,21 +554,23 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 			return true;
 		}
 		
-		if(retPopupCmd == 2) {
+		// retPopupCmd == 1 is ignore once
+		
+		if(retPopupCmd == 2 || retPopupCmd == 2*256) { // TODO explain how 2 returned from yad becomes 512 ...
 			//ignoreTo = platform::getTime() + 10*1000000 ;
 			ignoreTo = time(0) + 10;
 			//ignoreTimes += 10;
 		}
-		if(retPopupCmd == 3) {
+		if(retPopupCmd == 3 || retPopupCmd == 3*256) {
 			//ignoreTo = platform::getTime() + 60*1000000 ;
 			ignoreTo = time(0) + 60;
 			//ignoreTimes += 100;
 		}
-		if(retPopupCmd == 4) {
+		if(retPopupCmd == 4 || retPopupCmd == 4*256) {
 			//ignoreTo = platform::getTime() + 600*1000000 ;
 			ignoreTo = time(0) + 600;
 		}
-		if(retPopupCmd == 5) {
+		if(retPopupCmd == 5 || retPopupCmd == 5*256) {
 			//ignoreTo = platform::getTime() + 3600*1000000 ;
 			ignoreTo = time(0) + 3600;
 		}
