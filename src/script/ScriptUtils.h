@@ -90,7 +90,6 @@ class Context {
 	ScriptMessage m_message;
 	ScriptParameters m_parameters;
 	const SCR_TIMER * m_timer;
-	bool m_checkTimerIdVsGoToLabelOnce;
 	std::vector<std::pair<size_t, std::string>> m_stackIdCalledFromPos;
 	std::vector<size_t> m_vNewLineAt;
 	
@@ -139,9 +138,9 @@ public:
 	
 	const EERIE_SCRIPT * getScript() const { return m_script; }
 	
-	bool isCheckTimerIdVsGoToLabelOnce() { return m_checkTimerIdVsGoToLabelOnce; }
-	void clearCheckTimerIdVsGoToLabelOnce() { m_checkTimerIdVsGoToLabelOnce = false; }
-	std::string_view getTimerName() { return m_timer->name; }
+	bool isCheckTimerIdVsGoToLabelOnce() { return m_timer != nullptr; }
+	void clearCheckTimerIdVsGoToLabelOnce() { m_timer = nullptr; }
+	std::string_view getTimerName() { return m_timer ? m_timer->name : ""; }
 	
 	size_t getPosition() const { return m_pos; }
 	void getLineColumn(size_t & iLine, size_t & iColumn, size_t pos = static_cast<size_t>(-1)) const;

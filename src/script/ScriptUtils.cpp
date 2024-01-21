@@ -62,8 +62,6 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_timer(timer)
 {
 	updateNewLinesList();
-	
-	m_checkTimerIdVsGoToLabelOnce = m_timer ? true : false;
 }
 
 void Context::updateNewLinesList() {
