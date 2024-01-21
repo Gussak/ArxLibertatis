@@ -444,6 +444,9 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 			context.skipCommand();
 		}
 		
+		if(timer) {
+			context.clearCheckTimerIdVsGoToLabelOnce();
+		}
 	}
 	
 	LogDebug("<-- " << event << " finished: " << toString(ret));

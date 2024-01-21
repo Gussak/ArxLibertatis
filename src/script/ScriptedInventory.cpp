@@ -425,7 +425,7 @@ class InventoryCommand : public Command {
 		 * INVENTORY GetItemCount     [-e] <e?entInvReadFrom> <IntVar> <strItemIdPrefix>
 		 * INVENTORY GetItemList      [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
 		 * INVENTORY GetItemCountList [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
-		 * Obs.: if <strItemIdPrefix> is "*" it will match all entities.
+		 * Obs.: if <strItemIdPrefix> is "*" or "all" it will match all entities.
 		 */
 		Result execute(Context & context) override {
 			
@@ -451,18 +451,15 @@ class InventoryCommand : public Command {
 			std::string val;
 			switch(mode) {
 				case 'c': { // GetItemCount
-					std::string itemPrefix = context.getWord();
-					val = getItemCountAtInventory(entInvReadFrom, itemPrefix); 
+					val = getItemCountAtInventory(entInvReadFrom, strItemIdPrefix); 
 					break;
 				}
 				case 'l': { // GetItemList
-					std::string itemPrefix = context.getWord();
-					val = getItemListAtInventory(entInvReadFrom, itemPrefix); 
+					val = getItemListAtInventory(entInvReadFrom, strItemIdPrefix); 
 					break;
 				}
 				case 'a': { // GetItemCountList
-					std::string itemPrefix = context.getWord();
-					val = getItemListAtInventory(entInvReadFrom, itemPrefix, true); 
+					val = getItemListAtInventory(entInvReadFrom, strItemIdPrefix, true); 
 					break;
 				}
 				default: arx_assert_msg(false, "invalid inventory GetItem mode '%c'", mode);

@@ -164,15 +164,17 @@ public:
 		DebugScript(' ' << label);
 		
 		if(warnUglyCoding && context.isCheckTimerIdVsGoToLabelOnce()) {
-			static std::regex * reWarnTimerCallingGoSubScriptName = nullptr; static bool bWTCGSSN = [](){const char * pc = std::getenv("ARX_WarnTimerCallingGoSub"); if(pc){reWarnTimerCallingGoSubScriptName = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
+			static std::regex * reWarnTimerCallingGoSubScriptName = nullptr; static bool bWTCGSSN = [](){const char * pc = std::getenv("ARX_WarnTimerCallingGoSub"); if(pc){reWarnTimerCallingGoSubScriptName = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); LogInfo << "[ARX_WarnTimerCallingGoSub] = \"" << pc << "\""; return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
 			if(bWTCGSSN && sub && std::regex_search(context.getScript()->file, *reWarnTimerCallingGoSubScriptName)) {
 				ScriptWarning << "Timers should only call GoTo and the target label shall end with ACCEPT. To call a label ending with RETURN, wrap it with another ending with ACCEPT. ExtraInfo: timer '" << context.getTimerName() << "', first GoTo/GoSub target label '" << label << "'";
 			}
 			
-			static std::regex * reWarnTimerIdMismatchCallLabel = nullptr; static bool bWTIMCL = [](){const char * pc = std::getenv("ARX_WarnTimerIdMismatchCallLabel"); if(pc){reWarnTimerIdMismatchCallLabel = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
+			static std::regex * reWarnTimerIdMismatchCallLabel = nullptr; static bool bWTIMCL = [](){const char * pc = std::getenv("ARX_WarnTimerIdMismatchCallLabel"); if(pc){reWarnTimerIdMismatchCallLabel = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); LogInfo << "[ARX_WarnTimerIdMismatchCallLabel] = \"" << pc << "\""; return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
 			if(bWTIMCL && std::regex_search(context.getScript()->file, *reWarnTimerIdMismatchCallLabel)) {
-				if(context.getTimerName() != label) {
-					ScriptWarning << "A timer is being run but it's name '" << context.getTimerName() << "' doesn't match the first GoTo/GoSub target label '" << label << "'";
+				std::string labelChk = label;
+				labelChk.resize(std::remove(labelChk.begin(), labelChk.end(), '_') - labelChk.begin());
+				if(!boost::starts_with(context.getTimerName(), labelChk)) { // there can have many timers to the same target
+					ScriptWarning << "A timer is being run but it's name '" << context.getTimerName() << "' doesn't match the first GoTo/GoSub target label '" << label << "' ('" << labelChk << "')";
 				}
 			}
 			
@@ -845,10 +847,6 @@ public:
 		addOperator(new GreaterOperator);
 	}
 	
-#ifdef ARX_DEBUG
-#pragma GCC push_options
-#pragma GCC optimize ("O0") //required to let the breakpoints work properly
-#endif
 	Result compare(Context & context, bool & condition, bool & comparisonDetected, bool & bJustConsumeTheWords) {
 		std::string left  = context.getWord();
 		std::string op    = context.getWord();
@@ -1038,9 +1036,6 @@ public:
 		
 		return Success;
 	}
-#ifdef ARX_DEBUG
-#pragma GCC pop_options
-#endif
 	
 	Result peek(Context & context) override { return execute(context); }
 	
