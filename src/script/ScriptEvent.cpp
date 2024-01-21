@@ -301,7 +301,7 @@ static const char * toString(ScriptResult ret) {
 
 ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
                                ScriptEventName event, ScriptParameters parameters,
-                               size_t position) {
+                               size_t position, const SCR_TIMER * timer) {
 	
 	ScriptResult ret = ACCEPT;
 	
@@ -340,7 +340,7 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	LogDebug("--> " << event << " params=\"" << parameters << "\"" << " entity=" << entity->idString()
 	         << (es == &entity->script ? " base" : " overriding") << " pos=" << pos);
 	
-	script::Context context(es, pos, sender, entity, event.getId(), std::move(parameters));
+	script::Context context(es, pos, sender, entity, event.getId(), std::move(parameters), timer);
 	
 	if(event != SM_EXECUTELINE) {
 		std::string word = context.getCommand();
@@ -435,7 +435,11 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 				return ACCEPT;
 			}
 			
-			ScriptEventWarning << "<-- unknown command: " << word;
+			if(word == "&&" || word == "||" || word == ",") {
+				ScriptEventWarning << "<-- this word is expected only inside conditional logical operators: '" << word <<"'. Did you forget to surround the multi condition with and() or or() ?";
+			} else {
+				ScriptEventWarning << "<-- unknown command: " << word;
+			}
 			
 			context.skipCommand();
 		}

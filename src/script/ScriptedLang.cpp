@@ -44,6 +44,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "script/ScriptedLang.h"
 
 #include <memory>
+#include <regex>
 #include <string>
 
 #include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
@@ -137,25 +138,51 @@ public:
 	}
 	
 	/**
-	 * <GoTo|GoSub> [-p] <label> <p?params... ;>
+	 * <GoTo|GoSub> [-pw] <label> <p?params... ;>
 	 * ex.: GoSub -p FUNCTarget @testFloat=10.3 \xA7testFloat2=5 \xA3TestString="a b c" ; // it will create localvars (not globals) so only use localvar token chars for float, int and string.
 	 *  required single word as ';' is required to know when to stop collecting params
 	 *  it will automatically create the following local vars that you can use at the GoTo/GoSub target: 
 	 *   @FUNCTarget_testFloat1 = 10.3
 	 *   \xA7FUNCTarget_testFloat2 = 5.7
 	 *   \xA3FUNCTarget_TestString = "a b c"
+	 * -w will ignore coding non conformant with expected
 	 */
 	Result execute(Context & context) override {
 		
 		bool hasParams = false;
-		HandleFlags("p") {
+		bool warnUglyCoding = true;
+		HandleFlags("pw") {
 			if(flg & flag('p')) {
 				hasParams = true;
+			}
+			if(flg & flag('w')) {
+				warnUglyCoding = false;
 			}
 		}
 		
 		std::string label = context.getWord();
 		DebugScript(' ' << label);
+		
+		if(warnUglyCoding && context.isCheckTimerIdVsGoToLabelOnce()) {
+			static std::regex * reWarnTimerCallingGoSubScriptName = nullptr; static bool bWTCGSSN = [](){const char * pc = std::getenv("ARX_WarnTimerCallingGoSub"); if(pc){reWarnTimerCallingGoSubScriptName = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
+			//static const std::string warnTimerCallingGoSubScriptNameRegex = [](){const char * pc = std::getenv("ARX_WarnTimerCallingGoSub"); if(pc){return pc;} return "";}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
+			//static bool warnTimerCallingGoSub = [](){const char * pc = std::getenv("ARX_WarnTimerCallingGoSub"); LogWarning << "[ARX_WarnTimerCallingGoSub] = \"" << pc << "\""; bool b = pc ? util::toLowercase(pc) == "true" : false; return b;}();  // warns only once. export ARX_WarnTimerCallingGoSub=true
+			//if(warnTimerCallingGoSubScriptNameRegex.size() > 0 && warnTimerCallingGoSubScriptNameRegex todoa && sub) {
+			if(bWTCGSSN && sub && std::regex_search(context.getScript()->file, *reWarnTimerCallingGoSubScriptName)) {
+				ScriptWarning << "Timers should only call GoTo and the target label shall end with ACCEPT. To call a label ending with RETURN, wrap it with another ending with ACCEPT. ExtraInfo: timer '" << context.getTimerName() << "', first GoTo/GoSub target label '" << label << "'";
+			}
+			
+			//static bool warnTimerIdCallingNonMatchingLabel = [](){const char * pc = std::getenv("ARX_WarnTimerIdMismatchCallLabel"); LogWarning << "[ARX_WarnTimerIdMismatchCallLabel] = \"" << pc << "\""; bool b = pc ? util::toLowercase(pc) == "true" : false; return b;}();  // warns only once. export ARX_WarnTimerIdMismatchCallLabel=true
+			//if(warnTimerIdCallingNonMatchingLabel) {
+			static std::regex * reWarnTimerIdMismatchCallLabel = nullptr; static bool bWTIMCL = [](){const char * pc = std::getenv("ARX_WarnTimerIdMismatchCallLabel"); if(pc){reWarnTimerIdMismatchCallLabel = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
+			if(bWTIMCL && std::regex_search(context.getScript()->file, *reWarnTimerIdMismatchCallLabel)) {
+				if(context.getTimerName() != label) {
+					ScriptWarning << "A timer is being run but it's name '" << context.getTimerName() << "' doesn't match the first GoTo/GoSub target label '" << label << "'";
+				}
+			}
+			
+			context.clearCheckTimerIdVsGoToLabelOnce(); // only the first shall be checked, is the nearest to the timer
+		}
 		
 		if(hasParams) {
 			Result resParams = Success;
@@ -1091,16 +1118,6 @@ void timerCommand(std::string_view name, Context & context) {
 	
 	SCR_TIMER & timer = createScriptTimer(context.getEntity(), std::move(timername));
 	timer.es = context.getScript();
-	
-	// TODO? warn if timer name doesnt start with a gosub/goto target name. may be pass the timer object and check at GoToCommand?
-	//std::string checkGoSubTo = context.getWord();
-	//if(checkGoSubTo == "gosub" || checkGoSubTo == "goto") {
-		//while(timer.es.data[context.getPosition()] != '\n') {
-			//std::string checkGoSubToTarget = context.getWord();
-			//todoa
-		//}
-	//}
-	//context.seekToPosition(pos);
 	
 	if(mili) {
 		timer.interval = std::chrono::duration<float, std::milli>(interval);

@@ -2083,7 +2083,7 @@ void ARX_SCRIPT_Timer_Check() {
 		
 		if(es && ValidIOAddress(io)) {
 			LogDebug("running timer \"" << name << "\" for entity " << io->idString());
-			ScriptEvent::resume(es, io, pos);
+			ScriptEvent::resume(es, io, pos, &timer);
 		} else {
 			LogDebug("could not run timer \"" << name << "\" - entity vanished");
 		}

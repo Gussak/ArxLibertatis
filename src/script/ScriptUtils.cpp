@@ -52,15 +52,18 @@ std::string_view toLocalizationKey(std::string_view string) {
 }
 
 Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entity * entity,
-                 ScriptMessage msg, ScriptParameters parameters)
+                 ScriptMessage msg, ScriptParameters parameters, const SCR_TIMER * timer)
 	: m_script(script)
 	, m_pos(pos)
 	, m_sender(sender)
 	, m_entity(entity)
 	, m_message(msg)
 	, m_parameters(std::move(parameters))
+	, m_timer(timer)
 {
 	updateNewLinesList();
+	
+	m_checkTimerIdVsGoToLabelOnce = m_timer ? true : false;
 }
 
 void Context::updateNewLinesList() {
