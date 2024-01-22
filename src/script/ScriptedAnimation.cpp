@@ -486,9 +486,8 @@ public:
 			}
 		}
 		
-		std::string strEntityToMove = context.getWord();
-		if(strEntityToMove[0] == '$' || strEntityToMove[0] == '\xA3') strEntityToMove = context.getStringVar(strEntityToMove);
-		entToMove = strEntityToMove=="self" ? context.getEntity() : entities.getById(strEntityToMove);
+		std::string strEntityToMove = context.getStringVar(context.getWord());
+		entToMove = strEntityToMove == "self" ? context.getEntity() : entities.getById(strEntityToMove);
 		
 		//optional from absolute position
 		if(bAbsPosFrom){

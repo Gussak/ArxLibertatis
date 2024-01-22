@@ -195,8 +195,7 @@ public:
 		//keep this order: WriteTo ReadFrom, to match this order: var val
 		bool bFail=false;
 		if(bWriteTo) {
-			strEntityCheck = context.getWord();
-			if(strEntityCheck[0] == '$' || strEntityCheck[0] == '\xA3') strEntityCheck = context.getStringVar(strEntityCheck);
+			strEntityCheck = context.getStringVar(context.getWord());
 			entWriteTo = entities.getById(strEntityCheck);
 			if(!entWriteTo) {
 				ScriptWarning << "Invalid entity to write variable to " << strEntityCheck;
@@ -204,8 +203,7 @@ public:
 			}
 		}
 		if(bReadFrom) {
-			strEntityCheck = context.getWord();
-			if(strEntityCheck[0] == '$' || strEntityCheck[0] == '\xA3') strEntityCheck = context.getStringVar(strEntityCheck);
+			strEntityCheck = context.getStringVar(context.getWord());
 			entReadFrom = entities.getById(strEntityCheck);
 			if(!entReadFrom) {
 				ScriptWarning << "Invalid entity to read variable from " << strEntityCheck;

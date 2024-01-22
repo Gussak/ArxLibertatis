@@ -305,8 +305,7 @@ class InventoryCommand : public Command {
 			
 			HandleFlags("e") {
 				if(flg & flag('e')) {
-					strEntId = context.getWord();
-					if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
+					strEntId = context.getStringVar(context.getWord());
 					entInventory = entities.getById(strEntId);
 				}
 			}
@@ -629,8 +628,7 @@ public:
 		
 		HandleFlags("e") {
 			if(flg & flag('e')) {
-				strEntId = context.getWord();
-				if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
+				strEntId = context.getStringVar(context.getWord());
 				io = entities.getById(strEntId);
 			}
 		}
