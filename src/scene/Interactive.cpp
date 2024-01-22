@@ -615,6 +615,9 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 	
 	bool pbox = (!(io->ioflags & IO_FIX) && !(io->ioflags & IO_NPC));
 	io->obj = loadObject(io->usemesh, pbox).release();
+	if(!io->obj) {
+		LogError << "Failed to load mesh file '" << io->usemesh << "' for entity '" << io->idString() << "'.";
+	}
 	
 	EERIE_COLLISION_Cylinder_Create(io);
 	return true;
