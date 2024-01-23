@@ -598,7 +598,7 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 	}
 	
 	if(io->obj && io->usemesh.string() != io->obj->file.string()) { // TODO this ever happens?
-		LogWarning << " Attention: io->usemesh '" << io->usemesh.string() << "' differs from mesh file '" << io->obj->file.string() << "' !";
+		LogWarning << " Attention: io->usemesh '" << io->usemesh.string() << "' differs from mesh file '" << io->obj->file.string() << "' ! (requesting '" << temp.string() << "')";
 	}
 	
 	std::stringstream ssMsg;
