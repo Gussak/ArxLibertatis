@@ -22,6 +22,7 @@
 #include <iostream>
 #include <iomanip>
 
+#include "platform/Environment.h"
 #include "platform/Platform.h"
 #include "util/String.h"
 
@@ -35,7 +36,7 @@ void ColorConsole::log(const Source & file, int line, Logger::LogLevel level, st
 	
 	size_t length = 0;
 	
-	static const std::string logDateTimeFormat = [](){const char * pc = std::getenv("ARX_LogDateTimeFormat"); if(pc){return pc;} return "";}(); // export ARX_LogDateTimeFormat="h:m:s"
+	static const std::string logDateTimeFormat = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_LogDateTimeFormat"); if(pc){return pc;} return "";}(); // being static logs only once. ex.: export ARX_LogDateTimeFormat="h:m:s"
 	if(logDateTimeFormat.size()>0) {
 		std::cout << util::getDateTimeString(logDateTimeFormat);
 		length = logDateTimeFormat.size();

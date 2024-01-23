@@ -28,6 +28,7 @@
 #include "game/Entity.h"
 #include "graphics/data/Mesh.h"
 #include "platform/Dialog.h"
+#include "platform/Environment.h"
 #include "platform/Process.h"
 #include "script/ScriptEvent.h"
 #include "util/Number.h"
@@ -149,9 +150,9 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 		posID = 2;
 	}
 	if(cSeparator == '_') {
-		static bool warnLocalScopeParams = [](){const char * pc = std::getenv("ARX_WarnGoSubWithLocalScopeParams"); LogWarning << "[ARX_WarnGoSubWithLocalScopeParams] = \"" << pc << "\""; bool b = pc ? util::toLowercase(pc) == "true" : false; return b;}();  // warns only once. export ARX_WarnGoSubWithLocalScopeParams=true
+		static bool warnLocalScopeParams = [](){return platform::getEnvironmentVariableValueBoolean("ARX_WarnGoSubWithLocalScopeParams");}();
 		if(warnLocalScopeParams) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
-			LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB tiny '>>'";
+			LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
 		}
 	}
 	

@@ -30,6 +30,7 @@
 #include "graphics/Renderer.h"
 #include "graphics/particle/ParticleTextures.h"
 #include "io/log/Logger.h"
+#include "platform/Environment.h"
 #include "platform/profiler/Profiler.h"
 #include "scene/Interactive.h"
 #include "scene/Tiles.h"
@@ -106,7 +107,7 @@ void ARXDRAW_DrawInterShadows() {
 				addShadowBlob(entity, entity.obj->vertexWorldPositions[group.origin].v, group.m_blobShadowSize, true);
 			}
 		} else {
-			static int limitShadowBlobsTo = [](){const char * pc = std::getenv("ARX_LimitShadowBlobsForVertexes"); LogInfo << "[ARX_LimitShadowBlobsForVertexes] = \"" << pc << "\""; int i = pc ? util::parseInt(pc) : 9; return i > 0 ? i : 9;}();  // warns only once. set ARX_LimitShadowBlobsForVertexes=9
+			static int limitShadowBlobsTo = [](){return platform::getEnvironmentVariableValueInteger("ARX_LimitShadowBlobsForVertexes", 'i', "", 9, false);}();  // warns only once. set ARX_LimitShadowBlobsForVertexes=9
 			int iStride = entity.obj->vertexWorldPositions.size() < 100 ? 9 : entity.obj->vertexWorldPositions.size() / limitShadowBlobsTo;
 			for(const EERIE_VERTEX & vertex : entity.obj->vertexWorldPositions | boost::adaptors::strided(iStride)) {
 				addShadowBlob(entity, vertex.v, entity.scale, false);

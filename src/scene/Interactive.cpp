@@ -597,13 +597,15 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 		return false;
 	}
 	
+	res::path usemesh;
 	if(io->ioflags & IO_NPC) {
-		io->usemesh = "graph/obj3d/interactive/npc" / temp;
+		usemesh = "graph/obj3d/interactive/npc" / temp;
 	} else if(io->ioflags & IO_FIX) {
-		io->usemesh = "graph/obj3d/interactive/fix_inter" / temp;
+		usemesh = "graph/obj3d/interactive/fix_inter" / temp;
 	} else if(io->ioflags & IO_ITEM) {
-		io->usemesh = "graph/obj3d/interactive/items" / temp;
+		usemesh = "graph/obj3d/interactive/items" / temp;
 	} else {
+		LogWarning << "Invalid mesh change requested. Existing mesh path '" << io->usemesh << "' will be emptied, but existing EERIE_3DOBJ '" << (io->obj ? io->obj->file.string() : std::string()) << "' will be kept, for entity '" << io->idString() << "'."; // TODO shouldnt instead just keep io->usemesh to keep it consistent? but it probably can be restored from io->obj->file anyway right?
 		io->usemesh.clear();
 	}
 	
@@ -611,15 +613,17 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 		return false;
 	}
 	
-	delete io->obj, io->obj = nullptr;
-	
 	bool pbox = (!(io->ioflags & IO_FIX) && !(io->ioflags & IO_NPC));
-	io->obj = loadObject(io->usemesh, pbox).release();
-	if(!io->obj) {
-		LogError << "Failed to load mesh file '" << io->usemesh << "' for entity '" << io->idString() << "'.";
+	EERIE_3DOBJ * obj = loadObject(io->usemesh, pbox).release();
+	if(obj) {
+		delete io->obj, io->obj = nullptr;
+		io->usemesh = usemesh;
+		io->obj = obj;
+		EERIE_COLLISION_Cylinder_Create(io);
+		return true;
 	}
 	
-	EERIE_COLLISION_Cylinder_Create(io);
+	LogWarning << "Failed to load mesh file '" << io->usemesh << "' for entity '" << io->idString() << "'."; // TODO shouldnt be LogError and return false?
 	return true;
 }
 

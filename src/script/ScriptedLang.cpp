@@ -58,6 +58,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "game/Equipment.h"
 #include "game/Inventory.h"
 #include "graphics/Math.h"
+#include "platform/Environment.h"
 #include "scene/Interactive.h"
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
@@ -102,17 +103,12 @@ public:
 		Entity* io = context.getEntity();
 		
 		if(sub) {
-			//if(var[1] == '\xAB') {
-				//ScriptError << "the expected symbol should point to the right \xBB, but found \xAB at param name requested to be created " << var << "=" << val << " at target to be called " << label;
-				//return AbortError;
-			//}
-			
 			// private variables easily accessible only in GoSub scope, never need to prefix with label at .asl
 			// ex.: GoSub -p FUNCwork \xA3\xBBmode="init" ; // becomes \xA3FUNCwork\xABmode, can be accessed that way anywhere, but inside the current GoSub call you just need to use \xA3\xABmode
 			// ex.: Set \xA3\xABtest "dummy" // becomes \xA3FUNCwork\xABtest if used inside FUNCwork
 			var = context.autoVarNameForScope(false, var, label, true);
 		} else {
-			static bool goToWithParams = [](){const char * pc = std::getenv("ARX_WarnGoToWithParams"); LogInfo << "[ARX_WarnGoToWithParams] = \"" << pc << "\""; bool b = pc ? util::toLowercase(pc) == "true" : false; return b;}();  // warns only once. export ARX_WarnGoToWithParams=true
+			static bool goToWithParams = [](){return platform::getEnvironmentVariableValueBoolean("ARX_WarnGoToWithParams");}();  // being static warns only once. export ARX_WarnGoToWithParams=true
 			if(goToWithParams) {
 				ScriptWarning << "pseudo-private scope variable creation \"" << var[0] << "\" at \"" << var << "=" << val << "\", only GoSub (that create a call stack) should create them.";
 			}
@@ -164,12 +160,12 @@ public:
 		DebugScript(' ' << label);
 		
 		if(warnUglyCoding && context.isCheckTimerIdVsGoToLabelOnce()) {
-			static std::regex * reWarnTimerCallingGoSubScriptName = nullptr; static bool bWTCGSSN = [](){const char * pc = std::getenv("ARX_WarnTimerCallingGoSub"); if(pc){reWarnTimerCallingGoSubScriptName = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); LogInfo << "[ARX_WarnTimerCallingGoSub] = \"" << pc << "\""; return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
+			static std::regex * reWarnTimerCallingGoSubScriptName = nullptr; static bool bWTCGSSN = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_WarnTimerCallingGoSub"); if(pc){reWarnTimerCallingGoSubScriptName = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
 			if(bWTCGSSN && sub && std::regex_search(context.getScript()->file, *reWarnTimerCallingGoSubScriptName)) {
 				ScriptWarning << "Timers should only call GoTo and the target label shall end with ACCEPT. To call a label ending with RETURN, wrap it with another ending with ACCEPT. ExtraInfo: timer '" << context.getTimerName() << "', first GoTo/GoSub target label '" << label << "'";
 			}
 			
-			static std::regex * reWarnTimerIdMismatchCallLabel = nullptr; static bool bWTIMCL = [](){const char * pc = std::getenv("ARX_WarnTimerIdMismatchCallLabel"); if(pc){reWarnTimerIdMismatchCallLabel = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); LogInfo << "[ARX_WarnTimerIdMismatchCallLabel] = \"" << pc << "\""; return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
+			static std::regex * reWarnTimerIdMismatchCallLabel = nullptr; static bool bWTIMCL = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_WarnTimerIdMismatchCallLabel"); if(pc){reWarnTimerIdMismatchCallLabel = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
 			if(bWTIMCL && std::regex_search(context.getScript()->file, *reWarnTimerIdMismatchCallLabel)) {
 				std::string labelChk = label;
 				labelChk.resize(std::remove(labelChk.begin(), labelChk.end(), '_') - labelChk.begin());

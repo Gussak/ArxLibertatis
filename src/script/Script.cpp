@@ -2368,7 +2368,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	
 	std::string strScriptData;
 	
-	const char * moddingOpt = std::getenv("ARX_MODDING"); // set ARX_MODDING=1 to let dumped scripts cache always be loaded, this will also ignore changes to mod files and to original files that would be patched/overriden
+	static const char * moddingOpt = std::getenv("ARX_MODDING"); // set ARX_MODDING=1 to let dumped scripts cache always be loaded, this will also ignore changes to mod files and to original files that would be patched/overriden
 	int moddingMode = 0;
 	if(moddingOpt) {
 		moddingMode = util::parseInt(moddingOpt);

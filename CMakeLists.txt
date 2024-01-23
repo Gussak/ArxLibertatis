@@ -747,6 +747,7 @@ else(MSVC)
 	check_symbol_exists(getrusage "sys/resource.h" ARX_HAVE_GETRUSAGE)
 	
 	check_symbol_exists(getexecname "stdlib.h" ARX_HAVE_GETEXECNAME)
+	# TODO check_symbol_exists(getenv "stdlib.h" ARX_HAVE_GETENV)
 	check_symbol_exists(setenv "stdlib.h" ARX_HAVE_SETENV)
 	check_symbol_exists(unsetenv "stdlib.h" ARX_HAVE_UNSETENV)
 	
