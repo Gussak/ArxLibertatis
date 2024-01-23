@@ -195,8 +195,7 @@ public:
 		//keep this order: WriteTo ReadFrom, to match this order: var val
 		bool bFail=false;
 		if(bWriteTo) {
-			strEntityCheck = context.getWord();
-			if(strEntityCheck[0] == '$' || strEntityCheck[0] == '\xA3') strEntityCheck = context.getStringVar(strEntityCheck);
+			strEntityCheck = context.getStringVar(context.getWord());
 			entWriteTo = entities.getById(strEntityCheck);
 			if(!entWriteTo) {
 				ScriptWarning << "Invalid entity to write variable to " << strEntityCheck;
@@ -204,8 +203,7 @@ public:
 			}
 		}
 		if(bReadFrom) {
-			strEntityCheck = context.getWord();
-			if(strEntityCheck[0] == '$' || strEntityCheck[0] == '\xA3') strEntityCheck = context.getStringVar(strEntityCheck);
+			strEntityCheck = context.getStringVar(context.getWord());
 			entReadFrom = entities.getById(strEntityCheck);
 			if(!entReadFrom) {
 				ScriptWarning << "Invalid entity to read variable from " << strEntityCheck;
@@ -439,7 +437,7 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		std::string var = context.getWord();
+		std::string var = context.autoVarNameForScope(true, context.getWord());
 		float val = op == ArithmeticCommand::Calc ? 0.f : context.getFloatVar(context.getWord(), context.getEntity());
 		
 		var = context.autoVarNameForScope(true, var);
@@ -542,7 +540,7 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		std::string var = context.getWord();
+		std::string var = context.autoVarNameForScope(true, context.getWord());
 		
 		var = context.autoVarNameForScope(true, var);
 		

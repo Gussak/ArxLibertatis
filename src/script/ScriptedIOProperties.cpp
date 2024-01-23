@@ -579,18 +579,17 @@ public:
 		
 		HandleFlags("e") {
 			if(flg & flag('e')) {
-				strEntId = context.getWord();
-				if(strEntId[0] == '$' || strEntId[0] == '\xA3') strEntId = context.getStringVar(strEntId);
+				strEntId = context.getStringVar(context.getWord());
 			}
 		}
 		
-		std::string strMesh = context.getWord();
+		std::string strMesh = context.getStringVar(context.getWord());
 		
 		DebugScript("strEntId=" << strEntId << ",strMesh=" << strMesh);
 		LogDebug("strEntId=" << strEntId << ",strMesh=" << strMesh);
 		
 		Entity * ent = nullptr;
-		if(strEntId == "") {
+		if(strEntId.size() == 0) {
 			ent = context.getEntity();
 		} else {
 			ent = entities.getById(strEntId);
@@ -601,7 +600,7 @@ public:
 			return Failed;
 		}
 		
-		res::path mesh = res::path::load(strMesh);
+		res::path mesh = res::path::load(strMesh); // TODO document: this actually only fixes the path that can be relative thru '..' right? make some tests
 		DebugScript(" mesh=" << mesh << " entity=" << ent);
 		LogDebug("strEntId=" << strEntId << ",strMesh=" << " mesh=" << mesh << " entity=" << ent);
 		

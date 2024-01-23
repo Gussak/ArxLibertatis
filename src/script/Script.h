@@ -552,9 +552,14 @@ void CloneLocalVars(Entity * ioo, Entity * io);
 void ARX_SCRIPT_Free_All_Global_Variables();
 
 bool createSingleLineComment(std::string & esdat, size_t & posNow);
-void detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript);
+bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript);
 void detectAndFixGoToGoSubParam(std::string & line);
 void adaptScriptCode(std::string & line);
+void fixLineEnding(std::string & strData, char cLineEndingMode = '.');
+void fixTo8859_1(std::string strFilename, std::string & strData);
+std::string loadAndFixScriptData(std::string strFilename, std::ifstream & file, char cLineEndingMode = '.');
+std::string loadFileDataAndCloseIt(std::ifstream & file);
+std::string fixScriptData(std::string strFilename, std::string strData, char cLineEndingMode = '.');
 
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript);
 void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript);

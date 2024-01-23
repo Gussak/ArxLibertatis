@@ -22,7 +22,9 @@
 #include <iostream>
 #include <iomanip>
 
+#include "platform/Environment.h"
 #include "platform/Platform.h"
+#include "util/String.h"
 
 #if ARX_HAVE_ISATTY
 
@@ -32,9 +34,17 @@ void ColorConsole::log(const Source & file, int line, Logger::LogLevel level, st
 	
 	std::ostream * os = (level >= Logger::Warning) ? &std::cerr : &std::cout;
 	
+	size_t length = 0;
+	
+	static const std::string logDateTimeFormat = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_LogDateTimeFormat"); if(pc){return pc;} return "";}(); // being static logs only once. ex.: export ARX_LogDateTimeFormat="h:m:s"
+	if(logDateTimeFormat.size()>0) {
+		std::cout << util::getDateTimeString(logDateTimeFormat);
+		length = logDateTimeFormat.size();
+	}
+	
 	const char * c = "\x1b[m";
 	const char * e = "";
-	size_t length = 3;
+	length += 3;
 	switch(level) {
 		case Logger::Debug:    std::cout << "\x1b[1;36m[D]\x1b[0;36m"; break;
 		case Logger::Info:     std::cout << "\x1b[1;32m[I]\x1b[0;32m"; break;

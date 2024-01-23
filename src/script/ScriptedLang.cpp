@@ -44,6 +44,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "script/ScriptedLang.h"
 
 #include <memory>
+#include <regex>
 #include <string>
 
 #include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
@@ -57,10 +58,12 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "game/Equipment.h"
 #include "game/Inventory.h"
 #include "graphics/Math.h"
+#include "platform/Environment.h"
 #include "scene/Interactive.h"
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
 #include "util/Number.h"
+#include "util/String.h"
 
 
 namespace script {
@@ -95,20 +98,20 @@ public:
 	GotoCommand(std::string_view command, bool _sub = false) : Command(command), sub(_sub) { }
 	
 	Result createParamVar(Context & context, std::string label, std::string var, std::string val) {
+		arx_assert(var.size() > 0);
+		arx_assert(val.size() > 0);
 		Entity* io = context.getEntity();
 		
 		if(sub) {
-			if(var[1] == '\xAB') {
-				ScriptError << "the expected symbol should point to the right \xBB, but found \xAB at param name requested to be created " << var << "=" << val " at target to be called " << label;
-				return AbortError;
-			}
 			// private variables easily accessible only in GoSub scope, never need to prefix with label at .asl
 			// ex.: GoSub -p FUNCwork \xA3\xBBmode="init" ; // becomes \xA3FUNCwork\xABmode, can be accessed that way anywhere, but inside the current GoSub call you just need to use \xA3\xABmode
 			// ex.: Set \xA3\xABtest "dummy" // becomes \xA3FUNCwork\xABtest if used inside FUNCwork
-			var = context.autoVarNameForScope(false, var, label, '\xBB');
+			var = context.autoVarNameForScope(false, var, label, true);
 		} else {
-			ScriptError << "invalid private scope variable creation \"" << name[0] << "\" at \"" << name << "=" << val << "\", only GoSub (that create a call stack) can create them.";
-			return AbortError;
+			static bool goToWithParams = [](){return platform::getEnvironmentVariableValueBoolean("ARX_WarnGoToWithParams");}();  // being static warns only once. export ARX_WarnGoToWithParams=true
+			if(goToWithParams) {
+				ScriptWarning << "pseudo-private scope variable creation \"" << var[0] << "\" at \"" << var << "=" << val << "\", only GoSub (that create a call stack) should create them.";
+			}
 		}
 		
 		DebugScript(' ' << var << ' ' << val);
@@ -131,28 +134,51 @@ public:
 	}
 	
 	/**
-	 * <GoTo|GoSub> [-p] <label> <p?params... ;>
+	 * <GoTo|GoSub> [-pw] <label> <p?params... ;>
 	 * ex.: GoSub -p FUNCTarget @testFloat=10.3 \xA7testFloat2=5 \xA3TestString="a b c" ; // it will create localvars (not globals) so only use localvar token chars for float, int and string.
 	 *  required single word as ';' is required to know when to stop collecting params
 	 *  it will automatically create the following local vars that you can use at the GoTo/GoSub target: 
 	 *   @FUNCTarget_testFloat1 = 10.3
 	 *   \xA7FUNCTarget_testFloat2 = 5.7
 	 *   \xA3FUNCTarget_TestString = "a b c"
+	 * -w will ignore coding non conformant with expected
 	 */
 	Result execute(Context & context) override {
 		
 		bool hasParams = false;
-		HandleFlags("p") {
+		bool warnUglyCoding = true;
+		HandleFlags("pw") {
 			if(flg & flag('p')) {
 				hasParams = true;
 			}
+			if(flg & flag('w')) {
+				warnUglyCoding = false;
+			}
 		}
 		
-		std::string label = context.getWord();
+		std::string label = context.getStringVar(context.getWord());
 		DebugScript(' ' << label);
 		
-		Result res;
+		if(warnUglyCoding && context.isCheckTimerIdVsGoToLabelOnce()) {
+			static std::regex * reWarnTimerCallingGoSubScriptName = nullptr; static bool bWTCGSSN = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_WarnTimerCallingGoSub"); if(pc){reWarnTimerCallingGoSubScriptName = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
+			if(bWTCGSSN && sub && std::regex_search(context.getScript()->file, *reWarnTimerCallingGoSubScriptName)) {
+				ScriptWarning << "Timers should only call GoTo and the target label shall end with ACCEPT. To call a label ending with RETURN, wrap it with another ending with ACCEPT. ExtraInfo: timer '" << context.getTimerName() << "', first GoTo/GoSub target label '" << label << "'";
+			}
+			
+			static std::regex * reWarnTimerIdMismatchCallLabel = nullptr; static bool bWTIMCL = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_WarnTimerIdMismatchCallLabel"); if(pc){reWarnTimerIdMismatchCallLabel = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
+			if(bWTIMCL && std::regex_search(context.getScript()->file, *reWarnTimerIdMismatchCallLabel)) {
+				std::string labelChk = label;
+				labelChk.resize(std::remove(labelChk.begin(), labelChk.end(), '_') - labelChk.begin());
+				if(!boost::starts_with(context.getTimerName(), labelChk)) { // there can have many timers to the same target
+					ScriptWarning << "A timer is being run but it's name '" << context.getTimerName() << "' doesn't match the first GoTo/GoSub target label '" << label << "' ('" << labelChk << "')";
+				}
+			}
+			
+			context.clearCheckTimerIdVsGoToLabelOnce(); // only the first shall be checked, is the nearest to the timer
+		}
+		
 		if(hasParams) {
+			Result resParams = Success;
 			std::string strVar; // see Script.cpp::detectAndFixGoToGoSubParam()
 			std::string strValue;
 			while(true) { // collect all params before checking if any of them failed
@@ -161,8 +187,11 @@ public:
 				
 				strValue = context.getWord(); // value may be inside double quotes
 				
-				Result resChk = createParamVar(label, strVar, strValue);
-				if(resChk != Success) res = resChk;
+				Result resChk = createParamVar(context, label, strVar, strValue);
+				if(resChk != Success) resParams = resChk;
+			}
+			if(resParams != Success) {
+				return resParams;
 			}
 		}
 		if(res != Success) {
@@ -532,7 +561,8 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA7': {
-				f = GETVarValueLong(context.getEntity()->m_variables, context.autoVarNameForScope(true, var));
+				std::string name = context.autoVarNameForScope(true, var);
+				f = GETVarValueLong(context.getEntity()->m_variables, name);
 				return TYPE_FLOAT;
 			}
 			
@@ -542,7 +572,8 @@ class IfCommand : public Command {
 			}
 			
 			case '@': {
-				f = GETVarValueFloat(context.getEntity()->m_variables, context.autoVarNameForScope(true, var));
+				std::string name = context.autoVarNameForScope(true, var);
+				f = GETVarValueFloat(context.getEntity()->m_variables, name);
 				return TYPE_FLOAT;
 			}
 			
@@ -552,7 +583,8 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA3': {
-				s = GETVarValueText(context.getEntity()->m_variables, context.autoVarNameForScope(true, var));
+				std::string name = context.autoVarNameForScope(true, var);
+				s = GETVarValueText(context.getEntity()->m_variables, name);
 				return TYPE_TEXT;
 			}
 			
@@ -814,10 +846,6 @@ public:
 		addOperator(new GreaterOperator);
 	}
 	
-#ifdef ARX_DEBUG
-#pragma GCC push_options
-#pragma GCC optimize ("O0") //required to let the breakpoints work properly
-#endif
 	Result compare(Context & context, bool & condition, bool & comparisonDetected, bool & bJustConsumeTheWords) {
 		std::string left  = context.getWord();
 		std::string op    = context.getWord();
@@ -879,6 +907,7 @@ public:
 		std::string wordCheck;
 		int iCount=0;
 		bool bJustConsumeTheWordsThisLoopAndNestedOnly = bJustConsumeTheWords;
+		bool bSquareBracketsMode = false;
 		while(true){
 			if(res != Success) {return res;}; // in case of errors found in the script.
 			iCount++;
@@ -886,8 +915,22 @@ public:
 			positionBeforeWord = context.getPosition(); //Put after skip new lines.
 			wordCheck = context.getWord();
 			
+			if(wordCheck == "[") { // nesting always happens thru some control word: and|or|not so this opening can be ignored but commands further formatting
+				bSquareBracketsMode = true;
+				break;
+			}
+			
 			//logic operation loop end detected. this is not required in the script if the next thing to be found is a '{'
-			if( boost::equals(wordCheck, ";") ) { 
+			if(wordCheck == ";") {
+				if(bSquareBracketsMode) {
+					ScriptWarning << "logic block started with '[' so it should end with ']'";
+				}
+				break;
+			}
+			if(wordCheck == "]") { 
+				if(!bSquareBracketsMode) {
+					ScriptWarning << "logic block did not start with '[' so it should end with ';'";
+				}
 				break;
 			}
 			
@@ -935,7 +978,7 @@ public:
 				}
 			}
 			
-			// logic connector say the next thing is a logical result to process. They also make reading the script more clear. they are always in-between, 2nd 4th 6th... word on.
+			// logic connector say the next thing is a logical result to process. They also make reading the script more clear. they are always in-between: 2nd 4th 6th...
 			if(iCount%2 == 0){
 				if(logicOp == 'n') { //not
 					ScriptError << "the not() logical operator only accepts one comparison or nested logic operator";
@@ -968,6 +1011,10 @@ public:
 		context.skipWhitespaceAndComment();
 		size_t positionBeforeWord = context.getPosition(); //this is used to undo the wordCkeck position. Put after skip new lines.
 		std::string wordCheck = context.getWord();
+		if(wordCheck == "[") {
+			positionBeforeWord = context.getPosition();
+			wordCheck = context.getWord();
+		}
 		if(recursiveLogicOperationByWord(context, wordCheck, condition, res, bJustConsumeTheWords)){
 			// all work already done at recursiveLogicOperationByWord(...)
 		} else {
@@ -988,9 +1035,6 @@ public:
 		
 		return Success;
 	}
-#ifdef ARX_DEBUG
-#pragma GCC pop_options
-#endif
 	
 	Result peek(Context & context) override { return execute(context); }
 	
@@ -1063,6 +1107,7 @@ void timerCommand(std::string_view name, Context & context) {
 	
 	SCR_TIMER & timer = createScriptTimer(context.getEntity(), std::move(timername));
 	timer.es = context.getScript();
+	
 	if(mili) {
 		timer.interval = std::chrono::duration<float, std::milli>(interval);
 	} else {

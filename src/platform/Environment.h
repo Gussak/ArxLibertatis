@@ -130,6 +130,11 @@ bool hasEnvironmentVariable(const char * name);
 //! Set an environment variable, overriding any existing values
 void setEnvironmentVariable(const char * name, const char * value);
 
+const char * getEnvironmentVariableValue(const char * name, char cLogMode = 'i', std::string_view strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
+bool getEnvironmentVariableValueBoolean(const char * name, char cLogMode = 'i', std::string_view strMsg = "", bool defaultValue = false);
+f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode = 'i', std::string_view strMsg = "", f32 defaultValue = 0.0, bool bAllowNegative = true);
+s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode = 'i', std::string_view strMsg = "", s32 defaultValue = 0, bool bAllowNegative = true);
+
 //! Unset an environment variable
 void unsetEnvironmentVariable(const char * name);
 

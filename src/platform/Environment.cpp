@@ -62,6 +62,7 @@ struct IUnknown; // Workaround for error C2187 in combaseapi.h when using /permi
 #include "io/fs/PathConstants.h"
 #include "io/fs/FilePath.h"
 #include "io/fs/Filesystem.h"
+#include "io/log/Logger.h"
 
 #include "platform/WindowsUtils.h"
 
@@ -534,6 +535,74 @@ void setEnvironmentVariable(const char * name, const char * value) {
 	#elif ARX_HAVE_SETENV
 	setenv(name, value, 1);
 	#endif
+}
+
+const char * getEnvironmentVariableValue(const char * name, char cLogMode, std::string_view strMsg, const char * defaultValue, const char * pcOverrideValue) {
+	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead
+	const char * pc = pcOverrideValue ? pcOverrideValue : getenv(name);
+	if(pc) {
+		std::stringstream msg; msg << "[EnvironmentVariable]: " << name << " = \"" << pc << "\". " << strMsg;
+		LogDebug(msg.str());
+		switch(cLogMode) {
+			case 'i': break; // TODO LogInfo << msg.str();break;
+			case 'w': LogWarning << msg.str();break;
+			case 'e': LogError << msg.str();break;
+			case '.':break; //logs nothing
+			default: arx_assert_msg(false, "invalid log mode '%c' obs.: msg='%s'", cLogMode, msg.str().c_str()); break;
+		}
+		return pc;
+	} else {
+		return defaultValue;
+	}
+	#else
+	// TODO ARX_UNUSED(name); ?
+	#endif
+	return nullptr;
+}
+
+bool getEnvironmentVariableValueBoolean(const char * name, char cLogMode, std::string_view strMsg, bool defaultValue) {
+	std::string ev = getEnvironmentVariableValue(name, cLogMode, strMsg);
+	if(ev.size() > 0) {
+		ev = util::toLowercase(ev);
+		if(ev == "true" || ev == "false" || ev == "1" || ev == "0") {
+			return ev == "true" || ev == "1";
+		} else {
+			getEnvironmentVariableValue(name, 'e', std::string() + "Wrong value should be 'true' or '1', 'false' or 0 ! " + std::string(strMsg), ev.c_str());
+		}
+	}
+	return defaultValue;
+}
+
+f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, std::string_view strMsg, f32 defaultValue, bool bAllowNegative) {
+	std::string ev = getEnvironmentVariableValue(name, cLogMode, strMsg);
+	if(ev.size() > 0) {
+		if(ev.find_first_not_of("0123456789-.") != std::string::npos) {
+			getEnvironmentVariableValue(name, 'e', std::string() + "Wrong value should be float ! " + std::string(strMsg), ev.c_str());
+		} else {
+			f32 val = util::parseFloat(ev);
+			if(bAllowNegative) return val;
+			if(val < 0.f) {
+				getEnvironmentVariableValue(name, 'e', std::string() + "Should be positive ! " + std::string(strMsg), ev.c_str());
+			}
+		}
+	}
+	return defaultValue;
+}
+
+s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode, std::string_view strMsg, s32 defaultValue, bool bAllowNegative) {
+	std::string ev = getEnvironmentVariableValue(name, cLogMode, strMsg);
+	if(ev.size() > 0) {
+		if(ev.find_first_not_of("0123456789-") != std::string::npos) {
+			getEnvironmentVariableValue(name, 'e', std::string() + "Wrong value should be integer ! " + std::string(strMsg), ev.c_str());
+		} else {
+			s32 val = util::parseInt(ev);
+			if(bAllowNegative) return val;
+			if(val < 0.f) {
+				getEnvironmentVariableValue(name, 'e', std::string() + "Should be positive ! " + std::string(strMsg), ev.c_str());
+			}
+		}
+	}
+	return defaultValue;
 }
 
 void unsetEnvironmentVariable(const char * name) {

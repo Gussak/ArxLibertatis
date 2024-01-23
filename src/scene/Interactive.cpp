@@ -597,27 +597,44 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 		return false;
 	}
 	
-	if(io->ioflags & IO_NPC) {
-		io->usemesh = "graph/obj3d/interactive/npc" / temp;
-	} else if(io->ioflags & IO_FIX) {
-		io->usemesh = "graph/obj3d/interactive/fix_inter" / temp;
-	} else if(io->ioflags & IO_ITEM) {
-		io->usemesh = "graph/obj3d/interactive/items" / temp;
-	} else {
-		io->usemesh.clear();
+	if(io->obj && io->usemesh.string() != io->obj->file.string()) { // TODO this ever happens?
+		LogWarning << " Attention: io->usemesh '" << io->usemesh.string() << "' differs from mesh file '" << io->obj->file.string() << "' !";
 	}
 	
-	if(io->usemesh.empty()) {
+	std::stringstream ssMsg;
+	res::path usemesh;
+	if(io->ioflags & IO_NPC) {
+		usemesh = "graph/obj3d/interactive/npc" / temp;
+	} else if(io->ioflags & IO_FIX) {
+		usemesh = "graph/obj3d/interactive/fix_inter" / temp;
+	} else if(io->ioflags & IO_ITEM) {
+		usemesh = "graph/obj3d/interactive/items" / temp;
+	} else {
+		ssMsg << "Ivalid entity '" << io->idString() << "', has not the required flags (" << io->ioflags << ")."; // TODO use flagNames(EntityFlagNames, io->ioflags) #include "gui/debug/DebugPanel.h", EntityFlagNames -> debughud.h
+		if(io->obj) {
+			ssMsg << " Has mesh '" << io->obj->file.string() << "' that will be kept.";
+		}
+		ssMsg << " Existing mesh path '" << io->usemesh.string() << "' will be emptied.";
+		LogWarning << ssMsg.str();
+		io->usemesh.clear();
 		return false;
 	}
 	
-	delete io->obj, io->obj = nullptr;
-	
 	bool pbox = (!(io->ioflags & IO_FIX) && !(io->ioflags & IO_NPC));
-	io->obj = loadObject(io->usemesh, pbox).release();
+	EERIE_3DOBJ * obj = loadObject(usemesh, pbox).release();
+	if(obj) {
+		delete io->obj, io->obj = nullptr;
+		io->usemesh = usemesh;
+		io->obj = obj;
+		EERIE_COLLISION_Cylinder_Create(io);
+		return true;
+	}
 	
-	EERIE_COLLISION_Cylinder_Create(io);
-	return true;
+	ssMsg << "Failed to load new mesh file '" << usemesh.string() << "' for entity '" << io->idString() << "'. Existing usemesh '" << io->usemesh.string() << "' kept.";
+	if(io->obj) {
+		ssMsg << " Keeping existing mesh obj '" << io->obj->file.string() << "'."; // io->usemesh == io->obj->file.string()
+	}
+	return false;
 }
 
 void ARX_INTERACTIVE_MEMO_TWEAK(Entity * io, TweakType type, const res::path & param1, const res::path & param2) {

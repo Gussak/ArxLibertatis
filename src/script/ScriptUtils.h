@@ -89,13 +89,14 @@ class Context {
 	Entity * m_entity;
 	ScriptMessage m_message;
 	ScriptParameters m_parameters;
+	const SCR_TIMER * m_timer;
 	std::vector<std::pair<size_t, std::string>> m_stackIdCalledFromPos;
 	std::vector<size_t> m_vNewLineAt;
 	
 public:
 	
 	explicit Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entity * entity,
-	                 ScriptMessage msg, ScriptParameters parameters);
+	                 ScriptMessage msg, ScriptParameters parameters, const SCR_TIMER * timer = nullptr);
 	
 	std::string getStringVar(std::string_view name, Entity * entOverride = nullptr) const;
 	std::string getFlags();
@@ -104,7 +105,7 @@ public:
 	std::string formatString(std::string format, float var) const;
 	std::string formatString(std::string format, long var) const;
 	std::string formatString(std::string format, std::string var) const;
-	std::string autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride = "", char cTokenCheck = '\xAB') const;
+	std::string autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride = "", bool bCreatingVar = false) const;
 	
 	std::string getCommand(bool skipNewlines = true);
 	
@@ -136,6 +137,10 @@ public:
 	bool returnToCaller();
 	
 	const EERIE_SCRIPT * getScript() const { return m_script; }
+	
+	bool isCheckTimerIdVsGoToLabelOnce() { return m_timer != nullptr; }
+	void clearCheckTimerIdVsGoToLabelOnce() { m_timer = nullptr; }
+	std::string getTimerName() { return m_timer != nullptr ? m_timer->name : ""; }
 	
 	size_t getPosition() const { return m_pos; }
 	void getLineColumn(size_t & iLine, size_t & iColumn, size_t pos = static_cast<size_t>(-1)) const;

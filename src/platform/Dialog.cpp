@@ -40,9 +40,8 @@
 #include <SDL.h>
 #endif
 
-//#include "core/GameTime.h"
-//#include "platform/Time.h"
 #include "core/Version.h"
+#include "platform/Environment.h"
 #include "platform/Process.h"
 #include "platform/WindowsUtils.h"
 #include "util/String.h"
@@ -503,16 +502,10 @@ bool askOkCancel(const std::string & question, const std::string & title) {
  * 		TODO
  */
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, size_t lineAtFileToEdit) {
-	static std::string strEnvVarCmdPopup = "ARX_ScriptErrorPopupCommand";
-	//static const char * systemPopupCmd = std::getenv(strEnvVarCmdPopup.c_str());
-	static const char * systemPopupCmd = [](){const char * pc = std::getenv(strEnvVarCmdPopup.c_str()); LogWarning << "[CustomUserCommand] " << strEnvVarCmdPopup << "=\"" << pc << "\""; return pc;}(); // warns only once
-	//static long ignoreTimes = 0;if(ignoreTimes > 0) ignoreTimes--;
-	static time_t ignoreTo = time(0);time_t now = time(0);
-	//static PlatformInstant ignoreTo = platform::getTime();PlatformInstant now = platform::getTime();
-	//if(systemPopupCmd && ignoreTimes == 0) {
+	static const char * systemPopupCmd = [](){return platform::getEnvironmentVariableValue("ARX_ScriptErrorPopupCommand", 'w', std::string() + "Attention: custom user command!");}(); // being static logs only once
+	static time_t ignoreTo = time(0);time_t now = time(0); // TODO? static PlatformInstant ignoreTo = platform::getTime();PlatformInstant now = platform::getTime();
 	if(systemPopupCmd && now >= ignoreTo) {
 		std::string strSysPopupCmd = std::string() + systemPopupCmd;
-		//static bool bWarnPopupOnce = [strSysPopupCmd](){LogWarning << "[CustomUserCommand] " << strEnvVarCmdPopup << "=\"" << strSysPopupCmd << "\""; return true;}();
 		
 		std::string strTitleOk = "ArxLibertatis: " + strTitle;
 		util::applyTokenAt(strSysPopupCmd, "%{title}", util::escapeString(strTitleOk));
@@ -525,23 +518,18 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 			ssMsg << " [FileToEdit] '" << strFileToEdit << ":" << lineAtFileToEdit << "'\n";
 		}
 		
-		static std::string strEnvVarCmdEditor = "ARX_ScriptCodeEditorCommand";
-		static const char * codeEditorCmd = [](){const char * pc = std::getenv(strEnvVarCmdEditor.c_str()); LogWarning << "[CustomUserCommand] " << strEnvVarCmdEditor << "=\"" << pc << "\""; return pc;}();  // warns only once
-		
+		static const char * codeEditorCmd = [](){return platform::getEnvironmentVariableValue("ARX_ScriptCodeEditorCommand", 'w', std::string() + "Attention: custom user command!");}();  // being static logs only once
 		if(codeEditorCmd) {
 			ssMsg << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
 		}
 		
 		static std::string strEscapeChars = "\\ \"'!@#$%^&*<>()[]{}";
-		
 		util::applyTokenAt(strSysPopupCmd, "%{message}", util::escapeString(ssMsg.str(), strEscapeChars));
-		
 		util::applyTokenAt(strSysPopupCmd, "%{details}", std::string() + " [DETAILS] \n" + util::escapeString(strDetails, strEscapeChars));
 		
 		int retPopupCmd = platform::runUserCommand(strSysPopupCmd.c_str());
 		if(retPopupCmd == 0 && codeEditorCmd && strFileToEdit.size() > 0) { // clicked ok
 			std::string strCodeEditorCmd = std::string() + codeEditorCmd;
-			//static bool bWarnEditorOnce = [strCodeEditorCmd](){LogWarning << "[CustomUserCommand] " << strEnvVarCmdEditor << "=\"" << strCodeEditorCmd << "\""; return true;}();
 			
 			util::applyTokenAt(strCodeEditorCmd, "%{file}", strFileToEdit);
 			
@@ -554,21 +542,23 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 			return true;
 		}
 		
-		if(retPopupCmd == 2) {
+		// retPopupCmd == 1 is ignore once
+		
+		if(retPopupCmd == 2 || retPopupCmd == 2*256) { // TODO explain how 2 returned from yad becomes 512 ...
 			//ignoreTo = platform::getTime() + 10*1000000 ;
 			ignoreTo = time(0) + 10;
 			//ignoreTimes += 10;
 		}
-		if(retPopupCmd == 3) {
+		if(retPopupCmd == 3 || retPopupCmd == 3*256) {
 			//ignoreTo = platform::getTime() + 60*1000000 ;
 			ignoreTo = time(0) + 60;
 			//ignoreTimes += 100;
 		}
-		if(retPopupCmd == 4) {
+		if(retPopupCmd == 4 || retPopupCmd == 4*256) {
 			//ignoreTo = platform::getTime() + 600*1000000 ;
 			ignoreTo = time(0) + 600;
 		}
-		if(retPopupCmd == 5) {
+		if(retPopupCmd == 5 || retPopupCmd == 5*256) {
 			//ignoreTo = platform::getTime() + 3600*1000000 ;
 			ignoreTo = time(0) + 3600;
 		}

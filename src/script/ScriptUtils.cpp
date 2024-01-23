@@ -28,6 +28,7 @@
 #include "game/Entity.h"
 #include "graphics/data/Mesh.h"
 #include "platform/Dialog.h"
+#include "platform/Environment.h"
 #include "platform/Process.h"
 #include "script/ScriptEvent.h"
 #include "util/Number.h"
@@ -52,13 +53,14 @@ std::string_view toLocalizationKey(std::string_view string) {
 }
 
 Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entity * entity,
-                 ScriptMessage msg, ScriptParameters parameters)
+                 ScriptMessage msg, ScriptParameters parameters, const SCR_TIMER * timer)
 	: m_script(script)
 	, m_pos(pos)
 	, m_sender(sender)
 	, m_entity(entity)
 	, m_message(msg)
 	, m_parameters(std::move(parameters))
+	, m_timer(timer)
 {
 	updateNewLinesList();
 }
@@ -98,14 +100,16 @@ std::string Context::formatString(std::string format, std::string var) const {
 }
 #pragma GCC diagnostic pop
 
-std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, char cTokenCheck) const {
-	if(!isLocalVariable(name)) {
-		return name;
+std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, bool bCreatingVar) const {
+	std::string nameAuto = std::string(name);
+	if(!isLocalVariable(nameAuto)) {
+		return nameAuto; //keep on top to be quick, no warning
 	}
 	
-	if(privateScopeOnly) { // only if private scope is requested on the var name thru the special char
-		if(name[1] != cTokenCheck) {
-			return name;
+	char cTokenCheck = bCreatingVar ? '\xBB' : '\xAB'; // tiny '>>' : '<<'
+	if(privateScopeOnly) { // only if pseudo-private scope is requested on the var name thru the special char
+		if(nameAuto[1] != cTokenCheck) {
+			return nameAuto; //keep on top to be quick, no warning
 		}
 	}
 	
@@ -114,27 +118,49 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 		label = labelOverride;
 	} else {
 		if(m_stackIdCalledFromPos.size() == 0) {
-			label = ScriptEvent::name(m_message);
+			if(m_message < SM_MAXCMD) {
+				label = ScriptEvent::name(m_message);
+				label[2] = '_'; // ex.: "on main" becomes "on_main"
+			}
 		} else {
 			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
 		}
 	}
 	if(label.size() == 0) {
-		return name;
+		LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", Empty label for: " << nameAuto;
+		return nameAuto;
+	}
+	
+	if(bCreatingVar) {
+		if(nameAuto[1] == '\xAB') {
+			LogError << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", At GoSub param var name to be created/set, it is expected the tiny symbol \xBB '>>', but found \xAB '<<': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
+	} else {
+		if(nameAuto[1] == '\xBB') {
+			LogError << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", In a \"function\", pseudo-private var name shall use the tiny symbol \xAB '<<', but found \xBB '>>': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
 	}
 	
 	char cSeparator = '_'; // local scope
 	size_t posID = 1;
-	if(name[1] == cTokenCheck) {
-		cSeparator = '\xAB'; // private scope
+	if(nameAuto[1] == cTokenCheck) {
+		cSeparator = '\xAB'; // pseudo-private scope tiny '<<' char. vars are ALWAYS created with this, and never with \xBB '>>'
 		posID = 2;
 	}
-	
-	if(!boost::starts_with(name.substr(1), label)) { // only prefix with label if not already
-		name = std::string() + name[0] + label + cSeparator + name.substr(posID);
+	if(cSeparator == '_') {
+		static bool warnLocalScopeParams = [](){return platform::getEnvironmentVariableValueBoolean("ARX_WarnGoSubWithLocalScopeParams");}();
+		if(warnLocalScopeParams) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
+			LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
+		}
 	}
 	
-	return name;
+	if(!boost::starts_with(nameAuto.substr(1), label)) { // only prefix with label if not already
+		nameAuto = std::string() + nameAuto[0] + label + cSeparator + nameAuto.substr(posID);
+	}
+	
+	return nameAuto;
 }
 
 std::string Context::getStringVar(std::string_view name, Entity * entOverride) const {
@@ -149,38 +175,38 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 		name   = name.substr( format.size() + 1 ); // +1 skips the ','
 	}
 	
-	name = autoVarNameForScope(true, name);
+	std::string nameAuto = autoVarNameForScope(true, name);
 	
-	if(name[0] == '^') {
+	if(nameAuto[0] == '^') {
 		long lv;
 		float fv;
 		std::string tv;
-		switch(getSystemVar(*this, name, tv, &fv, &lv)) {
+		switch(getSystemVar(*this, nameAuto, tv, &fv, &lv)) {
 			case TYPE_TEXT: return format.size() > 0 ? formatString(format, tv) : tv;
 			case TYPE_LONG: return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
 			default: return format.size() > 0 ? formatString(format, fv) : std::to_string(fv);
 		}
-	} else if(name[0] == '#') {
-		long lv = GETVarValueLong(svar, name);
+	} else if(nameAuto[0] == '#') {
+		long lv = GETVarValueLong(svar, nameAuto);
 		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
-	} else if(name[0] == '\xA7') {
-		long lv = GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, name);
+	} else if(nameAuto[0] == '\xA7') {
+		long lv = GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
-	} else if(name[0] == '&') {
-		float fv = GETVarValueFloat(svar, name);
+	} else if(nameAuto[0] == '&') {
+		float fv = GETVarValueFloat(svar, nameAuto);
 		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
-	} else if(name[0] == '@') {
-		float fv = GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, name);
+	} else if(nameAuto[0] == '@') {
+		float fv = GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
-	} else if(name[0] == '$') {
-		const SCRIPT_VAR * var = GetVarAddress(svar, name);
+	} else if(nameAuto[0] == '$') {
+		const SCRIPT_VAR * var = GetVarAddress(svar, nameAuto);
 		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
-	} else if(name[0] == '\xA3') {
-		const SCRIPT_VAR * var = GetVarAddress((entOverride ? entOverride : getEntity())->m_variables, name);
+	} else if(nameAuto[0] == '\xA3') {
+		const SCRIPT_VAR * var = GetVarAddress((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
 	}
 	
-	return std::string(name);
+	return nameAuto;
 }
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
@@ -522,11 +548,13 @@ float Context::getFloatVar(std::string_view name, Entity * entOverride) const {
 	} else if(name[0] == '#') {
 		return float(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, autoVarNameForScope(true, name)));
+		std::string nameAuto = autoVarNameForScope(true, name);
+		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, nameAuto));
 	} else if(name[0] == '&') {
 		return GETVarValueFloat(svar, name);
 	} else if(name[0] == '@') {
-		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, autoVarNameForScope(true, name));
+		std::string nameAuto = autoVarNameForScope(true, name);
+		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 	}
 	
 	return util::parseFloat(name);
@@ -579,9 +607,13 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 	if(boost::starts_with(util::toLowercase(strCustomMessage), "warn:" )) ssWarn  << strCustomMessage.substr(5);
 	if(boost::starts_with(util::toLowercase(strCustomMessage), "error:")) ssError << strCustomMessage.substr(6);
 	
+	std::stringstream ssFlInfo; ssFlInfo << " at \"" << strFileToEdit << "\"";
+	
 	size_t lineAtFileToEdit = 0;
 	if(context) {
 		std::string strScriptMsg = context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)); // must become lowercase or wont match
+		
+		ssFlInfo << " " << context->getPositionAndLineNumber(true) << context->getGoSubCallStack("{CallStackId(FromPosition):","}");
 		
 		if(boost::starts_with(util::toLowercase(strScriptMsg), "warn:" )) ssWarn  << " " << strScriptMsg.substr(5);
 		if(boost::starts_with(util::toLowercase(strScriptMsg), "error:")) ssError << " " << strScriptMsg.substr(6);
@@ -593,7 +625,6 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 			 << " [!!!ScriptDebugMessage!!!] " << strScriptMsg << "\n";
 	}
 	
-	std::stringstream ssFlInfo; ssFlInfo << " at \"" << strFileToEdit << "\"";
 	if(ssWarn.str().size()  > 0) LogWarning << ssWarn.str()  << ssFlInfo.str();
 	if(ssError.str().size() > 0) LogError   << ssError.str() << ssFlInfo.str();
 	
@@ -632,18 +663,25 @@ static void DebugBreakpoint(std::string_view target, Context & context) {
 
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
+	if(substack) {
+		// push the position from where the target will be called
+		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
+		
+		static size_t iCountRecursiveCheck = 0;
+		if(m_stackIdCalledFromPos.size() > 100 && iCountRecursiveCheck%100 == 0) {
+			LogWarning << "infinite recursive loop? " << getGoSubCallStack("CallStack(called from line,column):\n ", "", " -> \n ");
+			iCountRecursiveCheck++;
+		}
+	}
+	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
 	if(targetpos == size_t(-1)) {
 		return false;
 	}
 	
-	m_pos = targetpos;
-	
-	if(substack) {
-		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
-	}
-	
 	DebugBreakpoint(target, *this);
+	
+	m_pos = targetpos;
 	
 	return true;
 }
