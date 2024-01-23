@@ -194,6 +194,9 @@ public:
 				return resParams;
 			}
 		}
+		if(res != Success) {
+			return res;
+		}
 		
 		if(!sub) {
 			size_t pos = context.skipCommand();
