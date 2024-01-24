@@ -152,6 +152,7 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	m_index = entities.add(this);
 	
 	std::fill(anims.begin(), anims.end(), nullptr);
+	std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr);
 	
 	for(size_t l = 0; l < MAX_ANIM_LAYERS; l++) {
 		animlayer[l] = AnimLayer();
