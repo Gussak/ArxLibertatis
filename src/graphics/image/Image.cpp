@@ -31,6 +31,7 @@
 #include "io/resource/PakReader.h"
 #include "io/log/Logger.h"
 #include "platform/CrashHandler.h"
+#include "platform/Environment.h"
 
 
 Image::Image() : m_data(0) {
@@ -144,6 +145,23 @@ bool Image::load(const char * data, size_t size, const char * file) {
 	
 	// Release resources
 	stbi::stbi_image_free(pixels);
+	
+	static s32 iMax = [](){return platform::getEnvironmentVariableValueInteger("ARX_MaxTextureSize", 'i', "", 0, false);}();  // being static warns only once. export ARX_MaxTextureSize=512;
+	if(iMax > 0 && (width > iMax || height > iMax)) {
+		int widthNew = 0;
+		int heightNew = 0;
+		if(width >= height) {
+			float fRatio = width/static_cast<float>(iMax);
+			widthNew = iMax;
+			heightNew = static_cast<int>(height/(fRatio));
+		} else {
+			float fRatio = height/static_cast<float>(iMax);
+			heightNew = iMax;
+			widthNew = static_cast<int>(width/(fRatio));
+		}
+		LogWarning << "resizing image '" << file << "' from " << width << "x" << height << " to " << widthNew << "x" << heightNew;
+		resizeFrom(*this, size_t(widthNew), size_t(widthNew));
+	}
 	
 	return true;
 }

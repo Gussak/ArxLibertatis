@@ -585,6 +585,8 @@ f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, const cha
 			if(bAllowNegative) return val;
 			if(val < 0.f) {
 				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());
+			} else {
+				return val;
 			}
 		}
 	}
@@ -602,6 +604,8 @@ s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode, const c
 			if(bAllowNegative) return val;
 			if(val < 0.f) {
 				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());
+			} else {
+				return val;
 			}
 		}
 	}
