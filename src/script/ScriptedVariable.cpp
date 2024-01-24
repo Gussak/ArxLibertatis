@@ -46,6 +46,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <cstring>
+#include <regex>
 #include <string>
 #include <string_view>
 
@@ -149,7 +150,7 @@ public:
 	 * 
 	 ** <-v> Mode: Array of words: assigns to var the array entry at index
 	 * Set -v[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array...> ;
-	 * 		<index> array index that begins in 0
+	 * 		<index> array index that begins in 0.
 	 * 		<array...> are words terminated with ';' word
 	 * 		; is required to know the list ended
 	 * 		returns "void" meaning index out of bounds
@@ -158,6 +159,9 @@ public:
 	 * Set -a[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array>
 	 * 		<index> array index that begins in 0
 	 * 		<array> is a string that contains words separated by spaces ' '
+	 * 
+	 ** <-x> Mode: Replaces a string in a string var matching a regex
+	 * Set -x[rw] <w?entWriteTo> <r?entReadFrom> <var> <x?regex> <x?replaceWith>
 	 * 
 	 * Usage examples:
 	 * Set <var> <val>
@@ -177,7 +181,7 @@ public:
 		bool bReadFrom=false;
 		bool bWriteTo=false;
 		
-		HandleFlags("rwav") {
+		HandleFlags("rwavx") {
 			if(flg & flag('r')) {
 				bReadFrom=true;
 			}
@@ -189,6 +193,9 @@ public:
 			}
 			if(flg & flag('v')) {
 				mode = 'v';
+			}
+			if(flg & flag('x')) {
+				mode = 'x';
 			}
 		}
 		
@@ -224,6 +231,10 @@ public:
 						context.skipWord(); // index
 						while(context.getWord() != ";"); // array... and terminator ;
 						break;
+					case 'x': 
+						context.skipWord(); // regex
+						context.skipWord(); // replaceWith
+						break;
 					default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
 				}
 			} else {
@@ -239,17 +250,19 @@ public:
 			case '.': { // simple value mode
 				val = context.getWord();
 			}; break;
-			case 'a': { // array mode
+			
+			case 'a': { // array in a string mode
 				long index = long(context.getFloatVar(context.getWord(), entReadFrom));
-				std::string array = context.getWord();
+				std::string array = context.getStringVar(context.getWord(), entReadFrom);
 				val = getWordAtIndex(array, index); 
 			}; break;
-			case 'v': { // array... mode
+			
+			case 'v': { // array of words mode
 				long index = long(context.getFloatVar(context.getWord(), entReadFrom));
-				std::string word = "void"; // means index out of bounds
+				std::string word = "void"; // means index out of bounds, index not set, index doesnt exist, like a var that doesnt exist at getStringVar()
 				long count = 0;
 				while(true) {
-					word = context.getWord();
+					word = context.getStringVar(context.getWord(), entReadFrom);
 					if(word == ";") break; // must continue til the end of the list
 					if(count == index) {
 						val = word;
@@ -257,6 +270,18 @@ public:
 					count++;
 				}
 			}; break;
+			
+			case 'x': { // replace mode
+				std::string strRegexMatch = context.getStringVar(context.getWord(), entReadFrom);
+				std::string strReplace = context.getStringVar(context.getWord(), entReadFrom);
+				val = context.getStringVar(var, entReadFrom);
+				
+				DebugScript(' ' << strRegexMatch << ' ' << strReplace << ' ' << val);
+				
+				std::regex reRegexMatch(strRegexMatch.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
+				val = std::regex_replace(val, reRegexMatch, strReplace.c_str());
+			}; break;
+			
 			default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
 		}
 		
@@ -274,19 +299,19 @@ public:
 			
 			case '$':      // global text
 			case '\xA3': { // local text
-				sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val,entReadFrom));
+				sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val, entReadFrom));
 				break;
 			}
 			
 			case '#':      // global long
 			case '\xA7': { // local long
-				sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val,entReadFrom)));
+				sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val, entReadFrom)));
 				break;
 			}
 			
 			case '&':      // global float
 			case '@': {    // local float
-				sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val,entReadFrom));
+				sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val, entReadFrom));
 				break;
 			}
 			

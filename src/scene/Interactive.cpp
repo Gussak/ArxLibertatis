@@ -108,6 +108,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "physics/CollisionShapes.h"
 #include "physics/Physics.h"
 
+#include "platform/Environment.h"
 #include "platform/Thread.h"
 #include "platform/profiler/Profiler.h"
 
@@ -598,7 +599,7 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 	}
 	
 	if(io->obj && io->usemesh.string() != io->obj->file.string()) { // TODO this ever happens?
-		LogWarning << " Attention: io->usemesh '" << io->usemesh.string() << "' differs from mesh file '" << io->obj->file.string() << "' !";
+		LogWarning << "At entity '" << io->idString() << "', io->usemesh '" << io->usemesh.string() << "' differs from mesh file io->obj->file '" << io->obj->file.string() << "' ! (requested change to '" << temp.string() << "')";
 	}
 	
 	std::stringstream ssMsg;
@@ -1981,7 +1982,7 @@ void UpdateInter() {
 	
 	for(Entity & entity : entities.inScene()) {
 		
-		static float detectMoveDist = 3.0f; // TODO this could be configurable, may be also per entity, thru a script command: DetectMove -e <entityID> <floatDist>
+		static f32 detectMoveDist = [](){return platform::getEnvironmentVariableValueFloat("ARX_MovementDetectedDistance", 'i', "", 3.0f, false);}();  // warns only once. set ARX_MovementDetectedDistance=3.0; // TODO this could be configurable per entity, thru a script command: DetectMove -e <entityID> <floatDist>
 		if((entity.pos != entity.detectMovePos) && (fdist(entity.pos, entity.detectMovePos) >= detectMoveDist)) {
 			SendIOScriptEvent(&entity == g_draggedEntity ? entities.player() : nullptr, &entity, SM_MOVEMENTDETECTED);
 			entity.detectMovePos = entity.pos;

@@ -537,7 +537,7 @@ void setEnvironmentVariable(const char * name, const char * value) {
 	#endif
 }
 
-const char * getEnvironmentVariableValue(const char * name, char cLogMode, std::string_view strMsg, const char * defaultValue, const char * pcOverrideValue) {
+const char * getEnvironmentVariableValue(const char * name, char cLogMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
 	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead
 	const char * pc = pcOverrideValue ? pcOverrideValue : getenv(name);
 	if(pc) {
@@ -560,45 +560,52 @@ const char * getEnvironmentVariableValue(const char * name, char cLogMode, std::
 	return nullptr;
 }
 
-bool getEnvironmentVariableValueBoolean(const char * name, char cLogMode, std::string_view strMsg, bool defaultValue) {
-	std::string ev = getEnvironmentVariableValue(name, cLogMode, strMsg);
+bool getEnvironmentVariableValueBoolean(const char * name, char cLogMode, const char * strMsg, bool defaultValue) {
+	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
+	std::string ev = pc ? pc : "";
 	if(ev.size() > 0) {
 		ev = util::toLowercase(ev);
 		if(ev == "true" || ev == "false" || ev == "1" || ev == "0") {
 			return ev == "true" || ev == "1";
 		} else {
-			getEnvironmentVariableValue(name, 'e', std::string() + "Wrong value should be 'true' or '1', 'false' or 0 ! " + std::string(strMsg), ev.c_str());
+			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be 'true' or '1', 'false' or 0 ! " + std::string(strMsg)).c_str(), ev.c_str());
 		}
 	}
 	return defaultValue;
 }
 
-f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, std::string_view strMsg, f32 defaultValue, bool bAllowNegative) {
-	std::string ev = getEnvironmentVariableValue(name, cLogMode, strMsg);
+f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, const char * strMsg, f32 defaultValue, bool bAllowNegative) {
+	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
+	std::string ev = pc ? pc : "";
 	if(ev.size() > 0) {
 		if(ev.find_first_not_of("0123456789-.") != std::string::npos) {
-			getEnvironmentVariableValue(name, 'e', std::string() + "Wrong value should be float ! " + std::string(strMsg), ev.c_str());
+			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be float ! " + std::string(strMsg)).c_str(), ev.c_str());
 		} else {
 			f32 val = util::parseFloat(ev);
 			if(bAllowNegative) return val;
 			if(val < 0.f) {
-				getEnvironmentVariableValue(name, 'e', std::string() + "Should be positive ! " + std::string(strMsg), ev.c_str());
+				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());
+			} else {
+				return val;
 			}
 		}
 	}
 	return defaultValue;
 }
 
-s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode, std::string_view strMsg, s32 defaultValue, bool bAllowNegative) {
-	std::string ev = getEnvironmentVariableValue(name, cLogMode, strMsg);
+s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode, const char * strMsg, s32 defaultValue, bool bAllowNegative) {
+	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
+	std::string ev = pc ? pc : "";
 	if(ev.size() > 0) {
 		if(ev.find_first_not_of("0123456789-") != std::string::npos) {
-			getEnvironmentVariableValue(name, 'e', std::string() + "Wrong value should be integer ! " + std::string(strMsg), ev.c_str());
+			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be integer ! " + std::string(strMsg)).c_str(), ev.c_str());
 		} else {
 			s32 val = util::parseInt(ev);
 			if(bAllowNegative) return val;
 			if(val < 0.f) {
-				getEnvironmentVariableValue(name, 'e', std::string() + "Should be positive ! " + std::string(strMsg), ev.c_str());
+				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());
+			} else {
+				return val;
 			}
 		}
 	}
