@@ -355,41 +355,40 @@ LODType strToLOD(std::string str, std::string strDefault) {
 LODType load3DModelAndLOD(Entity & io, const res::path & file, bool pbox) {
 	static std::vector<LODType> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT};
 	
-	//static const std::string maxLOD = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_LODMax"); if(pc){return util::toLowercase(pc);} return "perfect";}(); // being static logs only once. ex.: export ARX_LODMax="PERFECT"
-	//static const std::string minLOD = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_LODMin"); if(pc){return util::toLowercase(pc);} return "flat";}(); // being static logs only once. ex.: export ARX_LODMax="FLAT"
-	static const LODType ltMax = [](){return strToLOD(platform::getEnvironmentVariableValue("ARX_LODMax", 'i', "", "PERFECT"), "PERFECT");}(); // export ARX_LODMax="PERFECT"
-	static const LODType ltMin = [](){
-		LODType ltMinTmp = strToLOD(platform::getEnvironmentVariableValue("ARX_LODMin", 'i', "", "FLAT"), "FLAT"); // export ARX_LODMax="FLAT"
-		if(ltMinTmp < ltMax) {
-			ltMinTmp = ltMax;
-			LogWarning << "fixing LOD min to '" << ltMinTmp << "'";
-		}
-		if(ltMax > ltMinTmp) {
-			ltMax = ltMinTmp;
-			LogWarning << "fixing LOD max to '" << ltMax << "'";
-		}
-		return ltMinTmp;
-	}();
+	////TODO move this to where LODs will be switched, use: if(ltChk < ltMax) continue; if(ltChk > ltMin) continue;
+	//static const LODType ltMax = [](){return strToLOD(platform::getEnvironmentVariableValue("ARX_LODMax", 'i', "", "PERFECT"), "PERFECT");}(); // export ARX_LODMax="PERFECT"
+	//static const LODType ltMin = [](){
+		//LODType ltMinTmp = strToLOD(platform::getEnvironmentVariableValue("ARX_LODMin", 'i', "", "FLAT"), "FLAT"); // export ARX_LODMax="FLAT"
+		//if(ltMinTmp < ltMax) {
+			//ltMinTmp = ltMax;
+			//LogWarning << "fixing LOD min to '" << ltMinTmp << "'";
+		//}
+		//if(ltMax > ltMinTmp) {
+			//ltMax = ltMinTmp;
+			//LogWarning << "fixing LOD max to '" << ltMax << "'";
+		//}
+		//return ltMinTmp;
+	//}();
 	
 	res::path fileChk;
-	int iLOD = -1;
+	//int iLOD = -1;
 	std::string strLOD;
 	
 	for(LODType ltChk : ltOrderedList) {
-		if(ltChk < ltMax) continue;
-		if(ltChk > ltMin) continue;
+		//if(ltChk < ltMax) continue; //do not limit LOD loading
+		//if(ltChk > ltMin) continue;
 		
 		fileChk = file;
-		iLOD = -1;
+		//iLOD = -1;
 		strLOD = ""
 		
 		switch(ltChk) {
-			case LOD_PERFECT:iLOD = 0;fileChk = file; break;
-			case LOD_HIGH:   iLOD = 1;strLOD = "[LODH]"; break;
-			case LOD_MEDIUM: iLOD = 2;strLOD = "[LODM]"; break;
-			case LOD_LOW:    iLOD = 3;strLOD = "[LODL]"; break;
-			case LOD_BAD:    iLOD = 4;strLOD = "[LODB]"; break;
-			case LOD_FLAT:   iLOD = 5;strLOD = "[LODF]"; break;
+			case LOD_PERFECT: break;
+			case LOD_HIGH:    strLOD = "[LODH]"; break;
+			case LOD_MEDIUM:  strLOD = "[LODM]"; break;
+			case LOD_LOW:     strLOD = "[LODL]"; break;
+			case LOD_BAD:     strLOD = "[LODB]"; break;
+			case LOD_FLAT:    strLOD = "[LODF]"; break;
 			default: arx_assert_msg(false, "not implemented LOD %d", ltChk); break;
 		}
 		
@@ -397,31 +396,34 @@ LODType load3DModelAndLOD(Entity & io, const res::path & file, bool pbox) {
 			fileChk.remove_ext().append(util::toLowercase(strLOD)).append(file.ext()); break;
 		}
 		
-		if(iLOD >= 0) {
-			arx_assert_msg(iLOD < MAX_LODS, "not implemented LOD index %d", iLOD); break;
+		//if(iLOD >= 0) {
+			//arx_assert_msg(iLOD < MAX_LODS, "not implemented LOD index %d", iLOD); break;
 			
 			EERIE_3DOBJ * obj = loadObject(fileChk, pbox).release();
-			io->aObjLOD[iLOD] = obj;
-			
 			if(obj) {
+				//io->aObjLOD[iLOD] = obj;
+				io->objLOD[ltChk] = obj;
+				
 				io->lodflags &= ltChk;
 				
 				if(!io->obj) { // default becomes best quality allowed
 					io->obj = obj;
+					currentLOD = ltChk;
 				}
 			}
-		}
+		//}
 	}
 	
-	if(!io.obj) {
-		io.obj = loadObject(file, pbox).release(); // fallback to default
+	//if(!io.obj) {
+		//io.obj = loadObject(file, pbox).release(); // fallback to default
 		
 		if(!io.obj) {
 			LogError << "3D Model not found '" << file.string() << "' (pbox:" << pbox << ")";
+			return false;
 		}
-	}
+	//}
 	
-	return lt;
+	return true;
 }
 
 std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
