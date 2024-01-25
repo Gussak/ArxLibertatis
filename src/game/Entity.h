@@ -252,6 +252,11 @@ struct AnimationBlendStatus {
 
 class Entity {
 	
+private:
+
+	std::map<LODType, EERIE_3DOBJ*> objLOD; // LODs
+	LODType currentLOD;
+	
 public:
 	
 	Entity(const Entity &) = delete;
@@ -276,7 +281,6 @@ public:
 	float original_radius;
 	TextureContainer * m_icon; // Object Icon
 	EERIE_3DOBJ * obj; // IO Mesh data
-	std::array<EERIE_3DOBJ *, MAX_LODS> aObjLOD; // LODs
 	std::array<ANIM_HANDLE *, MAX_ANIMS> anims; // Object Animations
 	std::array<AnimLayer, MAX_ANIM_LAYERS> animlayer;
 	
@@ -458,6 +462,8 @@ public:
 	[[nodiscard]] bool operator!=(const Entity & other) const noexcept {
 		return &other != this;
 	}
+	
+	bool setLOD(const LODType lod);
 	
 private:
 	

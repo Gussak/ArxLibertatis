@@ -152,7 +152,16 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	m_index = entities.add(this);
 	
 	std::fill(anims.begin(), anims.end(), nullptr);
-	std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr);
+	
+	//std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr);
+	currentLOD = LOD_PERFECT;
+	//objLOD.emplace_back(LOD_PERFECT, nullptr);
+	objLOD[LOD_PERFECT] = nullptr;
+	objLOD[LOD_HIGH] = nullptr;
+	objLOD[LOD_MEDIUM] = nullptr;
+	objLOD[LOD_LOW] = nullptr;
+	objLOD[LOD_BAD] = nullptr;
+	objLOD[LOD_FLAT] = nullptr;
 	
 	for(size_t l = 0; l < MAX_ANIM_LAYERS; l++) {
 		animlayer[l] = AnimLayer();
@@ -409,4 +418,62 @@ bool Entity::isInvulnerable() {
 	
 	return durability >= 100.f;
 	
+}
+
+bool entity::setLOD(const LODType lodRequest) {
+	LODType lodChk = lodRequest;
+	
+	static const LODType ltMax = [](){return strToLOD(platform::getEnvironmentVariableValue("ARX_LODMax", 'i', "", "PERFECT"), "PERFECT");}(); // export ARX_LODMax="PERFECT"
+	static const LODType ltMin = [](){
+		LODType ltMinTmp = strToLOD(platform::getEnvironmentVariableValue("ARX_LODMin", 'i', "", "FLAT"), "FLAT"); // export ARX_LODMax="FLAT"
+		if(ltMinTmp < ltMax) {
+			ltMinTmp = ltMax;
+			LogWarning << "fixing LOD min to '" << ltMinTmp << "'";
+		}
+		if(ltMax > ltMinTmp) {
+			ltMax = ltMinTmp;
+			LogWarning << "fixing LOD max to '" << ltMax << "'";
+		}
+		return ltMinTmp;
+	}();
+	
+	// because max quality is lowest flag value
+	if(lodChk < ltMax) lodChk = ltMax;
+	if(lodChk > ltMin) lodChk = ltMin;
+	while(lodChk) {
+		if(availableLODs & lodChk) break;
+		lodChk = lodChk >> 1;
+	}
+	if(lodChk && availableLODs & lodChk) {
+		currentLOD = lodChk;
+		obj = objLOD[currentLOD];
+		return true;
+	}
+	
+	
+	//LODType lt = LOD_PERFECT;
+	//int iLOD = -1;
+	//switch(lod) {
+		//case LOD_PERFECT: if(aObjLOD[0]) { currentLOD = lod; };break;
+		//case LOD_PERFECT: iLOD = 0;break;
+		//case LOD_HIGH:    iLOD = 1;break;
+		//case LOD_MEDIUM:  iLOD = 2;break;
+		//case LOD_LOW:     iLOD = 3;break;
+		//case LOD_BAD:     iLOD = 4;break;
+		//case LOD_FLAT:    iLOD = 5;break;
+		//default: arx_assert_msg(false, "not implemented LOD %d", lod); break;
+	//}
+	
+	//if(iLOD >= 0) {
+		//arx_assert_msg(iLOD < MAX_LODS, "not implemented LOD index %d", iLOD); break;
+		
+		//// if not found, tries to downgrade. TODO could be optional, no downgrade.
+		//for(int i = iLOD; i < MAX_LODS; i++) {
+			//if(aObjLOD[i]) {
+				//currentLOD = 
+			//}
+		//}
+	//}
+	
+	return false;
 }
