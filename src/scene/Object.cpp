@@ -47,6 +47,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "scene/Object.h"
 
 #include <cstdio>
+#include <fstream>
 #include <memory>
 #include <vector>
 
@@ -357,8 +358,44 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 	}
 	return lt;
 }
-bool load3DModelAndLOD(Entity & io, const res::path & file, bool pbox) { //TODO if this works, try to substitute everywhere using loadObject() for items at least
+bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { //TODO if this works, try to substitute everywhere using loadObject() for items at least
 	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT};
+	
+	std::string strErrMsg = "Failed files: ";
+	res::path fileOk;
+	std::ifstream fileValidate;
+	char c;
+	fileValidate.open(fileRequest.string().c_str(), std::ifstream::in);
+	c = fileValidate.get();
+	if(fileValidate.good()) {
+		fileOk = fileRequest;
+		fileValidate.close();
+	} else {
+		strErrMsg += " requested='" + fileRequest.string() + "' ";
+		fileValidate.open(io.usemesh.string().c_str(), std::ifstream::in);
+		c = fileValidate.get();
+		if(fileValidate.good()) {
+			fileOk = io.usemesh;
+			fileValidate.close();
+		} else {
+			strErrMsg += " usemesh='" + io.usemesh.string() + "' ";
+			if(io.obj) {
+				fileValidate.open(io.obj->file.string().c_str(), std::ifstream::in);
+				c = fileValidate.get();
+			}
+			if(io.obj && fileValidate.good()) {
+				fileOk = io.obj->file;
+				fileValidate.close();
+			} else {
+				c = '.';
+				strErrMsg += " objFile='" + (io.obj ? io.obj->file.string() : "io.obj=nullptr") + "' " + c; // c here prevents compile warning
+			}
+		}
+	}
+	if(fileOk.string().size() == 0) {
+		LogError << "3D Model not found. " << strErrMsg << ". (pbox:" << pbox << ")";
+		return false;
+	}
 	
 	res::path fileChk;
 	//int iLOD = -1;
@@ -368,7 +405,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & file, bool pbox) { //TODO 
 		//if(ltChk < ltMax) continue; //do not limit LOD loading
 		//if(ltChk > ltMin) continue;
 		
-		fileChk = file;
+		fileChk = fileOk;
 		//iLOD = -1;
 		strLOD = "";
 		
@@ -383,7 +420,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & file, bool pbox) { //TODO 
 		}
 		
 		if(strLOD.size() > 0) {
-			fileChk.remove_ext().append(util::toLowercase(strLOD)).append(file.ext()); break;
+			fileChk.remove_ext().append(util::toLowercase(strLOD)).append(fileOk.ext()); break;
 		}
 		
 		//if(iLOD >= 0) {
@@ -408,7 +445,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & file, bool pbox) { //TODO 
 		//io.obj = loadObject(file, pbox).release(); // fallback to default
 		
 		if(!io.obj) {
-			LogError << "3D Model not found '" << file.string() << "' (pbox:" << pbox << ")";
+			LogError << "3D Model not found '" << fileRequest.string() << "' (pbox:" << pbox << ")";
 			return false;
 		}
 	//}

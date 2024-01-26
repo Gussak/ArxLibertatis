@@ -20,6 +20,7 @@
 #include "graphics/image/Image.h"
 
 #include <algorithm>
+#include <boost/algorithm/string/predicate.hpp>
 #include <sstream>
 #include <cstring>
 #include <limits>

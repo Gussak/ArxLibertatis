@@ -391,7 +391,7 @@ public:
 		std::string experiment = context.getWord();
 		if(experiment == "lod") {
 			Entity * ent = context.getEntity();
-			ent->setLOD(strToLOD(context.getWord()));
+			ent->setLOD( strToLOD( context.getStringVar( context.getWord() ) ) );
 		}
 		
 		return Success;
