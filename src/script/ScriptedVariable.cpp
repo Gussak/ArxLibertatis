@@ -465,8 +465,6 @@ public:
 		std::string var = context.autoVarNameForScope(true, context.getWord());
 		float val = op == ArithmeticCommand::Calc ? 0.f : context.getFloatVar(context.getWord(), context.getEntity());
 		
-		var = context.autoVarNameForScope(true, var);
-		
 		DebugScript(' ' << var << ' ' << val);
 		
 		if(var.empty()) {
@@ -566,8 +564,6 @@ public:
 	Result execute(Context & context) override {
 		
 		std::string var = context.autoVarNameForScope(true, context.getWord());
-		
-		var = context.autoVarNameForScope(true, var);
 		
 		DebugScript(' ' << var);
 		
