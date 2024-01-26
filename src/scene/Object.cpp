@@ -360,21 +360,6 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 bool load3DModelAndLOD(Entity & io, const res::path & file, bool pbox) { //TODO if this works, try to substitute everywhere using loadObject() for items at least
 	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT};
 	
-	////TODO move this to where LODs will be switched, use: if(ltChk < ltMax) continue; if(ltChk > ltMin) continue;
-	//static const LODFlags ltMax = [](){return strToLOD(platform::getEnvironmentVariableValue("ARX_LODMax", 'i', "", "PERFECT"), "PERFECT");}(); // export ARX_LODMax="PERFECT"
-	//static const LODFlags ltMin = [](){
-		//LODFlags ltMinTmp = strToLOD(platform::getEnvironmentVariableValue("ARX_LODMin", 'i', "", "FLAT"), "FLAT"); // export ARX_LODMax="FLAT"
-		//if(ltMinTmp < ltMax) {
-			//ltMinTmp = ltMax;
-			//LogWarning << "fixing LOD min to '" << ltMinTmp << "'";
-		//}
-		//if(ltMax > ltMinTmp) {
-			//ltMax = ltMinTmp;
-			//LogWarning << "fixing LOD max to '" << ltMax << "'";
-		//}
-		//return ltMinTmp;
-	//}();
-	
 	res::path fileChk;
 	//int iLOD = -1;
 	std::string strLOD;

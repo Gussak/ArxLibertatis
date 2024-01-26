@@ -157,7 +157,7 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	
 	//std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr);
 	currentLOD = LOD_PERFECT;
-	availableLODFlags = currentLOD;
+	availableLODFlags = 0;
 	//objLOD.emplace_back(LOD_PERFECT, nullptr);
 	objLOD[LOD_PERFECT] = nullptr;
 	objLOD[LOD_HIGH] = nullptr;
@@ -440,6 +440,12 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 		return ltMinTmp;
 	}();
 	
+	if(availableLODFlags == 0) {
+		if(!load3DModelAndLOD(*this, obj->file, obj->pbox != nullptr)) {
+			return false;
+		}
+	}
+	
 	// because max quality is lowest flag value
 	if(lodChk < ltMax) lodChk = ltMax;
 	if(lodChk > ltMin) lodChk = ltMin;
@@ -452,31 +458,6 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 		obj = objLOD[currentLOD];
 		return true;
 	}
-	
-	
-	//LODFlags lt = LOD_PERFECT;
-	//int iLOD = -1;
-	//switch(lod) {
-		//case LOD_PERFECT: if(aObjLOD[0]) { availableLODFlags = lod; };break;
-		//case LOD_PERFECT: iLOD = 0;break;
-		//case LOD_HIGH:    iLOD = 1;break;
-		//case LOD_MEDIUM:  iLOD = 2;break;
-		//case LOD_LOW:     iLOD = 3;break;
-		//case LOD_BAD:     iLOD = 4;break;
-		//case LOD_FLAT:    iLOD = 5;break;
-		//default: arx_assert_msg(false, "not implemented LOD %d", lod); break;
-	//}
-	
-	//if(iLOD >= 0) {
-		//arx_assert_msg(iLOD < MAX_LODS, "not implemented LOD index %d", iLOD); break;
-		
-		//// if not found, tries to downgrade. TODO could be optional, no downgrade.
-		//for(int i = iLOD; i < MAX_LODS; i++) {
-			//if(aObjLOD[i]) {
-				//availableLODFlags = 
-			//}
-		//}
-	//}
 	
 	return false;
 }
