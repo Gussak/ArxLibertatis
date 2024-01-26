@@ -553,8 +553,8 @@ void ARX_SCRIPT_Free_All_Global_Variables();
 
 bool createSingleLineComment(std::string & esdat, size_t & posNow);
 bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript);
-void detectAndFixGoToGoSubParam(std::string & line);
-void adaptScriptCode(std::string & line);
+size_t detectAndFixGoToGoSubParam(std::string & line);
+size_t adaptScriptCode(std::string & line);
 void fixLineEnding(std::string & strData, char cLineEndingMode = '.');
 void fixTo8859_1(std::string strFilename, std::string & strData);
 std::string loadAndFixScriptData(std::string strFilename, std::ifstream & file, char cLineEndingMode = '.');
