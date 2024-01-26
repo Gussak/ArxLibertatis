@@ -72,4 +72,17 @@ void EERIE_3DOBJ_RestoreTextures(EERIE_3DOBJ * eobj);
 void EERIE_OBJECT_CenterObjectCoordinates(EERIE_3DOBJ * ret);
 void EERIE_CreateCedricData(EERIE_3DOBJ * eobj);
 
+enum LODFlag {
+	LOD_PERFECT = 1 << 0, // perfect/original, last 3D model aimed at and nearby
+	LOD_HIGH    = 1 << 1, // perceptually High, little loss, still nearby camera
+	LOD_MEDIUM  = 1 << 2, // perceptually Medium, some loss, a bit far, but still looks good
+	LOD_LOW     = 1 << 3, // perceptually Low, lossy, far, but carefully prepared to keep contour shape at least
+	LOD_BAD     = 1 << 4, // perceptually bad, very lossy, very far, visually messed up but still resembles the original
+	LOD_FLAT    = 1 << 5, // flat shape mesh that "looks" (rotates) to the active camera, square, 2 triangles, could have a front, left, right, back, top and bottom flat small textures. these textures could be the very icons shown in the inventory.
+};
+DECLARE_FLAGS(LODFlag, LODFlags)
+DECLARE_FLAGS_OPERATORS(LODFlags);
+LODFlag strToLOD(std::string str, std::string strDefault = "PERFECT");
+bool load3DModelAndLOD(Entity & io, const res::path & file, bool pbox);
+
 #endif // ARX_SCENE_OBJECT_H

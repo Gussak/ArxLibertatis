@@ -62,6 +62,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "math/Vector.h"
 #include "math/Angle.h"
 #include "scene/Light.h"
+#include "scene/Object.h"
 #include "script/Script.h" // TODO remove this
 #include "util/Flags.h"
 
@@ -80,6 +81,7 @@ struct TWEAK_INFO;
 constexpr size_t MAX_ANIMS = 200; // max loadable anims per character
 constexpr size_t MAX_ANIM_LAYERS = 4;
 constexpr float BASE_RUBBER = 1.5f;
+constexpr size_t MAX_LODS = 6; 
 
 struct IO_PHYSICS {
 	
@@ -275,6 +277,9 @@ public:
 	float original_radius;
 	TextureContainer * m_icon; // Object Icon
 	EERIE_3DOBJ * obj; // IO Mesh data
+	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs
+	LODFlag currentLOD;
+	LODFlags availableLODFlags;
 	std::array<ANIM_HANDLE *, MAX_ANIMS> anims; // Object Animations
 	std::array<AnimLayer, MAX_ANIM_LAYERS> animlayer;
 	
@@ -456,6 +461,8 @@ public:
 	[[nodiscard]] bool operator!=(const Entity & other) const noexcept {
 		return &other != this;
 	}
+	
+	bool setLOD(const LODFlag lodRequest);
 	
 private:
 	

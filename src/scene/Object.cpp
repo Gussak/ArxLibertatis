@@ -328,6 +328,109 @@ void EERIE_CreateCedricData(EERIE_3DOBJ * eobj) {
 	
 }
 
+LODFlag strToLOD(std::string str, std::string strDefault) {
+	strDefault = util::toLowercase(strDefault);
+	str = util::toLowercase(str);
+	LODFlag lt = LOD_PERFECT;
+	for(int i = 0; i < 2; i++) {
+		if(str == "perfect") lt = LOD_PERFECT;
+		else
+		if(str == "high"   ) lt = LOD_HIGH;
+		else
+		if(str == "medium" ) lt = LOD_MEDIUM;
+		else
+		if(str == "low"    ) lt = LOD_LOW;
+		else
+		if(str == "bad"    ) lt = LOD_BAD;
+		else
+		if(str == "flat"   ) lt = LOD_FLAT;
+		else {
+			arx_assert_msg(strDefault != "invalid", "Invalid default LOD '%s'", str.c_str());
+			
+			LogWarning << "fixing invalid LOD '" << str << "' to '" << strDefault << "'";
+			str = strDefault;
+			strDefault = "invalid";
+			continue;
+		}
+		
+		break;
+	}
+	return lt;
+}
+bool load3DModelAndLOD(Entity & io, const res::path & file, bool pbox) { //TODO if this works, try to substitute everywhere using loadObject() for items at least
+	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT};
+	
+	////TODO move this to where LODs will be switched, use: if(ltChk < ltMax) continue; if(ltChk > ltMin) continue;
+	//static const LODFlags ltMax = [](){return strToLOD(platform::getEnvironmentVariableValue("ARX_LODMax", 'i', "", "PERFECT"), "PERFECT");}(); // export ARX_LODMax="PERFECT"
+	//static const LODFlags ltMin = [](){
+		//LODFlags ltMinTmp = strToLOD(platform::getEnvironmentVariableValue("ARX_LODMin", 'i', "", "FLAT"), "FLAT"); // export ARX_LODMax="FLAT"
+		//if(ltMinTmp < ltMax) {
+			//ltMinTmp = ltMax;
+			//LogWarning << "fixing LOD min to '" << ltMinTmp << "'";
+		//}
+		//if(ltMax > ltMinTmp) {
+			//ltMax = ltMinTmp;
+			//LogWarning << "fixing LOD max to '" << ltMax << "'";
+		//}
+		//return ltMinTmp;
+	//}();
+	
+	res::path fileChk;
+	//int iLOD = -1;
+	std::string strLOD;
+	
+	for(LODFlag ltChk : ltOrderedList) {
+		//if(ltChk < ltMax) continue; //do not limit LOD loading
+		//if(ltChk > ltMin) continue;
+		
+		fileChk = file;
+		//iLOD = -1;
+		strLOD = "";
+		
+		switch(ltChk) {
+			case LOD_PERFECT: break;
+			case LOD_HIGH:    strLOD = "[LODH]"; break;
+			case LOD_MEDIUM:  strLOD = "[LODM]"; break;
+			case LOD_LOW:     strLOD = "[LODL]"; break;
+			case LOD_BAD:     strLOD = "[LODB]"; break;
+			case LOD_FLAT:    strLOD = "[LODF]"; break;
+			default: arx_assert_msg(false, "not implemented LOD %d", ltChk); break;
+		}
+		
+		if(strLOD.size() > 0) {
+			fileChk.remove_ext().append(util::toLowercase(strLOD)).append(file.ext()); break;
+		}
+		
+		//if(iLOD >= 0) {
+			//arx_assert_msg(iLOD < MAX_LODS, "not implemented LOD index %d", iLOD); break;
+			
+			EERIE_3DOBJ * obj = loadObject(fileChk, pbox).release();
+			if(obj) {
+				//io->aObjLOD[iLOD] = obj;
+				io.objLOD[ltChk] = obj;
+				
+				io.availableLODFlags &= ltChk;
+				
+				if(!io.obj) { // default becomes best quality
+					io.obj = obj;
+					io.currentLOD = ltChk;
+				}
+			}
+		//}
+	}
+	
+	//if(!io.obj) {
+		//io.obj = loadObject(file, pbox).release(); // fallback to default
+		
+		if(!io.obj) {
+			LogError << "3D Model not found '" << file.string() << "' (pbox:" << pbox << ")";
+			return false;
+		}
+	//}
+	
+	return true;
+}
+
 std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
 	
 	std::unique_ptr<EERIE_3DOBJ> object = ARX_FTL_Load(file);

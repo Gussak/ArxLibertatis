@@ -377,6 +377,28 @@ public:
 	
 };
 
+class ExperimentalCommand : public Command {
+	
+public:
+	
+	ExperimentalCommand() : Command("experiment") { }
+	
+	/**
+	 * Use this to test temporary code from a .asl, before moving it to a proper cpp file.
+	 */
+	Result execute(Context & context) override {
+		
+		std::string experiment = context.getWord();
+		if(experiment == "lod") {
+			Entity * ent = context.getEntity();
+			ent->setLOD(strToLOD(context.getWord()));
+		}
+		
+		return Success;
+	}
+	
+};
+
 } // anonymous namespace
 
 void setupScriptedControl() {
@@ -391,6 +413,7 @@ void setupScriptedControl() {
 	ScriptEvent::registerCommand(std::make_unique<ZoneParamCommand>());
 	ScriptEvent::registerCommand(std::make_unique<MagicCommand>());
 	ScriptEvent::registerCommand(std::make_unique<DetachCommand>());
+	ScriptEvent::registerCommand(std::make_unique<ExperimentalCommand>());
 	
 }
 
