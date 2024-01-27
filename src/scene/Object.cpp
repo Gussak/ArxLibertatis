@@ -358,96 +358,50 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 	}
 	return lt;
 }
-std::string fixPathForModel(std::string chk) {
-	if(boost::starts_with(chk, "graph/")) {
-		return std::string() + "game/" + chk;
+res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // TODO if fileRequest, io.obj->file and io.usemesh are all consistent, this check becomes unnecessary
+	std::string strErrMsg;
+	res::path fileOk;
+	std::ifstream fileValidate;
+	char cCheck;
+	std::vector<std::string> vFiles;
+	vFiles.push_back(fixPathForModel(fileRequest.string()));
+	if(io.obj) vFiles.push_back(fixPathForModel(io.obj->file.string()));
+	vFiles.push_back(fixPathForModel(io.usemesh.string())); // most probable to be correct
+	for(std::string strFl : vFiles) {
+		LogDebug(strFl);
+		if(boost::starts_with(strFl, "graph/")) {
+			strFl = std::string() + "game/" + strFl;
+		}
+		fileValidate.open(strFl.c_str(), std::ifstream::in);
+		cCheck = fileValidate.get();
+		if(fileValidate.good()) {
+			fileOk = strFl;
+			fileValidate.close();
+			break;
+		} else {
+			strErrMsg += " '" + strFl + "'" + (cCheck = '.');
+		}
 	}
-	return chk;
+	
+	if(fileOk.string().size() == 0) {
+		LogError << "3D Model not found (all filenames should be lower case). Failed: " << strErrMsg << ". (pbox:" << pbox << ")";
+	}
+	
+	return fileOk;
 }
 bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { //TODO if this works, try to substitute everywhere using loadObject() for items at least
 	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT};
 	
-	std::string strErrMsg;
-	res::path fileOk;
-	std::ifstream fileValidate;
-	char c;
-	std::vector<std::string> vFiles;
-	vFiles.push_back(fixPathForModel(fileRequest.string()));
-	if(io.obj) {
-		vFiles.push_back(fixPathForModel(io.obj->file.string()));
-	}
-	vFiles.push_back(fixPathForModel(io.usemesh.string()));
-	////if(boost::starts_with(io.usemesh.string(), "graph/obj3d/interactive/items/")) {
-	//if(boost::starts_with(io.usemesh.string(), "graph/")) {
-		////vFiles.push_back(io.usemesh.string().substr(30));
-		//vFiles.push_back(std::string() + "game/" + io.usemesh.string());
-	//}
-	//size_t nFrom = 0;
-	//for(std::string strFl : std::vector<std::string>(vFiles)) {
-		//while(true) { // removes every top path, overkill tho
-			//nFrom = strFl.find_first_of("\\/", nFrom); // TODO should be res::path::any_dir_sep
-			//if(nFrom == std::string_view::npos) break;
-			//vFiles.push_back(strFl.substr(++nFrom));
-		//}
-	//}
-	//for(std::string strFl : vFiles) { std::cout << strFl << "\n"; }
-	for(std::string strFl : vFiles) {
-		fileValidate.open(strFl.c_str(), std::ifstream::in);
-		c = fileValidate.get();
-		if(fileValidate.good()) {
-			fileOk = strFl;
-			if(boost::starts_with(fileOk.string(), "game/")) {
-				fileOk = fileOk.string().substr(5);
-			}
-			fileValidate.close();
-			break;
-		} else {
-			strErrMsg += " '" + strFl + "'" + (c='.');
-		}
-	}
-	//fileValidate.open(fileRequest.string().c_str(), std::ifstream::in);
-	//c = fileValidate.get();
-	//if(fileValidate.good()) {
-		//fileOk = fileRequest;
-		//fileValidate.close();
-	//} else {
-		//strErrMsg += " requested='" + fileRequest.string() + "' ";
-		//fileValidate.open(io.usemesh.string().c_str(), std::ifstream::in);
-		//c = fileValidate.get();
-		//if(fileValidate.good()) {
-			//fileOk = io.usemesh;
-			//fileValidate.close();
-		//} else {
-			//strErrMsg += " usemesh='" + io.usemesh.string() + "' ";
-			//if(io.obj) {
-				//fileValidate.open(io.obj->file.string().c_str(), std::ifstream::in);
-				//c = fileValidate.get();
-			//}
-			//if(io.obj && fileValidate.good()) {
-				//fileOk = io.obj->file;
-				//fileValidate.close();
-			//} else {
-				//c = '.';
-				//strErrMsg += " objFile='" + (io.obj ? io.obj->file.string() : "io.obj=nullptr") + "' " + c; // c here prevents compile warning
-			//}
-		//}
-	//}
-	if(fileOk.string().size() == 0) {
-		LogError << "3D Model not found (all filenames should be lower case). Failed: " << strErrMsg << ". (pbox:" << pbox << ")";
-		return false;
-	}
-	//else {		LogWarning << "debug: " << strErrMsg; 	} //TODO RM
+	res::path fileOk = fix3DModelFilename(io, fileRequest);
+	if(fileOk.string().size() == 0) return false;
 	
 	res::path fileChk;
-	//int iLOD = -1;
 	std::string strLOD;
-	
 	for(LODFlag ltChk : ltOrderedList) {
-		//if(ltChk < ltMax) continue; //do not limit LOD loading
+		//if(ltChk < ltMax) continue; // TODO limit LOD loading?
 		//if(ltChk > ltMin) continue;
 		
 		fileChk = fileOk;
-		//iLOD = -1;
 		strLOD = "";
 		
 		switch(ltChk) {
@@ -464,32 +418,28 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 			fileChk.remove_ext().append(util::toLowercase(strLOD)).append(fileOk.ext());
 		}
 		
-		//if(iLOD >= 0) {
-			//arx_assert_msg(iLOD < MAX_LODS, "not implemented LOD index %d", iLOD); break;
-			
-			EERIE_3DOBJ * obj = loadObject(fileChk, pbox).release();
-			if(obj) {
-				//io->aObjLOD[iLOD] = obj;
-				io.objLOD[ltChk] = obj;
+		EERIE_3DOBJ * objLoad = nullptr;
+		if(ltChk == LOD_PERFECT && io.obj && io.obj->file == fileChk && !io.objLOD[LOD_PERFECT]) {
+			io.objLOD[LOD_PERFECT] = io.obj;
+		} else {
+			objLoad = loadObject(fileChk, pbox).release();
+			if(objLoad) {
+				io.objLOD[ltChk] = objLoad;
 				
 				io.availableLODFlags |= ltChk;
 				
 				if(!io.obj) { // default becomes best quality
-					io.obj = obj;
+					io.obj = objLoad;
 					io.currentLOD = ltChk;
 				}
 			}
-		//}
+		}
 	}
 	
-	//if(!io.obj) {
-		//io.obj = loadObject(file, pbox).release(); // fallback to default
-		
-		if(!io.obj) {
-			LogError << "3D Model not found '" << fileRequest.string() << "' (pbox:" << pbox << ")";
-			return false;
-		}
-	//}
+	if(!io.obj) {
+		LogError << "3D Model not found '" << fileRequest.string() << "' (pbox:" << pbox << ")";
+		return false;
+	}
 	
 	return true;
 }
@@ -497,8 +447,12 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
 	
 	std::unique_ptr<EERIE_3DOBJ> object = ARX_FTL_Load(file);
-	if(object && pbox) {
-		EERIE_PHYSICS_BOX_Create(object.get());
+	if(object) {
+		if(pbox) {
+			EERIE_PHYSICS_BOX_Create(object.get());
+		}
+		if(object->file != file) LogWarning << "Fixing 3D model filename from '" << object->file << "' to '" << file << "'.";
+		object->file = file;
 	}
 	
 	return object;
