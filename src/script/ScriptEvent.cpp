@@ -304,7 +304,7 @@ class ScriptEventPreCompiledCommands { //TODO after it works, do some performanc
 	//static std::vector<script::Command*> vCmd = {nullptr}; // lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data
 	//static std::vector<std::map<std::string_view, std::unique_ptr<script::Command>>::iterator*> vItCmd = {nullptr}; // lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data
 	std::vector<std::string> vStrCmd = {"_DumMy_ShAll_mAtch_NoThinG_287546_"}; // match nothing but it already looks from index 1... lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data TODO: this vector could be filled when initializing // TODO the vector could store a pointer to the script::Command if it wasnt a unique_ptr, but std::map seek to that id is super fast too right?
-	//script::Command * pCmd = nullptr;
+	script::Command * pCmd = nullptr; //TODOA use std::shared_ptr to create the command list, or the unique_ptr .release() on the command but may not be a good idea. This way wont lose any time on finding it in the std::map
 	//std::map<std::string_view, std::unique_ptr<script::Command>>::iterator pItCmd;
 	std::string strCmd;
 	size_t iCmd;
