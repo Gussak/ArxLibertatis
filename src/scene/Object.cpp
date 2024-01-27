@@ -389,50 +389,50 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // TO
 	
 	return fileOk;
 }
-bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { //TODO if this works, try to substitute everywhere using loadObject() for items at least
-	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT};
+bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { // TODO if this works, try to substitute everywhere using loadObject() for items at least, but only where the returned unique_ptr is release() !
+	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT}; // best to worst
 	
 	res::path fileOk = fix3DModelFilename(io, fileRequest);
 	if(fileOk.string().size() == 0) return false;
 	
-	res::path fileChk;
+	res::path fileChkLOD;
 	std::string strLOD;
-	for(LODFlag ltChk : ltOrderedList) {
-		//if(ltChk < ltMax) continue; // TODO limit LOD loading?
-		//if(ltChk > ltMin) continue;
+	for(LODFlag ltChkLOD : ltOrderedList) {
+		//if(ltChkLOD < ltMax) continue; // TODO limit LOD loading?
+		//if(ltChkLOD > ltMin) continue;
 		
-		fileChk = fileOk;
+		fileChkLOD = fileOk;
 		strLOD = "";
 		
-		switch(ltChk) {
+		switch(ltChkLOD) {
 			case LOD_PERFECT: break;
 			case LOD_HIGH:    strLOD = "[LODH]"; break;
 			case LOD_MEDIUM:  strLOD = "[LODM]"; break;
 			case LOD_LOW:     strLOD = "[LODL]"; break;
 			case LOD_BAD:     strLOD = "[LODB]"; break;
 			case LOD_FLAT:    strLOD = "[LODF]"; break;
-			default: arx_assert_msg(false, "not implemented LOD %d", ltChk); break;
+			default: arx_assert_msg(false, "not implemented LOD %d", ltChkLOD); break;
 		}
 		
 		if(strLOD.size() > 0) {
-			fileChk.remove_ext().append(util::toLowercase(strLOD)).append(fileOk.ext());
+			fileChkLOD.remove_ext().append( util::toLowercase(strLOD) ).append( fileOk.ext() );
 		}
 		
-		EERIE_3DOBJ * objLoad = nullptr;
-		if(ltChk == LOD_PERFECT && io.obj && io.obj->file == fileChk && !io.objLOD[LOD_PERFECT]) {
-			io.objLOD[LOD_PERFECT] = io.obj;
+		if(io.obj && io.obj->file == fileChkLOD && io.objLOD[ltChkLOD] == nullptr) {
+			io.objLOD[ltChkLOD] = io.obj;
 		} else {
-			objLoad = loadObject(fileChk, pbox).release();
+			EERIE_3DOBJ * objLoad = loadObject(fileChkLOD, pbox).release();
 			if(objLoad) {
-				io.objLOD[ltChk] = objLoad;
-				
-				io.availableLODFlags |= ltChk;
-				
-				if(!io.obj) { // default becomes best quality
+				io.objLOD[ltChkLOD] = objLoad;
+				if(!io.obj) { // default becomes best quality available
 					io.obj = objLoad;
-					io.currentLOD = ltChk;
+					io.currentLOD = ltChkLOD;
 				}
 			}
+		}
+		
+		if(io.objLOD[ltChkLOD]) {
+			io.availableLODFlags |= ltChkLOD;
 		}
 	}
 	
