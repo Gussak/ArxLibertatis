@@ -361,7 +361,7 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // TODO if fileRequest, io.obj->file and io.usemesh are all consistent, this check becomes unnecessary
 	std::string strErrMsg;
 	res::path fileOk;
-	std::ifstream fileValidate;
+	std::ifstream fileValidate; // TODO try PakFile * pf = g_resources->getFile(filename); instead
 	char cCheck;
 	std::vector<std::string> vFiles;
 	vFiles.push_back(fileRequest.string());
@@ -419,7 +419,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 			fileChkLOD.remove_ext().append( util::toLowercase(strLOD) ).append( fileOk.ext() );
 		}
 		
-		if(io.obj && io.obj->file == fileChkLOD && io.objLOD[ltChkLOD] == nullptr) {
+		if(io.obj && io.obj->file == res::path(fileChkLOD).remove_ext() && io.objLOD[ltChkLOD] == nullptr) {
 			io.objLOD[ltChkLOD] = io.obj;
 		} else {
 			EERIE_3DOBJ * objLoad = loadObject(fileChkLOD, pbox).release();
@@ -428,6 +428,10 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 				if(!io.obj) { // default becomes best quality available
 					io.obj = objLoad;
 					io.currentLOD = ltChkLOD;
+				} else {
+					if(io.currentLOD == ltChkLOD && io.obj->file.basename() != fileChkLOD.basename()) {
+						LogWarning << "3DModel basename differs objFile=" << io.obj->file << " fileLOD=" << fileChkLOD << " ";
+					}
 				}
 			}
 		}
@@ -453,9 +457,11 @@ std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
 			EERIE_PHYSICS_BOX_Create(object.get());
 		}
 		
-		if(file.ext() == ".ftl") {
-			if(object->file != file) LogWarning << "Fixing 3D model filename from '" << object->file << "' to '" << file << "'.";
-			object->file = file;
+		res::path flChk = file;
+		flChk.remove_ext();
+		if(object->file != flChk) {
+			LogDebug("Fixing 3D model filename from '" << object->file << "' to '" << flChk << "'.");
+			object->file = flChk;
 		}
 	}
 	
