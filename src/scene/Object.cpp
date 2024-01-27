@@ -461,7 +461,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 		}
 		
 		if(strLOD.size() > 0) {
-			fileChk.remove_ext().append(util::toLowercase(strLOD)).append(fileOk.ext()); break;
+			fileChk.remove_ext().append(util::toLowercase(strLOD)).append(fileOk.ext());
 		}
 		
 		//if(iLOD >= 0) {

@@ -63,6 +63,7 @@ class TextInputHandler;
 
 extern long EERIEMouseButton;
 extern long LastMouseClick;
+extern bool ActionDoubleClick;
 
 inline bool eeMouseDown1() {
 	return (EERIEMouseButton & 1) && !(LastMouseClick & 1);
@@ -77,7 +78,7 @@ inline bool eeMousePressed1() {
 }
 
 inline bool eeMouseDoubleClick1() {
-	return (EERIEMouseButton & 4) && !(LastMouseClick & 4);
+	return ((EERIEMouseButton & 4) && !(LastMouseClick & 4)) || ActionDoubleClick;
 }
 
 inline bool eeMouseDown2() {
