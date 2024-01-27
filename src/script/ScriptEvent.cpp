@@ -438,7 +438,11 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 			if(word == "&&" || word == "||" || word == ",") {
 				ScriptEventWarning << "<-- this word is expected only inside conditional logical operators: '" << word <<"'. Did you forget to surround the multi condition with and() or or() ?";
 			} else {
-				ScriptEventWarning << "<-- unknown command: " << word;
+				if(word.size() >= 2 && word[1] == '\xBB') {
+					ScriptEventWarning << "<-- unknown command: " << word << " (check if GoTo/GoSub is using the -p flag)";
+				} else {
+					ScriptEventWarning << "<-- unknown command: " << word;
+				}
 			}
 			
 			context.skipCommand();

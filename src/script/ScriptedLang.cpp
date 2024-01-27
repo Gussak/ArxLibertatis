@@ -110,7 +110,7 @@ public:
 		} else {
 			static bool goToWithParams = [](){return platform::getEnvironmentVariableValueBoolean("ARX_WarnGoToWithParams");}();  // being static warns only once. export ARX_WarnGoToWithParams=true
 			if(goToWithParams) {
-				ScriptWarning << "pseudo-private scope variable creation \"" << var[0] << "\" at \"" << var << "=" << val << "\", only GoSub (that create a call stack) should create them.";
+				ScriptWarning << "pseudo private scope variable creation \"" << var[0] << "\" at \"" << var << "=" << val << "\", only GoSub (that create a call stack) should create them.";
 			}
 		}
 		
@@ -162,7 +162,7 @@ public:
 		if(warnUglyCoding && context.isCheckTimerIdVsGoToLabelOnce()) {
 			static std::regex * reWarnTimerCallingGoSubScriptName = nullptr; static bool bWTCGSSN = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_WarnTimerCallingGoSub"); if(pc){reWarnTimerCallingGoSubScriptName = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
 			if(bWTCGSSN && sub && std::regex_search(context.getScript()->file, *reWarnTimerCallingGoSubScriptName)) {
-				ScriptWarning << "Timers should only call GoTo. ExtraInfo: timer '" << context.getTimerName() << "', first GoTo/GoSub target label '" << label << "'";
+				ScriptWarning << "Timers should only call GoTo. ExtraInfo: timer '" << context.getTimerName() << "', first target label '" << label << "'";
 			}
 			
 			static std::regex * reWarnTimerIdMismatchCallLabel = nullptr; static bool bWTIMCL = [](){const char * pc = platform::getEnvironmentVariableValue("ARX_WarnTimerIdMismatchCallLabel"); if(pc){reWarnTimerIdMismatchCallLabel = new std::regex(pc, std::regex_constants::ECMAScript | std::regex_constants::icase); return true;} return false;}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
@@ -170,7 +170,7 @@ public:
 				std::string labelChk = label;
 				labelChk.resize(std::remove(labelChk.begin(), labelChk.end(), '_') - labelChk.begin());
 				if(!boost::starts_with(context.getTimerName(), labelChk)) { // there can have many timers to the same target
-					ScriptWarning << "A timer is being run but it's name '" << context.getTimerName() << "' doesn't match the first GoTo/GoSub target label '" << label << "' ('" << labelChk << "')";
+					ScriptWarning << "A timer is being run but it's name '" << context.getTimerName() << "' doesn't match the first GoTo target label '" << label << "' ('" << labelChk << "')";
 				}
 			}
 			

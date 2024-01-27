@@ -358,25 +358,39 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 	}
 	return lt;
 }
+std::string fixPathForModel(std::string chk) {
+	if(boost::starts_with(chk, "graph/")) {
+		return std::string() + "game/" + chk;
+	}
+	return chk;
+}
 bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { //TODO if this works, try to substitute everywhere using loadObject() for items at least
 	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT};
 	
-	std::string strErrMsg = "Failed files: ";
+	std::string strErrMsg;
 	res::path fileOk;
 	std::ifstream fileValidate;
 	char c;
 	std::vector<std::string> vFiles;
-	vFiles.push_back(fileRequest.string());
-	vFiles.push_back(io.usemesh.string());
-	if(io.obj) vFiles.push_back(io.obj->file.string());
-	size_t nFrom = 0;
-	for(std::string strFl : std::vector<std::string>(vFiles)) {
-		while(true) {
-			nFrom = strFl.find_first_of("\\/", nFrom); // TODO should be res::path::any_dir_sep
-			if(nFrom == std::string_view::npos) break;
-			vFiles.push_back(strFl.substr(++nFrom));
-		}
+	vFiles.push_back(fixPathForModel(fileRequest.string()));
+	if(io.obj) {
+		vFiles.push_back(fixPathForModel(io.obj->file.string()));
 	}
+	vFiles.push_back(fixPathForModel(io.usemesh.string()));
+	////if(boost::starts_with(io.usemesh.string(), "graph/obj3d/interactive/items/")) {
+	//if(boost::starts_with(io.usemesh.string(), "graph/")) {
+		////vFiles.push_back(io.usemesh.string().substr(30));
+		//vFiles.push_back(std::string() + "game/" + io.usemesh.string());
+	//}
+	size_t nFrom = 0;
+	//for(std::string strFl : std::vector<std::string>(vFiles)) {
+		//while(true) { // removes every top path, overkill tho
+			//nFrom = strFl.find_first_of("\\/", nFrom); // TODO should be res::path::any_dir_sep
+			//if(nFrom == std::string_view::npos) break;
+			//vFiles.push_back(strFl.substr(++nFrom));
+		//}
+	//}
+	//for(std::string strFl : vFiles) { std::cout << strFl << "\n"; }
 	for(std::string strFl : vFiles) {
 		fileValidate.open(strFl.c_str(), std::ifstream::in);
 		c = fileValidate.get();
@@ -416,9 +430,10 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 		//}
 	//}
 	if(fileOk.string().size() == 0) {
-		LogError << "3D Model not found. " << strErrMsg << ". (pbox:" << pbox << ")";
+		LogError << "3D Model not found (all filenames should be lower case). Failed: " << strErrMsg << ". (pbox:" << pbox << ")";
 		return false;
 	}
+	//else {		LogWarning << "debug: " << strErrMsg; 	} //TODO RM
 	
 	res::path fileChk;
 	//int iLOD = -1;

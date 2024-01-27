@@ -84,5 +84,6 @@ DECLARE_FLAGS(LODFlag, LODFlags)
 DECLARE_FLAGS_OPERATORS(LODFlags);
 LODFlag strToLOD(std::string str, std::string strDefault = "PERFECT");
 bool load3DModelAndLOD(Entity & io, const res::path & file, bool pbox);
+std::string fixPathForModel(std::string chk);
 
 #endif // ARX_SCENE_OBJECT_H
