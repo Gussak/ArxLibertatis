@@ -364,15 +364,16 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // TO
 	std::ifstream fileValidate;
 	char cCheck;
 	std::vector<std::string> vFiles;
-	vFiles.push_back(fixPathForModel(fileRequest.string()));
-	if(io.obj) vFiles.push_back(fixPathForModel(io.obj->file.string()));
-	vFiles.push_back(fixPathForModel(io.usemesh.string())); // most probable to be correct
+	vFiles.push_back(fileRequest.string());
+	if(io.obj) vFiles.push_back(io.obj->file.string());
+	vFiles.push_back(io.usemesh.string()); // most probable to be correct
 	for(std::string strFl : vFiles) {
 		LogDebug(strFl);
 		if(boost::starts_with(strFl, "graph/")) {
-			strFl = std::string() + "game/" + strFl;
+			fileValidate.open((std::string() + "game/" + strFl).c_str(), std::ifstream::in);
+		} else {
+			fileValidate.open(strFl.c_str(), std::ifstream::in);
 		}
-		fileValidate.open(strFl.c_str(), std::ifstream::in);
 		cCheck = fileValidate.get();
 		if(fileValidate.good()) {
 			fileOk = strFl;
@@ -384,7 +385,7 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // TO
 	}
 	
 	if(fileOk.string().size() == 0) {
-		LogError << "3D Model not found (all filenames should be lower case). Failed: " << strErrMsg << ". (pbox:" << pbox << ")";
+		LogError << "3D Model not found (all filenames should be lower case). Failed: " << strErrMsg;
 	}
 	
 	return fileOk;
@@ -451,8 +452,11 @@ std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
 		if(pbox) {
 			EERIE_PHYSICS_BOX_Create(object.get());
 		}
-		if(object->file != file) LogWarning << "Fixing 3D model filename from '" << object->file << "' to '" << file << "'.";
-		object->file = file;
+		
+		if(file.ext() == ".ftl") {
+			if(object->file != file) LogWarning << "Fixing 3D model filename from '" << object->file << "' to '" << file << "'.";
+			object->file = file;
+		}
 	}
 	
 	return object;
