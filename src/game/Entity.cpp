@@ -158,13 +158,12 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	//std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr);
 	currentLOD = LOD_PERFECT;
 	availableLODFlags = 0;
-	//objLOD.emplace_back(LOD_PERFECT, nullptr);
-	objLOD[LOD_PERFECT] = nullptr;
-	objLOD[LOD_HIGH] = nullptr;
-	objLOD[LOD_MEDIUM] = nullptr;
-	objLOD[LOD_LOW] = nullptr;
-	objLOD[LOD_BAD] = nullptr;
-	objLOD[LOD_FLAT] = nullptr;
+	objLOD.emplace(LOD_PERFECT, nullptr);
+	objLOD.emplace(LOD_HIGH, nullptr);
+	objLOD.emplace(LOD_MEDIUM, nullptr);
+	objLOD.emplace(LOD_LOW, nullptr);
+	objLOD.emplace(LOD_BAD, nullptr);
+	objLOD.emplace(LOD_FLAT, nullptr);
 	
 	for(size_t l = 0; l < MAX_ANIM_LAYERS; l++) {
 		animlayer[l] = AnimLayer();

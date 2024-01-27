@@ -382,7 +382,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 		////vFiles.push_back(io.usemesh.string().substr(30));
 		//vFiles.push_back(std::string() + "game/" + io.usemesh.string());
 	//}
-	size_t nFrom = 0;
+	//size_t nFrom = 0;
 	//for(std::string strFl : std::vector<std::string>(vFiles)) {
 		//while(true) { // removes every top path, overkill tho
 			//nFrom = strFl.find_first_of("\\/", nFrom); // TODO should be res::path::any_dir_sep
@@ -396,6 +396,9 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 		c = fileValidate.get();
 		if(fileValidate.good()) {
 			fileOk = strFl;
+			if(boost::starts_with(fileOk.string(), "game/")) {
+				fileOk = fileOk.string().substr(5);
+			}
 			fileValidate.close();
 			break;
 		} else {
@@ -469,7 +472,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 				//io->aObjLOD[iLOD] = obj;
 				io.objLOD[ltChk] = obj;
 				
-				io.availableLODFlags &= ltChk;
+				io.availableLODFlags |= ltChk;
 				
 				if(!io.obj) { // default becomes best quality
 					io.obj = obj;
