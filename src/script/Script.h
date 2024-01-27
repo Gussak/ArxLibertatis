@@ -556,7 +556,7 @@ bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 size_t detectAndFixGoToGoSubParam(std::string & line);
 size_t adaptScriptCode(std::string & line);
 void fixLineEnding(std::string & strData, char cLineEndingMode = '.');
-void fixTo8859_1(std::string strFilename, std::string & strData);
+void fixTo8859_15(std::string strFilename, std::string & strData);
 std::string loadAndFixScriptData(std::string strFilename, std::ifstream & file, char cLineEndingMode = '.');
 std::string loadFileDataAndCloseIt(std::ifstream & file);
 std::string fixScriptData(std::string strFilename, std::string strData, char cLineEndingMode = '.');

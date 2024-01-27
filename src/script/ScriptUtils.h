@@ -140,7 +140,7 @@ public:
 	
 	bool isCheckTimerIdVsGoToLabelOnce() { return m_timer != nullptr; }
 	void clearCheckTimerIdVsGoToLabelOnce() { m_timer = nullptr; }
-	std::string getTimerName() { return m_timer != nullptr ? m_timer->name : ""; }
+	std::string getTimerName() { return m_timer == nullptr ? "(void)" : m_timer->name; }
 	
 	size_t getPosition() const { return m_pos; }
 	void getLineColumn(size_t & iLine, size_t & iColumn, size_t pos = static_cast<size_t>(-1)) const;

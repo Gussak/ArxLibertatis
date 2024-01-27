@@ -365,33 +365,56 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 	res::path fileOk;
 	std::ifstream fileValidate;
 	char c;
-	fileValidate.open(fileRequest.string().c_str(), std::ifstream::in);
-	c = fileValidate.get();
-	if(fileValidate.good()) {
-		fileOk = fileRequest;
-		fileValidate.close();
-	} else {
-		strErrMsg += " requested='" + fileRequest.string() + "' ";
-		fileValidate.open(io.usemesh.string().c_str(), std::ifstream::in);
-		c = fileValidate.get();
-		if(fileValidate.good()) {
-			fileOk = io.usemesh;
-			fileValidate.close();
-		} else {
-			strErrMsg += " usemesh='" + io.usemesh.string() + "' ";
-			if(io.obj) {
-				fileValidate.open(io.obj->file.string().c_str(), std::ifstream::in);
-				c = fileValidate.get();
-			}
-			if(io.obj && fileValidate.good()) {
-				fileOk = io.obj->file;
-				fileValidate.close();
-			} else {
-				c = '.';
-				strErrMsg += " objFile='" + (io.obj ? io.obj->file.string() : "io.obj=nullptr") + "' " + c; // c here prevents compile warning
-			}
+	std::vector<std::string> vFiles;
+	vFiles.push_back(fileRequest.string());
+	vFiles.push_back(io.usemesh.string());
+	if(io.obj) vFiles.push_back(io.obj->file.string());
+	size_t nFrom = 0;
+	for(std::string strFl : std::vector<std::string>(vFiles)) {
+		while(true) {
+			nFrom = strFl.find_first_of("\\/", nFrom); // TODO should be res::path::any_dir_sep
+			if(nFrom == std::string_view::npos) break;
+			vFiles.push_back(strFl.substr(++nFrom));
 		}
 	}
+	for(std::string strFl : vFiles) {
+		fileValidate.open(strFl.c_str(), std::ifstream::in);
+		c = fileValidate.get();
+		if(fileValidate.good()) {
+			fileOk = strFl;
+			fileValidate.close();
+			break;
+		} else {
+			strErrMsg += " '" + strFl + "'" + (c='.');
+		}
+	}
+	//fileValidate.open(fileRequest.string().c_str(), std::ifstream::in);
+	//c = fileValidate.get();
+	//if(fileValidate.good()) {
+		//fileOk = fileRequest;
+		//fileValidate.close();
+	//} else {
+		//strErrMsg += " requested='" + fileRequest.string() + "' ";
+		//fileValidate.open(io.usemesh.string().c_str(), std::ifstream::in);
+		//c = fileValidate.get();
+		//if(fileValidate.good()) {
+			//fileOk = io.usemesh;
+			//fileValidate.close();
+		//} else {
+			//strErrMsg += " usemesh='" + io.usemesh.string() + "' ";
+			//if(io.obj) {
+				//fileValidate.open(io.obj->file.string().c_str(), std::ifstream::in);
+				//c = fileValidate.get();
+			//}
+			//if(io.obj && fileValidate.good()) {
+				//fileOk = io.obj->file;
+				//fileValidate.close();
+			//} else {
+				//c = '.';
+				//strErrMsg += " objFile='" + (io.obj ? io.obj->file.string() : "io.obj=nullptr") + "' " + c; // c here prevents compile warning
+			//}
+		//}
+	//}
 	if(fileOk.string().size() == 0) {
 		LogError << "3D Model not found. " << strErrMsg << ". (pbox:" << pbox << ")";
 		return false;

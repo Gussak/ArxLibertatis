@@ -2329,10 +2329,11 @@ void fixLineEnding(std::string & strData, char cLineEndingMode) {
 	}
 }
 
-void fixTo8859_1(std::string strFilename, std::string & strData) {
-	if(strData.find('\xC2') != std::string::npos) {
-		LogWarning << "fixing data to ISO-8859-1 read from '" << strFilename << "'";
-		boost::replace_all(strData, "\xC2", ""); // UTF-8 seems to only prepend special chars with 0xC2
+void fixTo8859_15(std::string strFilename, std::string & strData) { // only chars that matters for now from the most used format UTF-8 only
+	if(strData.find_first_of("\xC2\xE2\x82\xAC") != std::string::npos) {
+		LogWarning << "fixing data to ISO-8859-15 read from '" << strFilename << "'";
+		boost::replace_all(strData, "\xC2", ""); // UTF-8 seems to only prepend special chars with 0xC2, so remove it
+		boost::replace_all(strData, "\xE2\x82\xAC", "\xA4"); // least this one, needs conversion
 	}
 }
 
@@ -2348,7 +2349,7 @@ std::string loadFileDataAndCloseIt(std::ifstream & file) {
 std::string fixScriptData(std::string strFilename, std::string strData, char cLineEndingMode) {
 	strData = util::toLowercase(strData);
 	fixLineEnding(strData, cLineEndingMode);
-	fixTo8859_1(strFilename, strData);
+	fixTo8859_15(strFilename, strData);
 	return strData;
 }
 
@@ -2423,6 +2424,9 @@ void loadScript(EERIE_SCRIPT & script, PakFile * fileInput, res::path & pathScri
 			std::ifstream flLoadOrder(strFlModLoadOrder);
 			std::string strModListFileDataNew = loadFileDataAndCloseIt(flLoadOrder);
 			if(strModListFileDataNew != strModListFileData) {
+				if(vModList.size() > 0) {
+					LogInfo << "Mod load order file change detected, reloading.";
+				}
 				vModList.clear();
 				strModListFileData = strModListFileDataNew;
 			}
