@@ -310,7 +310,7 @@ std::unique_ptr<EERIE_3DOBJ> ARX_FTL_Load(const res::path & file) {
 	// Now we can release our cool FTL file
 	EERIE_Object_Precompute_Fast_Access(object.get());
 	
-	object->fileFullPathName = filename.string().substr(5); // removes "game/"
+	object->fileUniqueRelativePathName = filename.string().substr(5); // removes "game/"
 	
 	LogDebug("ARX_FTL_Load: loaded object " << filename);
 	
