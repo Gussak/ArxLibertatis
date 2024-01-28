@@ -204,6 +204,7 @@ struct EERIE_SCRIPT {
 struct SCR_TIMER {
 	
 	std::string name;
+	std::string nameHelper;
 	short exist;
 	bool idle;
 	long count;
@@ -223,7 +224,7 @@ struct SCR_TIMER {
 		, start(0)
 		, io(entity)
 		, es(nullptr)
-	{ }
+	{ nameHelper = name; }
 	
 };
 

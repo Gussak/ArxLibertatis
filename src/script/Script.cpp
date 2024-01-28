@@ -2083,9 +2083,6 @@ void ARX_SCRIPT_Timer_Check() {
 		
 		if(es && ValidIOAddress(io)) {
 			LogDebug("running timer \"" << name << "\" for entity " << io->idString());
-			if(timer.name.size() == 0) {
-				timer.name = name; // required to be able to perform the optional check if timer calling a GoTo matches the label name
-			}
 			ScriptEvent::resume(es, io, pos, &timer);
 		} else {
 			LogDebug("could not run timer \"" << name << "\" - entity vanished");

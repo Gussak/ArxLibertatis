@@ -378,8 +378,11 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 		vFiles.push_back(io.obj->fileUniqueRelativePathName.string());
 		vFiles.push_back(io.obj->file.string());
 	}
+	bool bCanMsg = false;
 	for(std::string strFl : vFiles) {
-		LogWarning << "trying: " << strFl; // comment
+		if(strFl.size() == 0) continue;
+		bCanMsg = true;
+		//LogWarning << "trying: " << strFl; // comment
 		LogDebug(strFl);
 		if(boost::starts_with(strFl, "graph/")) {
 			fileValidate.open((std::string() + "game/" + strFl).c_str(), std::ifstream::in);
@@ -396,8 +399,8 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 		}
 	}
 	
-	if(fileOk.string().size() == 0) {
-		LogError << "3D Model not found (all filenames should be lower case). Failed: " << strErrMsg;
+	if(bCanMsg && fileOk.string().size() == 0) {
+		LogError << "3D Model not found for " << io.idString() << " (all filenames should be lower case). Failed: " << strErrMsg;
 	}
 	
 	return fileOk;
@@ -442,7 +445,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 					io.currentLOD = ltChkLOD;
 				} else {
 					if(io.currentLOD == ltChkLOD && io.obj->fileUniqueRelativePathName.basename() != fileChkLOD.basename()) {
-						LogWarning << "3DModel basenames differ objFile=" << io.obj->fileUniqueRelativePathName << " fileLOD=" << fileChkLOD << " "; // TODO LogDebug
+						LogWarning << "3DModel basenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " fileLOD=" << fileChkLOD << " "; // TODO LogDebug
 					}
 				}
 			}
@@ -454,13 +457,15 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 	}
 	
 	if(!io.obj) {
-		LogError << "3D Model not found '" << fileRequest.string() << "' (pbox:" << pbox << ")";
+		LogError << "3D Model not found for " << io.idString() << " '" << fileRequest.string() << "' (pbox:" << pbox << ")";
 		return false;
 	}
 	
-	if(io.usemesh != io.obj->fileUniqueRelativePathName) {
-		LogWarning << "3DModel filenames differ objFile=" << io.obj->fileUniqueRelativePathName << " usemesh=" << io.usemesh << " "; // TODO LogDebug
+	#ifdef ARX_DEBUG
+	if(io.usemesh.string().size() > 0 && io.obj->fileUniqueRelativePathName.string().size() > 0 && io.usemesh != io.obj->fileUniqueRelativePathName) {
+		LogDebug("3DModel filenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " usemesh=" << io.usemesh << " ");
 	}
+	#endif
 	
 	return true;
 }
