@@ -439,6 +439,10 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 		return ltMinTmp;
 	}();
 	
+	if(!obj) {
+		return false;
+	}
+	
 	if(availableLODFlags == 0) {
 		if(!load3DModelAndLOD(*this, obj->file, obj->pbox != nullptr)) {
 			return false;

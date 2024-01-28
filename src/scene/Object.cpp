@@ -359,12 +359,12 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 	return lt;
 }
 res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
-	PakFile * pf = g_resources->getFile(io.usemesh);
-	if(pf) return io.usemesh;
-	if(io.obj) {
-		pf = g_resources->getFile(io.obj->fileUniqueRelativePathName);
-		if(pf) return io.obj->fileUniqueRelativePathName;
-	}
+	//PakFile * pf = g_resources->getFile(io.usemesh);
+	//if(pf) return io.usemesh;
+	//if(io.obj) {
+		//pf = g_resources->getFile(io.obj->fileUniqueRelativePathName);
+		//if(pf) return io.obj->fileUniqueRelativePathName;
+	//}
 	
 	// TODO all below may be unnecessary...
 	res::path fileOk;
@@ -397,6 +397,10 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 		} else {
 			strErrMsg += " '" + strFl + "'" + (cCheck = '.');
 		}
+	}
+	
+	if(bCanMsg && io.obj->fileUniqueRelativePathName.string().size() == 0) { // this means the main model was never loaded before, so this could be the first time TODO any better hint?
+		bCanMsg = false;
 	}
 	
 	if(bCanMsg && fileOk.string().size() == 0) {
