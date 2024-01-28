@@ -253,6 +253,11 @@ struct AnimationBlendStatus {
 
 class Entity {
 	
+private:
+
+	std::map<LODType, EERIE_3DOBJ*> objLOD; // LODs
+	LODType currentLOD;
+	
 public:
 	
 	Entity(const Entity &) = delete;
