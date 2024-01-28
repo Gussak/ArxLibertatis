@@ -358,14 +358,17 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 	}
 	return lt;
 }
-res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // TODO if fileRequest, io.obj->file and io.usemesh are all consistent, this check becomes unnecessary
+res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // TODO if fileRequest, io.obj->file and io.usemesh were all equal, this check becomes unnecessary
 	std::string strErrMsg;
 	res::path fileOk;
 	std::ifstream fileValidate; // TODO try PakFile * pf = g_resources->getFile(filename); instead
 	char cCheck;
 	std::vector<std::string> vFiles;
 	vFiles.push_back(fileRequest.string());
-	if(io.obj) vFiles.push_back(io.obj->file.string());
+	if(io.obj) {
+		vFiles.push_back(io.obj->file.string());
+		vFiles.push_back(io.obj->fileFullPathName.string());
+	}
 	vFiles.push_back(io.usemesh.string()); // most probable to be correct
 	for(std::string strFl : vFiles) {
 		LogDebug(strFl);
@@ -419,7 +422,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 			fileChkLOD.remove_ext().append( util::toLowercase(strLOD) ).append( fileOk.ext() );
 		}
 		
-		if(io.obj && io.obj->file == res::path(fileChkLOD).remove_ext() && io.objLOD[ltChkLOD] == nullptr) {
+		if(io.obj && io.obj->fileFullPathName == fileChkLOD && io.objLOD[ltChkLOD] == nullptr) {
 			io.objLOD[ltChkLOD] = io.obj;
 		} else {
 			EERIE_3DOBJ * objLoad = loadObject(fileChkLOD, pbox).release();
@@ -429,8 +432,8 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 					io.obj = objLoad;
 					io.currentLOD = ltChkLOD;
 				} else {
-					if(io.currentLOD == ltChkLOD && io.obj->file.basename() != fileChkLOD.basename()) {
-						LogWarning << "3DModel basename differs objFile=" << io.obj->file << " fileLOD=" << fileChkLOD << " ";
+					if(io.currentLOD == ltChkLOD && io.obj->fileFullPathName.basename() != fileChkLOD.basename()) {
+						LogWarning << "3DModel basenames differ objFile=" << io.obj->fileFullPathName << " fileLOD=" << fileChkLOD << " "; // TODO LogDebug
 					}
 				}
 			}
@@ -446,6 +449,10 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 		return false;
 	}
 	
+	if(io.usemesh != io.obj->fileFullPathName) {
+		LogWarning << "3DModel filenames differ objFile=" << io.obj->fileFullPathName << " usemesh=" << io.usemesh << " "; // TODO LogDebug
+	}
+	
 	return true;
 }
 
@@ -457,12 +464,12 @@ std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
 			EERIE_PHYSICS_BOX_Create(object.get());
 		}
 		
-		res::path flChk = file;
-		flChk.remove_ext();
-		if(object->file != flChk) {
-			LogDebug("Fixing 3D model filename from '" << object->file << "' to '" << flChk << "'.");
-			object->file = flChk;
-		}
+		//res::path flChk = file;
+		//flChk.remove_ext();
+		//if(object->file != flChk) {
+			//LogDebug("Fixing 3D model filename from " << object->file << " to " << flChk);
+			//object->file = flChk;
+		//}
 	}
 	
 	return object;
