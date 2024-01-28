@@ -47,6 +47,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "scene/Object.h"
 
 #include <cstdio>
+#include <fstream>
 #include <memory>
 #include <vector>
 
@@ -328,10 +329,11 @@ void EERIE_CreateCedricData(EERIE_3DOBJ * eobj) {
 	
 }
 
-LODType strToLOD(std::string str, std::string strDefault) {
+LODFlag strToLOD(std::string str, std::string strDefault) {
 	strDefault = util::toLowercase(strDefault);
 	str = util::toLowercase(str);
-	while(true) {
+	LODFlag lt = LOD_PERFECT;
+	for(int i = 0; i < 2; i++) {
 		if(str == "perfect") lt = LOD_PERFECT;
 		else
 		if(str == "high"   ) lt = LOD_HIGH;
@@ -344,84 +346,130 @@ LODType strToLOD(std::string str, std::string strDefault) {
 		else
 		if(str == "flat"   ) lt = LOD_FLAT;
 		else {
+			arx_assert_msg(strDefault != "invalid", "Invalid default LOD '%s'", str.c_str());
+			
 			LogWarning << "fixing invalid LOD '" << str << "' to '" << strDefault << "'";
 			str = strDefault;
+			strDefault = "invalid";
 			continue;
 		}
+		
 		break;
 	}
 	return lt;
 }
-LODType load3DModelAndLOD(Entity & io, const res::path & file, bool pbox) {
-	static std::vector<LODType> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT};
+res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
+	//PakFile * pf = g_resources->getFile(io.usemesh);
+	//if(pf) return io.usemesh;
+	//if(io.obj) {
+		//pf = g_resources->getFile(io.obj->fileUniqueRelativePathName);
+		//if(pf) return io.obj->fileUniqueRelativePathName;
+	//}
 	
-	////TODO move this to where LODs will be switched, use: if(ltChk < ltMax) continue; if(ltChk > ltMin) continue;
-	//static const LODType ltMax = [](){return strToLOD(platform::getEnvironmentVariableValue("ARX_LODMax", 'i', "", "PERFECT"), "PERFECT");}(); // export ARX_LODMax="PERFECT"
-	//static const LODType ltMin = [](){
-		//LODType ltMinTmp = strToLOD(platform::getEnvironmentVariableValue("ARX_LODMin", 'i', "", "FLAT"), "FLAT"); // export ARX_LODMax="FLAT"
-		//if(ltMinTmp < ltMax) {
-			//ltMinTmp = ltMax;
-			//LogWarning << "fixing LOD min to '" << ltMinTmp << "'";
-		//}
-		//if(ltMax > ltMinTmp) {
-			//ltMax = ltMinTmp;
-			//LogWarning << "fixing LOD max to '" << ltMax << "'";
-		//}
-		//return ltMinTmp;
-	//}();
+	// TODO all below may be unnecessary...
+	res::path fileOk;
+	std::string strErrMsg;
+	std::ifstream fileValidate;
+	char cCheck;
+	std::vector<std::string> vFiles; // priority is by probable request
+	vFiles.push_back(fileRequest.string());
+	vFiles.push_back(io.usemesh.string());
+	if(io.obj) {
+		vFiles.push_back(io.obj->fileUniqueRelativePathName.string());
+		vFiles.push_back(io.obj->file.string());
+	}
+	bool bCanMsg = false;
+	for(std::string strFl : vFiles) {
+		if(strFl.size() == 0) continue;
+		bCanMsg = true;
+		//LogWarning << "trying: " << strFl; // comment
+		LogDebug(strFl);
+		if(boost::starts_with(strFl, "graph/")) {
+			fileValidate.open((std::string() + "game/" + strFl).c_str(), std::ifstream::in);
+		} else {
+			fileValidate.open(strFl.c_str(), std::ifstream::in);
+		}
+		cCheck = fileValidate.get();
+		if(fileValidate.good()) {
+			fileOk = strFl;
+			fileValidate.close();
+			break;
+		} else {
+			strErrMsg += " '" + strFl + "'" + (cCheck = '.');
+		}
+	}
 	
-	res::path fileChk;
-	//int iLOD = -1;
+	if(bCanMsg && io.obj->fileUniqueRelativePathName.string().size() == 0) { // this means the main model was never loaded before, so this could be the first time TODO any better hint?
+		bCanMsg = false;
+	}
+	
+	if(bCanMsg && fileOk.string().size() == 0) {
+		LogError << "3D Model not found for " << io.idString() << " (all filenames should be lower case). Failed: " << strErrMsg;
+	}
+	
+	return fileOk;
+}
+bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { // TODO if this works, try to substitute everywhere using loadObject() for items at least, but only where the returned unique_ptr is release() !
+	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT}; // best to worst
+	
+	res::path fileOk = fix3DModelFilename(io, fileRequest);
+	if(fileOk.string().size() == 0) return false;
+	
+	res::path fileChkLOD;
 	std::string strLOD;
-	
-	for(LODType ltChk : ltOrderedList) {
-		//if(ltChk < ltMax) continue; //do not limit LOD loading
-		//if(ltChk > ltMin) continue;
+	for(LODFlag ltChkLOD : ltOrderedList) {
+		//if(ltChkLOD < ltMax) continue; // TODO limit LOD loading?
+		//if(ltChkLOD > ltMin) continue;
 		
-		fileChk = file;
-		//iLOD = -1;
-		strLOD = ""
+		fileChkLOD = fileOk;
+		strLOD = "";
 		
-		switch(ltChk) {
+		switch(ltChkLOD) {
 			case LOD_PERFECT: break;
 			case LOD_HIGH:    strLOD = "[LODH]"; break;
 			case LOD_MEDIUM:  strLOD = "[LODM]"; break;
 			case LOD_LOW:     strLOD = "[LODL]"; break;
 			case LOD_BAD:     strLOD = "[LODB]"; break;
 			case LOD_FLAT:    strLOD = "[LODF]"; break;
-			default: arx_assert_msg(false, "not implemented LOD %d", ltChk); break;
+			default: arx_assert_msg(false, "not implemented LOD %d", ltChkLOD); break;
 		}
 		
 		if(strLOD.size() > 0) {
-			fileChk.remove_ext().append(util::toLowercase(strLOD)).append(file.ext()); break;
+			fileChkLOD.remove_ext().append( util::toLowercase(strLOD) ).append( fileOk.ext() );
 		}
 		
-		//if(iLOD >= 0) {
-			//arx_assert_msg(iLOD < MAX_LODS, "not implemented LOD index %d", iLOD); break;
-			
-			EERIE_3DOBJ * obj = loadObject(fileChk, pbox).release();
-			if(obj) {
-				//io->aObjLOD[iLOD] = obj;
-				io->objLOD[ltChk] = obj;
-				
-				io->lodflags &= ltChk;
-				
-				if(!io->obj) { // default becomes best quality allowed
-					io->obj = obj;
-					currentLOD = ltChk;
+		if(io.obj && io.obj->fileUniqueRelativePathName == fileChkLOD && io.objLOD[ltChkLOD] == nullptr) {
+			io.objLOD[ltChkLOD] = io.obj;
+		} else {
+			EERIE_3DOBJ * objLoad = loadObject(fileChkLOD, pbox).release();
+			if(objLoad) {
+				io.objLOD[ltChkLOD] = objLoad;
+				if(!io.obj) { // default becomes best quality available
+					io.obj = objLoad;
+					io.currentLOD = ltChkLOD;
+				} else {
+					if(io.currentLOD == ltChkLOD && io.obj->fileUniqueRelativePathName.basename() != fileChkLOD.basename()) {
+						LogWarning << "3DModel basenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " fileLOD=" << fileChkLOD << " "; // TODO LogDebug
+					}
 				}
 			}
-		//}
+		}
+		
+		if(io.objLOD[ltChkLOD]) {
+			io.availableLODFlags |= ltChkLOD;
+		}
 	}
 	
-	//if(!io.obj) {
-		//io.obj = loadObject(file, pbox).release(); // fallback to default
-		
-		if(!io.obj) {
-			LogError << "3D Model not found '" << file.string() << "' (pbox:" << pbox << ")";
-			return false;
-		}
-	//}
+	if(!io.obj) {
+		LogError << "3D Model not found for " << io.idString() << " '" << fileRequest.string() << "' (pbox:" << pbox << ")";
+		return false;
+	}
+	
+	#ifdef ARX_DEBUG
+	if(io.usemesh.string().size() > 0 && io.obj->fileUniqueRelativePathName.string().size() > 0 && io.usemesh != io.obj->fileUniqueRelativePathName) {
+		LogDebug("3DModel filenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " usemesh=" << io.usemesh << " ");
+	}
+	#endif
 	
 	return true;
 }

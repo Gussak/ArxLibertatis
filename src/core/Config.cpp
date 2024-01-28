@@ -188,6 +188,7 @@ constexpr const ActionKey actions[NUM_ACTION_KEY] = {
 	ActionKey(Keyboard::Key_N), // COMBINE
 	ActionKey(Keyboard::Key_O), // TAKEALLITEMS
 	ActionKey(Keyboard::Key_U), // UNSTACK
+	ActionKey(Keyboard::Key_Z), // ACTION2 (simulates a double click)
 };
 
 } // namespace Default
@@ -338,6 +339,7 @@ constexpr const std::string_view actions[NUM_ACTION_KEY] = {
 	"combine",
 	"take_all_items",
 	"unstack",
+	"action2",
 };
 
 // Misc options

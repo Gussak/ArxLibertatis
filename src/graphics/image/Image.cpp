@@ -20,6 +20,7 @@
 #include "graphics/image/Image.h"
 
 #include <algorithm>
+#include <boost/algorithm/string/predicate.hpp>
 #include <sstream>
 #include <cstring>
 #include <limits>
@@ -148,19 +149,21 @@ bool Image::load(const char * data, size_t size, const char * file) {
 	
 	static s32 iMax = [](){return platform::getEnvironmentVariableValueInteger("ARX_MaxTextureSize", 'i', "", 0, false);}();  // being static warns only once. export ARX_MaxTextureSize=512;
 	if(iMax > 0 && (width > iMax || height > iMax)) {
-		int widthNew = 0;
-		int heightNew = 0;
-		if(width >= height) {
-			float fRatio = width/static_cast<float>(iMax);
-			widthNew = iMax;
-			heightNew = static_cast<int>(height/(fRatio));
-		} else {
-			float fRatio = height/static_cast<float>(iMax);
-			heightNew = iMax;
-			widthNew = static_cast<int>(width/(fRatio));
+		if(!boost::contains(file, "interface")) { // TODO filter out everything that glitches, or convert them (dinamically if possible) to a format that do not glitch.
+			int widthNew = 0;
+			int heightNew = 0;
+			if(width >= height) {
+				float fRatio = width/static_cast<float>(iMax);
+				widthNew = iMax;
+				heightNew = static_cast<int>(height/(fRatio));
+			} else {
+				float fRatio = height/static_cast<float>(iMax);
+				heightNew = iMax;
+				widthNew = static_cast<int>(width/(fRatio));
+			}
+			LogWarning << "resizing image '" << file << "' from " << width << "x" << height << " to " << widthNew << "x" << heightNew;
+			resizeFrom(*this, size_t(widthNew), size_t(widthNew)); // TODO cache the results then just load from it on next run
 		}
-		LogWarning << "resizing image '" << file << "' from " << width << "x" << height << " to " << widthNew << "x" << heightNew;
-		resizeFrom(*this, size_t(widthNew), size_t(widthNew));
 	}
 	
 	return true;

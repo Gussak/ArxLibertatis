@@ -1658,9 +1658,10 @@ public:
 		
 		addControlRow(CONTROLS_CUST_MINIMAP,      "system_menus_options_input_customize_controls_minimap");
 		
-		addControlRow(CONTROLS_CUST_COMBINE,      "system_menus_options_input_customize_controls_combine");
+		addControlRow(CONTROLS_CUST_COMBINE,      "system_menus_options_input_customize_controls_combine"); // like the double click of action_combine but does not require double key press, a single key press suffices to init combine QOL
 		addControlRow(CONTROLS_CUST_TAKEALLITEMS, "system_menus_options_input_customize_controls_take_all_items");
 		addControlRow(CONTROLS_CUST_UNSTACK,      "system_menus_options_input_customize_controls_unstack");
+		addControlRow(CONTROLS_CUST_ACTION2,      "system_menus_options_input_customize_controls_action2"); // like the double click of action_combine but does not require double key press, a single key press suffices to init action (activation) QOL
 		
 		if(config.input.allowConsole) {
 			addControlRow(CONTROLS_CUST_CONSOLE, "system_menus_options_input_customize_controls_console");

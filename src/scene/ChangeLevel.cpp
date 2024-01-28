@@ -2254,6 +2254,7 @@ static Entity * ARX_CHANGELEVEL_Pop_IO(std::string_view idString, EntityInstance
 			
 		}
 		
+		// obs.: this does not need to be saved/loaded: io->objLOD = LODFlags::load(ais->objLOD);
 	}
 	
 	arx_assert_msg(pos <= buffer.size(), "pos=%lu size=%lu", static_cast<unsigned long>(pos),

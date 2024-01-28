@@ -2202,30 +2202,42 @@ void ManageCasseDArme(Entity * io) {
 	
 }
 
-static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, std::string & esdat) {
+static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, std::string & esdatPatched, std::string & esdatOriginal) {
+	if(esdatOriginal == esdatPatched) {
+		return true; // ok, nothing changed
+	}
+	
 	res::path folder = pathModdedDump.parent();
 	std::filesystem::create_directories(folder.string());
+	
 	static std::ofstream flModdedDump;
 	flModdedDump.open(pathModdedDump.string(), std::ios_base::trunc); //std::ios_base::app);
 	if(!flModdedDump.fail()) {
-		flModdedDump << esdat << "\n";
+		flModdedDump << esdatPatched << "\n";
 		flModdedDump.flush();
 		flModdedDump.close();
 		return true;
 	}
-	arx_assert_msg(false, "failed to write mod dump file '%s'", pathModdedDump.string().c_str());
+	
+	LogError << "Failed to write mod dump file '" << pathModdedDump.string() << "'";
+	
 	return false;
 }
 
-void detectAndFixGoToGoSubParam(std::string & line) { // transform goto/gosub param var=value into var value (replace '=' with space)
+size_t detectAndFixGoToGoSubParam(std::string & line) { // transform goto/gosub param var=value into var value (replace '=' with space)
 	std::regex reSearch("_*g_*o_*(t_*o|s_*u_*b)_*", std::regex_constants::ECMAScript | std::regex_constants::icase);
 	if (std::regex_search(line, reSearch)) {
 		std::regex reReplace("([ \t][@\xA3\xA7][\xBB]{0,1}[a-z0-9_]*)=([^ \t])", std::regex_constants::ECMAScript | std::regex_constants::icase); // create a strict/precise match as possible. For \xBB read ScriptedLand.cpp GotoCommand::createParamVar() (\xAB is never on the left side), also \xBB{0,1} means that a GoSub param can also set a normal var using it's full name (instead of an auto var name based on a short name).
+		std::string strLineBefore = line;
 		line = std::regex_replace(line, reReplace, "$1 $2");
+		if(strLineBefore != line) {
+			return 1; // TODO count diff chars?
+		}
 	}
+	return 0;
 }
-void adaptScriptCode(std::string & line) {
-	detectAndFixGoToGoSubParam(line);
+size_t adaptScriptCode(std::string & line) {
+	return detectAndFixGoToGoSubParam(line);
 }
 /**
  * Necessary because of other parts of the code that seek back for the single line comment token "//" !
@@ -2244,10 +2256,12 @@ bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 	bool bSeekBeginMLC = true;
 	size_t lineCount = 0;
 	size_t countMLC = 0;
+	size_t countSLC = 0;
+	size_t countASC = 0;
 	for(std::string line : lines) {
 		lineCount++;
 		
-		adaptScriptCode(line);
+		countASC += adaptScriptCode(line);
 		
 		if(bSeekBeginMLC) {
 			size_t posBeginMLC = line.find("/*");
@@ -2263,6 +2277,7 @@ bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 					// replaces "/*" with "//"
 					line[posBeginMLC  ] = '/';
 					line[posBeginMLC+1] = '/';
+					countSLC++;
 					bSeekBeginMLC = false;
 					countMLC++;
 				}
@@ -2275,6 +2290,7 @@ bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 			} else if(line.size() >= 2) { // transform in single line comment
 				line[0] = '/';
 				line[1] = '/';
+				countSLC++;
 			}
 			
 			if(posEndMLC == std::string::npos) { // not found, is simple commented line
@@ -2290,11 +2306,12 @@ bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 		}
 	}
 	
-	writeScriptAtModDumpFolder(pathScript, esdat);
+	if((countMLC+countSLC+countASC) > 0) {
+		LogDebug("Converted " << countMLC << " multiline comment(s) into " << countSLC << " single line comments and adapted " << countASC << " lines of code at " << pathScript.string());
+		return true;
+	}
 	
-	LogDebug("Converted " << countMLC << " multiline comment(s) to single line comments at " << pathScript.string());
-	
-	return countMLC > 0;
+	return false;
 }
 
 void fixLineEnding(std::string & strData, char cLineEndingMode) {
@@ -2312,10 +2329,11 @@ void fixLineEnding(std::string & strData, char cLineEndingMode) {
 	}
 }
 
-void fixTo8859_1(std::string strFilename, std::string & strData) {
-	if(strData.find('\xC2') != std::string::npos) {
-		LogWarning << "fixing data to ISO-8859-1 read from '" << strFilename << "'"; // TODO assert instead?
-		boost::replace_all(strData, "\xC2", ""); // UTF-8 seems to only prepend special chars with 0xC2
+void fixTo8859_15(std::string strFilename, std::string & strData) { // only chars that matters for now from the most used format UTF-8 only
+	if(strData.find_first_of("\xC2\xE2\x82\xAC") != std::string::npos) {
+		LogWarning << "fixing data to ISO-8859-15 read from '" << strFilename << "'";
+		boost::replace_all(strData, "\xC2", ""); // UTF-8 seems to only prepend special chars with 0xC2, so remove it
+		boost::replace_all(strData, "\xE2\x82\xAC", "\xA4"); // least this one, needs conversion
 	}
 }
 
@@ -2331,11 +2349,11 @@ std::string loadFileDataAndCloseIt(std::ifstream & file) {
 std::string fixScriptData(std::string strFilename, std::string strData, char cLineEndingMode) {
 	strData = util::toLowercase(strData);
 	fixLineEnding(strData, cLineEndingMode);
-	fixTo8859_1(strFilename, strData);
+	fixTo8859_15(strFilename, strData);
 	return strData;
 }
 
-/* MultiLineCommentSectionToggleTrick commenting this line will uncomment next block
+/* MultiLineCommentSectionToggleTrick commenting this line will uncomment the block just below it and auto comment the subsequent block!
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);
 }
@@ -2354,9 +2372,9 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);
 }
-void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
+void loadScript(EERIE_SCRIPT & script, PakFile * fileInput, res::path & pathScript) {
 	
-	if(!file) {
+	if(!fileInput) {
 		return;
 	}
 	
@@ -2390,8 +2408,10 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		}
 	}
 	
+	std::string strScriptDataOriginal; // there is no need to read original data if using the cache that is meant to be fast
 	if(!usingFileFromCache) {
-		strScriptData = file->read();
+		strScriptDataOriginal = fileInput->read();
+		strScriptData = strScriptDataOriginal;
 		char cLineEndingMode = strScriptData.find("\r\n") != std::string::npos ? 'w' : 'l';
 		
 		strScriptData = fixScriptData(pathScript.string(), strScriptData, cLineEndingMode);
@@ -2404,6 +2424,9 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 			std::ifstream flLoadOrder(strFlModLoadOrder);
 			std::string strModListFileDataNew = loadFileDataAndCloseIt(flLoadOrder);
 			if(strModListFileDataNew != strModListFileData) {
+				if(vModList.size() > 0) {
+					LogInfo << "Mod load order file change detected, reloading.";
+				}
 				vModList.clear();
 				strModListFileData = strModListFileDataNew;
 			}
@@ -2478,7 +2501,7 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 					}
 					
 					res::path pathScriptToBePatched = pathModdedDump;
-					writeScriptAtModDumpFolder(pathScriptToBePatched, strScriptData);
+					writeScriptAtModDumpFolder(pathScriptToBePatched, strScriptData, strScriptDataOriginal);
 					
 					std::string strPatchOutputFile = pathModPatchToApply.string() + ".log";
 					std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatchToApply.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
@@ -2563,13 +2586,15 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 		}
 		
 		if((modOverrideApplyCount + modPatchApplyCount + modAppendApplyCount) > 0) {
-			writeScriptAtModDumpFolder(pathModdedDump, strScriptData);
+			writeScriptAtModDumpFolder(pathModdedDump, strScriptData, strScriptDataOriginal);
 			script.file = pathModdedDump.string();
 			LogInfo << "└─ All Mods: Dumping applied result(s) of " << modOverrideApplyCount << " override(s), " << modPatchApplyCount << " patch(es) and " << modAppendApplyCount << " append(s) at: " << pathModdedDump;
 		}
 	}
 	
-	detectAndTransformMultilineCommentIntoSingleLineComments(strScriptData, pathModdedDump);
+	if(detectAndTransformMultilineCommentIntoSingleLineComments(strScriptData, pathModdedDump)) {
+		writeScriptAtModDumpFolder(pathModdedDump, strScriptData, strScriptDataOriginal);
+	}
 	
 	script.data = strScriptData;
 	
@@ -2577,4 +2602,3 @@ void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
 	
 }
 //*/
-

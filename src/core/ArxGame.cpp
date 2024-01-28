@@ -147,6 +147,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "io/log/Logger.h"
 
 #include "platform/Dialog.h"
+#include "platform/Environment.h"
 #include "platform/Platform.h"
 #include "platform/Process.h"
 #include "platform/ProgramOptions.h"
@@ -1631,6 +1632,48 @@ void ArxGame::updateLevel() {
 				entity.highlightColor = Color3f::gray(float(iHighLight));
 			} else {
 				entity.highlightColor = Color3f::black;
+			}
+			if(&entity == FlyingOverIO && !(player.Interface & INTER_COMBATMODE)) { // best quality if it has focus
+				entity.setLOD(LOD_PERFECT);
+			} else {
+				float dist = fdist(player.pos, entity.pos);
+				
+				LODFlag maxLOD = LOD_HIGH;
+				float fFPSmod = player.Interface & INTER_COMBATMODE ? 2.0 : 1.0;
+				if(g_fpsCounter.FPS < 25*fFPSmod) maxLOD = LOD_MEDIUM;
+				if(g_fpsCounter.FPS < 17*fFPSmod) maxLOD = LOD_LOW;
+				if(g_fpsCounter.FPS < 10*fFPSmod) maxLOD = LOD_BAD;
+				
+				static int distLodHigh = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODHighDist", 'i', "", 200, false);}();
+				static int distLodMed = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODMediumDist", 'i', "", 400, false);}();
+				static int distLodLow = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODLowDist", 'i', "", 600, false);}();
+				static int distLodBad = [](){
+					int iBad = platform::getEnvironmentVariableValueInteger("ARX_LODBadDist", 'i', "", 800, false);
+					if(!(distLodHigh <= distLodMed && distLodMed <= distLodLow && distLodLow <= iBad)) {
+						LogError << "invalid LOD distances calibration, should be LodHigh(" << distLodHigh << ") <= LodMed(" << distLodMed << ") <= LodLow(" << distLodLow << ") <= LodBad(" << iBad << "), restoring defaults";
+						distLodHigh = 200;
+						distLodMed = 400;
+						distLodLow = 600;
+						iBad = 800;
+					}
+					return iBad;
+				}();
+				
+				if(dist <= distLodHigh && LOD_HIGH >= maxLOD) {
+					entity.setLOD(LOD_HIGH);
+				} else
+				if(dist <= distLodMed && LOD_MEDIUM >= maxLOD) {
+					entity.setLOD(LOD_MEDIUM);
+				} else
+				if(dist <= distLodLow && LOD_LOW >= maxLOD) {
+					entity.setLOD(LOD_LOW);
+				} else
+				if(dist <= distLodBad) {
+					entity.setLOD(LOD_BAD);
+				} else {
+					entity.setLOD(LOD_FLAT);
+					entity.angle.setYaw(MAKEANGLE(Camera::getLookAtAngle(entity.pos, player.pos).getYaw()));
+				}
 			}
 			
 			Cedric_ApplyLightingFirstPartRefactor(entity);

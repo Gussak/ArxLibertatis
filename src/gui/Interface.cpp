@@ -891,6 +891,11 @@ void ArxGame::managePlayerControls() {
 		bCombineItemsSingleKeyPressed = true;
 	}
 	
+	ActionDoubleClick = false;
+	if(GInput->actionNowPressed(CONTROLS_CUST_ACTION2)) {
+		ActionDoubleClick = true;
+	}
+	
 	if(GInput->actionNowPressed(CONTROLS_CUST_TAKEALLITEMS) && g_secondaryInventoryHud.isOpen()) {
 		g_secondaryInventoryHud.takeAllItems();
 	}
