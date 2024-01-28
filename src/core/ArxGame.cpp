@@ -1632,6 +1632,32 @@ void ArxGame::updateLevel() {
 			} else {
 				entity.highlightColor = Color3f::black;
 			}
+			if(&entity == FlyingOverIO) {
+				entity.setLOD(LOD_PERFECT);
+			} else {
+				float dist = fdist(entities.player()->pos, entity.pos);
+				
+				LODFlag maxLOD = LOD_HIGH;
+				float fFPSmod = player.Interface & INTER_COMBATMODE ? 2.0 : 1.0;
+				if(g_fpsCounter.FPS < 25*fFPSmod) maxLOD = LOD_MEDIUM;
+				if(g_fpsCounter.FPS < 17*fFPSmod) maxLOD = LOD_LOW;
+				if(g_fpsCounter.FPS < 10*fFPSmod) maxLOD = LOD_BAD;
+				
+				if(dist < 300 && LOD_HIGH >= maxLOD) {
+					entity.setLOD(LOD_HIGH);
+				} else
+				if(dist < 600 && LOD_MEDIUM >= maxLOD) {
+					entity.setLOD(LOD_MEDIUM);
+				} else
+				if(dist < 1200 && LOD_LOW >= maxLOD) {
+					entity.setLOD(LOD_LOW);
+				} else
+				if(dist < 2500) {
+					entity.setLOD(LOD_BAD);
+				} else {
+					entity.setLOD(LOD_FLAT);
+				}
+			}
 			
 			Cedric_ApplyLightingFirstPartRefactor(entity);
 			

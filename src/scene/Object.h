@@ -78,7 +78,7 @@ enum LODFlag {
 	LOD_MEDIUM  = 1 << 2, // perceptually Medium, some loss, a bit far, but still looks good
 	LOD_LOW     = 1 << 3, // perceptually Low, lossy, far, but carefully prepared to keep contour shape at least
 	LOD_BAD     = 1 << 4, // perceptually bad, very lossy, very far, visually messed up but still resembles the original
-	LOD_FLAT    = 1 << 5, // flat shape mesh that "looks" (rotates) to the active camera, square, 2 triangles, could have a front, left, right, back, top and bottom flat small textures. these textures could be the very icons shown in the inventory.
+	LOD_FLAT    = 1 << 5, // flat shape mesh that "looks" (rotates) to the active camera, square, 2 triangles, could have a front, left, right, back, top and bottom flat small textures. these textures could be the very icons shown in the inventory. // LOD_FLAT could be automatic using the icon as texture in a squared/rectangled (2 triangles) plane.
 };
 DECLARE_FLAGS(LODFlag, LODFlags)
 DECLARE_FLAGS_OPERATORS(LODFlags);

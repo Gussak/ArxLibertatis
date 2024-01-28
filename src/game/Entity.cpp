@@ -455,6 +455,7 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	if(lodChk && (availableLODFlags & lodChk)) {
 		currentLOD = lodChk;
 		obj = objLOD[currentLOD];
+		usemesh = obj->fileUniqueRelativePathName;
 		return true;
 	}
 	
