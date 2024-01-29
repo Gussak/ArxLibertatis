@@ -1621,6 +1621,42 @@ void ArxGame::updateLevel() {
 	{
 		ARX_PROFILE("Entity preprocessing");
 		
+		// cfg LOD
+		static int distLodHigh = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODHighDist", 'i', "", 200, false);}();
+		static int distLodMed = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODMediumDist", 'i', "", 400, false);}();
+		static int distLodLow = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODLowDist", 'i', "", 600, false);}();
+		static int distLodBad = [](){
+			int iBad = platform::getEnvironmentVariableValueInteger("ARX_LODBadDist", 'i', "", 800, false);
+			if(!(distLodHigh <= distLodMed && distLodMed <= distLodLow && distLodLow <= iBad)) {
+				LogError << "invalid LOD distances calibration, should be LodHigh(" << distLodHigh << ") <= LodMed(" << distLodMed << ") <= LodLow(" << distLodLow << ") <= LodBad(" << iBad << "), restoring defaults";
+				distLodHigh = 200;
+				distLodMed = 400;
+				distLodLow = 600;
+				iBad = 800;
+			}
+			return iBad;
+		}();
+		static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODMinimumFPS", 'i', "", 10, false);}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad. export ARX_LODMinimumFPS=10
+		static int lodStepFPS = [](){int i = platform::getEnvironmentVariableValueInteger("ARX_LODStepFPS", 'i', "", 5, false); if(i < 1) i = 1; return i;}(); // this range difference in FPS to determine the proper LOD export ARX_LODStepFPS=5
+		static int lodFPSFla = (lodMinFPS + lodStepFPS*0);
+		static int lodFPSBad = (lodMinFPS + lodStepFPS*1);
+		static int lodFPSLow = (lodMinFPS + lodStepFPS*2);
+		static int lodFPSMed = (lodMinFPS + lodStepFPS*3);
+		static int lodFPSHig = (lodMinFPS + lodStepFPS*4);
+		static LODFlag maxLOD;
+		// calc LOD
+		float fFPSmodLOD = (player.Interface & INTER_COMBATMODE) ? 2.0 : 1.0;
+		if(g_fpsCounter.FPS < lodFPSFla*fFPSmodLOD) maxLOD = LOD_FLAT;
+		else
+		if(g_fpsCounter.FPS < lodFPSBad*fFPSmodLOD) maxLOD = LOD_BAD;
+		else
+		if(g_fpsCounter.FPS < lodFPSLow*fFPSmodLOD) maxLOD = LOD_LOW;
+		else
+		if(g_fpsCounter.FPS < lodFPSMed*fFPSmodLOD) maxLOD = LOD_MEDIUM;
+		else
+		maxLOD = LOD_HIGH;
+		time_t lodTimeCheckNow = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime();
+		
 		for(Entity & entity : entities) {
 			
 			if(entity.ignition > 0.f || (entity.ioflags & IO_FIERY)) {
@@ -1633,46 +1669,45 @@ void ArxGame::updateLevel() {
 			} else {
 				entity.highlightColor = Color3f::black;
 			}
+			
+			// calc LOD
 			if(&entity == FlyingOverIO && !(player.Interface & INTER_COMBATMODE)) { // best quality if it has focus
 				entity.setLOD(LOD_PERFECT);
 			} else {
-				float dist = fdist(player.pos, entity.pos);
-				
-				LODFlag maxLOD = LOD_HIGH;
-				float fFPSmod = player.Interface & INTER_COMBATMODE ? 2.0 : 1.0;
-				if(g_fpsCounter.FPS < 25*fFPSmod) maxLOD = LOD_MEDIUM;
-				if(g_fpsCounter.FPS < 17*fFPSmod) maxLOD = LOD_LOW;
-				if(g_fpsCounter.FPS < 10*fFPSmod) maxLOD = LOD_BAD;
-				
-				static int distLodHigh = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODHighDist", 'i', "", 200, false);}();
-				static int distLodMed = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODMediumDist", 'i', "", 400, false);}();
-				static int distLodLow = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODLowDist", 'i', "", 600, false);}();
-				static int distLodBad = [](){
-					int iBad = platform::getEnvironmentVariableValueInteger("ARX_LODBadDist", 'i', "", 800, false);
-					if(!(distLodHigh <= distLodMed && distLodMed <= distLodLow && distLodLow <= iBad)) {
-						LogError << "invalid LOD distances calibration, should be LodHigh(" << distLodHigh << ") <= LodMed(" << distLodMed << ") <= LodLow(" << distLodLow << ") <= LodBad(" << iBad << "), restoring defaults";
-						distLodHigh = 200;
-						distLodMed = 400;
-						distLodLow = 600;
-						iBad = 800;
+				if(lodTimeCheckNow >= entity.lodCooldownUntil) {
+					float dist = fdist(player.pos, entity.pos);
+					
+					LODFlag maxLODentity = maxLOD;
+					entity.previousLOD = entity.currentLOD;
+					LODFlag requestLOD;
+					if(dist <= distLodHigh && LOD_HIGH   >= maxLODentity) { requestLOD = LOD_HIGH  ; } else
+					if(dist <= distLodMed  && LOD_MEDIUM >= maxLODentity) { requestLOD = LOD_MEDIUM; } else
+					if(dist <= distLodLow  && LOD_LOW    >= maxLODentity) { requestLOD = LOD_LOW   ; } else
+					if(dist <= distLodBad  && LOD_BAD    >= maxLODentity) { requestLOD = LOD_BAD   ; } else {
+						requestLOD = LOD_FLAT;
 					}
-					return iBad;
-				}();
+					
+					if(requestLOD != entity.previousLOD) {
+						if(requestLOD < entity.currentLOD) {
+							requestLOD = entity.currentLOD;
+							requestLOD >> 1; //just upgrades it one step
+						}
+						entity.setLOD(requestLOD);
+						entity.lodCooldownUntil = time(0) + Random::getf(1.1f, 3f); // seconds. random to make changes expectedly in different frames. could be improved tho, may be one entity per second as FPS calc only happens after 1s (right?), but could become too boring
+						if(entity.currentLOD == LOD_FLAT) {
+							entity.lodYawBeforeFlat = entity.angle.getYaw();
+						} else {
+							if(entity.lodYawBeforeFlat != 9999f) {
+								entity.angle.setYaw(entity.lodYawBeforeFlat); // this may happen before the 1st flat request
+							}
+						}
+					}
+				}
 				
-				if(dist <= distLodHigh && LOD_HIGH >= maxLOD) {
-					entity.setLOD(LOD_HIGH);
-				} else
-				if(dist <= distLodMed && LOD_MEDIUM >= maxLOD) {
-					entity.setLOD(LOD_MEDIUM);
-				} else
-				if(dist <= distLodLow && LOD_LOW >= maxLOD) {
-					entity.setLOD(LOD_LOW);
-				} else
-				if(dist <= distLodBad) {
-					entity.setLOD(LOD_BAD);
-				} else {
-					entity.setLOD(LOD_FLAT);
+				if(entity.currentLOD == LOD_FLAT) {
 					entity.angle.setYaw(MAKEANGLE(Camera::getLookAtAngle(entity.pos, player.pos).getYaw()));
+				} else {
+					entity.angle.setYaw(entity.lodYawBeforeFlat);
 				}
 			}
 			
