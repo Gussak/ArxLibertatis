@@ -156,7 +156,9 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	std::fill(anims.begin(), anims.end(), nullptr);
 	
 	//std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr);
+	lodYawBeforeFlat = 9999f; // something that could be considered as not initialized
 	currentLOD = LOD_PERFECT;
+	previousLOD = currentLOD;
 	availableLODFlags = 0;
 	objLOD.emplace(LOD_PERFECT, nullptr);
 	objLOD.emplace(LOD_HIGH, nullptr);
