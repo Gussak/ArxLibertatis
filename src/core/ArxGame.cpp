@@ -1714,8 +1714,8 @@ void ArxGame::updateLevel() {
 						if(entity.currentLOD == LOD_FLAT) {
 							entity.lodYawBeforeFlat = entity.angle.getYaw();
 						} else {
-							if(entity.lodYawBeforeFlat != 999999999f) {
-								entity.angle.setYaw(entity.lodYawBeforeFlat); // this may happen before the 1st flat request
+							if(entity.lodYawBeforeFlat != 999999999f) { // because this may happen before the 1st flat request
+								entity.angle.setYaw(entity.lodYawBeforeFlat);
 							}
 						}
 					}
