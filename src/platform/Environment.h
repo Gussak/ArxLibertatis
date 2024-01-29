@@ -132,8 +132,8 @@ void setEnvironmentVariable(const char * name, const char * value);
 
 const char * getEnvironmentVariableValue(const char * name, char cLogMode = 'i', const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
 bool getEnvironmentVariableValueBoolean(const char * name, char cLogMode = 'i', const char * strMsg = "", bool defaultValue = false);
-f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode = 'i', const char * strMsg = "", f32 defaultValue = 0.f, bool bAllowNegative = true);
-s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode = 'i', const char * strMsg = "", s32 defaultValue = 0, bool bAllowNegative = true);
+f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode = 'i', const char * strMsg = "", f32 defaultValue = 0.f, bool bAllowNegative = true, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
+s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode = 'i', const char * strMsg = "", s32 defaultValue = 0, bool bAllowNegative = true, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());
 
 //! Unset an environment variable
 void unsetEnvironmentVariable(const char * name);
