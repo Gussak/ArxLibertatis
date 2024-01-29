@@ -1636,8 +1636,10 @@ void ArxGame::updateLevel() {
 			}
 			return iBad;
 		}();
-		static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODMinimumFPS", 'i', "", 10, false);}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad. export ARX_LODMinimumFPS=10
+		static int lodMinFPS = [](){int i = return platform::getEnvironmentVariableValueInteger("ARX_LODMinimumFPS", 'i', "", 10, false); if(i < 1) i = 1; return i;}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad. export ARX_LODMinimumFPS=10
 		static int lodStepFPS = [](){int i = platform::getEnvironmentVariableValueInteger("ARX_LODStepFPS", 'i', "", 5, false); if(i < 1) i = 1; return i;}(); // this range difference in FPS to determine the proper LOD export ARX_LODStepFPS=5
+		static float lodRecalcDistDelay = [](){f32 f = platform::getEnvironmentVariableValueFloat("ARX_LODRecalcDistDelay", 'i', "", 2f, false); if(f < 0.1f) f = 0.1f; return f;}(); // how long shall player wait for the update
+		static float minDistToRecalcLOD = [](){f32 f = platform::getEnvironmentVariableValueFloat("ARX_LODMinDistToRecalcLOD", 'i', "", 100f, false); if(f < 0.1f) f = 0.1f; return f;}(); // how far shall player move
 		static int lodFPSFla = (lodMinFPS + lodStepFPS*0);
 		static int lodFPSBad = (lodMinFPS + lodStepFPS*1);
 		static int lodFPSLow = (lodMinFPS + lodStepFPS*2);
@@ -1674,16 +1676,28 @@ void ArxGame::updateLevel() {
 			if(&entity == FlyingOverIO && !(player.Interface & INTER_COMBATMODE)) { // best quality if it has focus
 				entity.setLOD(LOD_PERFECT);
 			} else {
-				if(lodTimeCheckNow >= entity.lodCooldownUntil) {
-					float dist = fdist(player.pos, entity.pos);
+				if(lodTimeCheckNow >= (entity.lodLastCalcTime + lodRecalcDistDelay)) {
+					entity.playerDistLastCalcLOD = fdist(player.pos, entity.pos);
+				}
+				
+				if(lodTimeCheckNow >= entity.lodCooldownUntil || maxLOD > entity.currentLOD || entity.playerDistLastCalcLOD > minDistToRecalcLOD) {
+					entity.playerDistLastCalcLOD = fdist(player.pos, entity.pos);
 					
 					LODFlag maxLODentity = maxLOD;
 					entity.previousLOD = entity.currentLOD;
 					LODFlag requestLOD;
-					if(dist <= distLodHigh && LOD_HIGH   >= maxLODentity) { requestLOD = LOD_HIGH  ; } else
-					if(dist <= distLodMed  && LOD_MEDIUM >= maxLODentity) { requestLOD = LOD_MEDIUM; } else
-					if(dist <= distLodLow  && LOD_LOW    >= maxLODentity) { requestLOD = LOD_LOW   ; } else
-					if(dist <= distLodBad  && LOD_BAD    >= maxLODentity) { requestLOD = LOD_BAD   ; } else {
+					if(entity.playerDistLastCalcLOD <= distLodHigh && LOD_HIGH   >= maxLODentity) {
+						requestLOD = LOD_HIGH  ;
+					} else
+					if(entity.playerDistLastCalcLOD <= distLodMed  && LOD_MEDIUM >= maxLODentity) {
+						requestLOD = LOD_MEDIUM;
+					} else
+					if(entity.playerDistLastCalcLOD <= distLodLow  && LOD_LOW    >= maxLODentity) {
+						requestLOD = LOD_LOW   ;
+					} else
+					if(entity.playerDistLastCalcLOD <= distLodBad  && LOD_BAD    >= maxLODentity) {
+						requestLOD = LOD_BAD   ;
+					} else {
 						requestLOD = LOD_FLAT;
 					}
 					
@@ -1693,11 +1707,14 @@ void ArxGame::updateLevel() {
 							requestLOD >> 1; //just upgrades it one step
 						}
 						entity.setLOD(requestLOD);
-						entity.lodCooldownUntil = time(0) + Random::getf(1.1f, 3f); // seconds. random to make changes expectedly in different frames. could be improved tho, may be one entity per second as FPS calc only happens after 1s (right?), but could become too boring
+						
+						entity.lodCooldownUntil = lodTimeCheckNow + Random::getf(1.1f, 3f); // seconds. random to make changes expectedly in different frames. could be improved tho, may be one entity per second as FPS calc only happens after 1s (right?), but could become too boring
+						entity.lodLastCalcTime = lodTimeCheckNow;
+						
 						if(entity.currentLOD == LOD_FLAT) {
 							entity.lodYawBeforeFlat = entity.angle.getYaw();
 						} else {
-							if(entity.lodYawBeforeFlat != 9999f) {
+							if(entity.lodYawBeforeFlat != 999999999f) {
 								entity.angle.setYaw(entity.lodYawBeforeFlat); // this may happen before the 1st flat request
 							}
 						}
