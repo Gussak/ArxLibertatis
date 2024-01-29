@@ -332,6 +332,21 @@ public:
 	
 };
 
+//class EnvSetCommand : public Command {
+	
+//public:
+	
+	//EnvSetCommand() : Command("set") { }
+	
+	//Result execute(Context & context) override {
+		//std::string envVar = context.getStringVar(context.getWord()));
+		//std::string val = context.getStringVar(context.getWord()));
+		//if(val.find_first_not_of("0123456789-.") != std::string::npos) {
+			//platform::setEnvironmentVariable(envVar, val);
+		//}
+	//}
+//};
+
 class ArithmeticCommand : public Command {
 	
 public:
