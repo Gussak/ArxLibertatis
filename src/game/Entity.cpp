@@ -155,15 +155,23 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	
 	std::fill(anims.begin(), anims.end(), nullptr);
 	
-	//std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr);
+	lodYawBeforeFlat = 999999999.f; // something impossible like as in it could be considered as not initialized
+	arx_assert(lodYawBeforeFlat == 999999999.f);
+	playerDistLastCalcLOD = 0.f;
+	lodLastCalcTime = 0.f;
+	lodCooldownUntil = 0.f;
+	
 	currentLOD = LOD_PERFECT;
-	availableLODFlags = 0;
+	previousLOD = currentLOD;
+	// TODO something like std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr); ?
 	objLOD.emplace(LOD_PERFECT, nullptr);
 	objLOD.emplace(LOD_HIGH, nullptr);
 	objLOD.emplace(LOD_MEDIUM, nullptr);
 	objLOD.emplace(LOD_LOW, nullptr);
 	objLOD.emplace(LOD_BAD, nullptr);
 	objLOD.emplace(LOD_FLAT, nullptr);
+	objLOD.emplace(LOD_ICON, nullptr);
+	availableLODFlags = 0;
 	
 	for(size_t l = 0; l < MAX_ANIM_LAYERS; l++) {
 		animlayer[l] = AnimLayer();

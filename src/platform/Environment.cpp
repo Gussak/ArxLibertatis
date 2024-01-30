@@ -539,7 +539,7 @@ void setEnvironmentVariable(const char * name, const char * value) {
 
 const char * getEnvironmentVariableValue(const char * name, char cLogMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
 	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead
-	const char * pc = pcOverrideValue ? pcOverrideValue : getenv(name);
+	const char * pc = pcOverrideValue ? pcOverrideValue : getenv(name); // override is mainly to just show messages
 	if(pc) {
 		std::stringstream msg; msg << "[EnvironmentVariable]: " << name << " = \"" << pc << "\". " << strMsg;
 		LogDebug(msg.str());
@@ -574,14 +574,22 @@ bool getEnvironmentVariableValueBoolean(const char * name, char cLogMode, const 
 	return defaultValue;
 }
 
-f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, const char * strMsg, f32 defaultValue, bool bAllowNegative) {
+f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, const char * strMsg, f32 defaultValue, bool bAllowNegative, f32 min, f32 max) {
 	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : "";
-	if(ev.size() > 0) {
+	if(ev.size() > 0) { // sync with almost identical integer code below if possible
 		if(ev.find_first_not_of("0123456789-.") != std::string::npos) {
 			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be float ! " + std::string(strMsg)).c_str(), ev.c_str());
 		} else {
 			f32 val = util::parseFloat(ev);
+			if(val < min) {
+				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
+				val = min;
+			}
+			if(val > max) {
+				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
+				val = max;
+			}
 			if(bAllowNegative) return val;
 			if(val < 0.f) {
 				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());
@@ -593,14 +601,22 @@ f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, const cha
 	return defaultValue;
 }
 
-s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode, const char * strMsg, s32 defaultValue, bool bAllowNegative) {
+s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode, const char * strMsg, s32 defaultValue, bool bAllowNegative, s32 min, s32 max) {
 	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : "";
-	if(ev.size() > 0) {
+	if(ev.size() > 0) { // sync with almost identical float code above if possible
 		if(ev.find_first_not_of("0123456789-") != std::string::npos) {
 			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be integer ! " + std::string(strMsg)).c_str(), ev.c_str());
 		} else {
 			s32 val = util::parseInt(ev);
+			if(val < min) {
+				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
+				val = min;
+			}
+			if(val > max) {
+				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
+				val = max;
+			}
 			if(bAllowNegative) return val;
 			if(val < 0.f) {
 				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());

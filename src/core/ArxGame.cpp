@@ -1602,6 +1602,220 @@ void ArxGame::updateInput() {
 
 extern int iHighLight;
 
+static Entity * entNearestToImproveLOD = nullptr;
+static LODFlag maxLOD;
+static time_t lodDelayCalc = time(0);
+static int lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat("ARX_LODRecalcDelay", 'i', "", 2, false, 1);}();
+static bool lodCalcNow = false;
+void ArxGame::LODbeforeEntitiesLoop() {
+	// cfg LOD
+	static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODMinimumFPS", 'i', "", 10, false, 1);}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad. export ARX_LODMinimumFPS=10
+	static int lodStepFPS = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODStepFPS", 'i', "", 5, false, 1);}(); // this range difference in FPS to determine the proper LOD export ARX_LODStepFPS=5
+	static int lodFPSFla = (lodMinFPS + lodStepFPS*0);
+	static int lodFPSBad = (lodMinFPS + lodStepFPS*1);
+	static int lodFPSLow = (lodMinFPS + lodStepFPS*2);
+	static int lodFPSMed = (lodMinFPS + lodStepFPS*3);
+	static int lodFPSHig = (lodMinFPS + lodStepFPS*4);
+	
+	// calc LOD
+	static time_t lodCalcAt;
+	time_t lodTimeNow = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime();
+	float fFPSmodLOD = (player.Interface & INTER_COMBATMODE) ? 2.f : 1.f;
+	if(g_fpsCounter.FPS < lodFPSFla*fFPSmodLOD) maxLOD = LOD_FLAT;
+	else
+	if(g_fpsCounter.FPS < lodFPSBad*fFPSmodLOD) maxLOD = LOD_BAD;
+	else
+	if(g_fpsCounter.FPS < lodFPSLow*fFPSmodLOD) maxLOD = LOD_LOW;
+	else
+	if(g_fpsCounter.FPS < lodFPSMed*fFPSmodLOD) maxLOD = LOD_MEDIUM;
+	else
+	if(g_fpsCounter.FPS < lodFPSHig*fFPSmodLOD) maxLOD = LOD_HIGH;
+	else {
+		maxLOD = LOD_PERFECT;
+	}
+	
+	lodCalcNow = time(0) > lodDelayCalc;
+	if(lodCalcNow) lodDelayCalc += lodRecalcDelay;
+	
+	LODupdateNearestEntityToImprove();
+	//if(entNearestToImproveLOD) {
+		//if(entNearestToImproveLOD == FlyingOverIO) {
+			//entNearestToImproveLOD = nullptr;
+		//} else
+		//if(entNearestToImproveLOD->currentLOD == LOD_HIGH) {
+			//entNearestToImproveLOD = nullptr;
+		//}
+		//// TODO clear too if not in camera FOV
+	//}
+}
+
+static bool nearestEntityIsValid = false;
+void ArxGame::LODupdateNearestEntityToImprove(Entity * entity) {
+	if(entNearestToImproveLOD) {
+		if(entNearestToImproveLOD->currentLOD == LOD_HIGH) {
+			entNearestToImproveLOD = nullptr;
+		}
+	}
+	
+	if(!entity) { // before loop
+		// TODO safer and faster to just clear at ~Entity() right? put entNearestToImproveLOD at EntityManager ?
+		// check if entity still exists
+		nearestEntityIsValid = false;
+		for(Entity & entExists : entities.inScene(IO_ITEM)) {
+			if(&entExists == entNearestToImproveLOD) {
+				nearestEntityIsValid = true;
+				break;
+			}
+		}
+		if(!nearestEntityIsValid) {
+			entNearestToImproveLOD = nullptr;
+		}
+		
+		if(entNearestToImproveLOD) {
+			if(entNearestToImproveLOD == FlyingOverIO) {
+				entNearestToImproveLOD = nullptr;
+			} else
+			if(entNearestToImproveLOD->currentLOD == LOD_HIGH) { // max auto improve reached for this one
+				entNearestToImproveLOD = nullptr;
+			}
+			// TODO clear too if not in camera FOV ?
+		}
+		
+	} else { // at entities loop
+		
+		if(!entNearestToImproveLOD) {
+			if(entity->currentLOD != LOD_HIGH) {
+				entNearestToImproveLOD = entity;
+			}
+		} else {
+			if(entNearestToImproveLOD && maxLOD > entNearestToImproveLOD->currentLOD) { // must lower the quality
+				entNearestToImproveLOD = nullptr;
+			}
+			
+			if(entNearestToImproveLOD && entNearestToImproveLOD->currentLOD == LOD_HIGH) {
+				entNearestToImproveLOD = nullptr;
+			}
+			
+			if(entNearestToImproveLOD && entNearestToImproveLOD->playerDistLastCalcLOD > entity->playerDistLastCalcLOD) {
+				entNearestToImproveLOD = nullptr;
+			}
+			
+			if(!entNearestToImproveLOD && maxLOD < entity->currentLOD && entity->currentLOD > LOD_HIGH) {
+				entNearestToImproveLOD = entity;
+			}
+		}
+		
+	}
+	
+}
+
+void ArxGame::LODplayerDist(Entity & entity) {
+	if(&entity == FlyingOverIO) return;
+	entity.playerDistLastCalcLOD = fdist(player.pos, entity.pos);
+	//LODupdateNearestEntityToImprove(&entity);
+}
+
+void ArxGame::LODforEntity(Entity & entity) {
+	if(!(entity.ioflags & IO_ITEM)) return;
+	if(&entity == FlyingOverIO) return;
+	
+	//static int lodRecalcDistDelay = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODRecalcDistDelay", 'i', "", 2, false);}(); // how long shall player wait for the update
+	//static float minDistToRecalcLOD = [](){return platform::getEnvironmentVariableValueFloat("ARX_LODMinDistToRecalcLOD", 'i', "", 100.f, false, 0.1f);}(); // how far shall player move
+	
+	time_t lodTimeCheckNow = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime();
+	int lodOnePerFPSUpdate = 2;
+	
+	//if(lodTimeCheckNow >= (entity.lodLastCalcTime + lodRecalcDistDelay)) {
+		//LODplayerDist(entity);
+	//}
+	
+	static int distLodHigh = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODHighDist", 'i', "", 200, false);}();
+	static int distLodMed = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODMediumDist", 'i', "", 400, false);}();
+	static int distLodLow = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODLowDist", 'i', "", 600, false);}();
+	static int distLodBad = [](){
+		int iBad = platform::getEnvironmentVariableValueInteger("ARX_LODBadDist", 'i', "", 800, false);
+		if(!(distLodHigh <= distLodMed && distLodMed <= distLodLow && distLodLow <= iBad)) {
+			LogError << "invalid LOD distances calibration, should be LodHigh(" << distLodHigh << ") <= LodMed(" << distLodMed << ") <= LodLow(" << distLodLow << ") <= LodBad(" << iBad << "), restoring defaults";
+			distLodHigh = 200;
+			distLodMed = 400;
+			distLodLow = 600;
+			iBad = 800;
+		}
+		return iBad;
+	}();
+	
+	//if(lodTimeCheckNow >= entity.lodCooldownUntil || maxLOD > entity.currentLOD || entity.playerDistLastCalcLOD > minDistToRecalcLOD) { 
+	//if(maxLOD > entity.currentLOD) {
+		LODplayerDist(entity);
+		
+		LODFlag maxLODentity = maxLOD;
+		entity.previousLOD = entity.currentLOD;
+		LODFlag requestLOD;
+		if(entity.playerDistLastCalcLOD <= distLodHigh && LOD_HIGH   >= maxLODentity) {
+			requestLOD = LOD_HIGH  ;
+		} else
+		if(entity.playerDistLastCalcLOD <= distLodMed  && LOD_MEDIUM >= maxLODentity) {
+			requestLOD = LOD_MEDIUM;
+		} else
+		if(entity.playerDistLastCalcLOD <= distLodLow  && LOD_LOW    >= maxLODentity) {
+			requestLOD = LOD_LOW   ;
+		} else
+		if(entity.playerDistLastCalcLOD <= distLodBad  && LOD_BAD    >= maxLODentity) {
+			requestLOD = LOD_BAD   ;
+		} else {
+			requestLOD = LOD_FLAT;
+		}
+		
+		if(requestLOD != entity.previousLOD) {
+			if(requestLOD > entity.currentLOD) { // can always lower LOD quality
+				entity.setLOD(requestLOD);
+			} else {
+				if(&entity == entNearestToImproveLOD) {
+					requestLOD = entity.currentLOD;
+					requestLOD = static_cast<LODFlag>(requestLOD >> 1); // improves just one LOD level per time
+					entity.setLOD(requestLOD);
+				}
+			}
+			
+			//if(requestLOD == LOD_FLAT) {
+				//entity.lodYawBeforeFlat = entity.angle.getYaw();
+			//}
+				
+			//entity.setLOD(requestLOD);
+			
+			//entity.lodCooldownUntil = lodTimeCheckNow + lodOnePerFPSUpdate;
+			//lodOnePerFPSUpdate += 2;
+			//entity.lodLastCalcTime = lodTimeCheckNow;
+			
+			//if(entity.currentLOD == LOD_FLAT) {
+				//entity.lodYawBeforeFlat = entity.angle.getYaw();
+			//} else {
+				//if(entity.lodYawBeforeFlat != 999999999.f) { // because this may happen before the 1st flat request
+					//entity.angle.setYaw(entity.lodYawBeforeFlat);
+				//}
+			//}
+		}
+		
+		//entity.lodLastCalcTime = lodTimeCheckNow;
+	//}
+	
+	LODupdateNearestEntityToImprove(&entity);
+	
+	// FLAT look at player
+	if(entity.currentLOD == LOD_FLAT) {
+		if(entity.lodYawBeforeFlat == 999999999.f) {
+			entity.lodYawBeforeFlat = entity.angle.getYaw();
+		}
+		entity.angle.setYaw(MAKEANGLE(Camera::getLookAtAngle(entity.pos, player.pos).getYaw()));
+	} else {
+		if(entity.lodYawBeforeFlat != 999999999.f) {
+			entity.angle.setYaw(entity.lodYawBeforeFlat);
+			entity.lodYawBeforeFlat = 999999999.f;
+		}
+	}
+	
+}
+
 void ArxGame::updateLevel() {
 
 	arx_assert(entities.player());
@@ -1621,6 +1835,7 @@ void ArxGame::updateLevel() {
 	{
 		ARX_PROFILE("Entity preprocessing");
 		
+		LODbeforeEntitiesLoop();
 		for(Entity & entity : entities) {
 			
 			if(entity.ignition > 0.f || (entity.ioflags & IO_FIERY)) {
@@ -1633,46 +1848,13 @@ void ArxGame::updateLevel() {
 			} else {
 				entity.highlightColor = Color3f::black;
 			}
+			
+			// calc LOD
 			if(&entity == FlyingOverIO && !(player.Interface & INTER_COMBATMODE)) { // best quality if it has focus
 				entity.setLOD(LOD_PERFECT);
 			} else {
-				float dist = fdist(player.pos, entity.pos);
-				
-				LODFlag maxLOD = LOD_HIGH;
-				float fFPSmod = player.Interface & INTER_COMBATMODE ? 2.0 : 1.0;
-				if(g_fpsCounter.FPS < 25*fFPSmod) maxLOD = LOD_MEDIUM;
-				if(g_fpsCounter.FPS < 17*fFPSmod) maxLOD = LOD_LOW;
-				if(g_fpsCounter.FPS < 10*fFPSmod) maxLOD = LOD_BAD;
-				
-				static int distLodHigh = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODHighDist", 'i', "", 200, false);}();
-				static int distLodMed = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODMediumDist", 'i', "", 400, false);}();
-				static int distLodLow = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODLowDist", 'i', "", 600, false);}();
-				static int distLodBad = [](){
-					int iBad = platform::getEnvironmentVariableValueInteger("ARX_LODBadDist", 'i', "", 800, false);
-					if(!(distLodHigh <= distLodMed && distLodMed <= distLodLow && distLodLow <= iBad)) {
-						LogError << "invalid LOD distances calibration, should be LodHigh(" << distLodHigh << ") <= LodMed(" << distLodMed << ") <= LodLow(" << distLodLow << ") <= LodBad(" << iBad << "), restoring defaults";
-						distLodHigh = 200;
-						distLodMed = 400;
-						distLodLow = 600;
-						iBad = 800;
-					}
-					return iBad;
-				}();
-				
-				if(dist <= distLodHigh && LOD_HIGH >= maxLOD) {
-					entity.setLOD(LOD_HIGH);
-				} else
-				if(dist <= distLodMed && LOD_MEDIUM >= maxLOD) {
-					entity.setLOD(LOD_MEDIUM);
-				} else
-				if(dist <= distLodLow && LOD_LOW >= maxLOD) {
-					entity.setLOD(LOD_LOW);
-				} else
-				if(dist <= distLodBad) {
-					entity.setLOD(LOD_BAD);
-				} else {
-					entity.setLOD(LOD_FLAT);
-					entity.angle.setYaw(MAKEANGLE(Camera::getLookAtAngle(entity.pos, player.pos).getYaw()));
+				if(lodCalcNow) {
+					LODforEntity(entity);
 				}
 			}
 			

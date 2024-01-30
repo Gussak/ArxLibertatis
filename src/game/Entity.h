@@ -279,6 +279,11 @@ public:
 	EERIE_3DOBJ * obj; // IO Mesh data
 	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs
 	LODFlag currentLOD;
+	LODFlag previousLOD;
+	time_t lodCooldownUntil;
+	time_t lodLastCalcTime;
+	float lodYawBeforeFlat;
+	float playerDistLastCalcLOD;
 	LODFlags availableLODFlags;
 	std::array<ANIM_HANDLE *, MAX_ANIMS> anims; // Object Animations
 	std::array<AnimLayer, MAX_ANIM_LAYERS> animlayer;
