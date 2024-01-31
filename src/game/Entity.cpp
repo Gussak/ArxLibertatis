@@ -432,6 +432,8 @@ bool Entity::isInvulnerable() {
 }
 
 bool Entity::setLOD(const LODFlag lodRequest) {
+	if(currentLOD == lodRequest) return true;
+	
 	LODFlag lodChk = lodRequest;
 	
 	static LODFlag ltMax = [](){return strToLOD(platform::getEnvironmentVariableValue("ARX_LODMax", 'i', "", "PERFECT"), "PERFECT");}(); // export ARX_LODMax="PERFECT"
@@ -461,10 +463,26 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	// because max quality is lowest flag value
 	if(lodChk < ltMax) lodChk = ltMax;
 	if(lodChk > ltMin) lodChk = ltMin;
-	while(lodChk) {
-		if(availableLODFlags & lodChk) break;
-		lodChk = static_cast<LODFlag>(lodChk >> 1);
+	
+	// seek available LOD if requested not found
+	if(!(availableLODFlags & lodChk)) {
+		if(lodChk < currentLOD) { // requested to improve LOD
+			while(lodChk) {
+				if(availableLODFlags & lodChk) break;
+				// if requested LOD is not available
+				lodChk = static_cast<LODFlag>(lodChk >> 1); // will improve LOD more than requested
+			}
+			arx_assert_msg(lodChk,"LOD_PERFECT shall always be available (original 3D model) but was not found! entity='%s'", idString());
+		}
+		
+		if(lodChk > currentLOD) { // requested to lower LOD quality
+			while(lodChk != LOD_ICON) { // limit to worst quality LOD
+				if(availableLODFlags & lodChk) break;
+				lodChk = static_cast<LODFlag>(lodChk << 1);
+			}
+		}
 	}
+	
 	if(lodChk && (availableLODFlags & lodChk)) {
 		currentLOD = lodChk;
 		obj = objLOD[currentLOD];
