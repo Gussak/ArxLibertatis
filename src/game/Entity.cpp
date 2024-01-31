@@ -155,11 +155,12 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	
 	std::fill(anims.begin(), anims.end(), nullptr);
 	
-	lodYawBeforeFlat = 999999999f; // something impossible like as in it could be considered as not initialized
-	arx_assert(lodYawBeforeFlat == 999999999f);
+	lodYawBeforeFlat = 999999999.f; // something impossible like as in it could be considered as not initialized
+	arx_assert(lodYawBeforeFlat == 999999999.f);
 	playerDistLastCalcLOD = 0.f;
-	lodLastCalcTime = 0.f;
-	lodCooldownUntil = 0.f;
+	lodLastCalcTime = time(0);
+	lodCooldownUntil = time(0);
+	lodImproveWaitUntil = time(0);
 	
 	currentLOD = LOD_PERFECT;
 	previousLOD = currentLOD;

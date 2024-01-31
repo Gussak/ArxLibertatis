@@ -313,28 +313,46 @@ size_t Context::getGoSubCallFromPos(size_t indexFromLast) const {
 std::string Context::getGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between, size_t indexFromLast) const {
 	std::stringstream ss;
 	
-	if(m_stackIdCalledFromPos.size() > 0) {
+	if(m_message < SM_MAXCMD || m_stackIdCalledFromPos.size() > 0) {
 		ss << prepend;
-		
-		size_t indexHighlight = size_t(-1);
+	}
+	
+	int indexHighlight = -2; // to be ignored must be out of recognized range: -1 0 1 2 ...
+	if(m_stackIdCalledFromPos.size() > 0) {
 		if(indexFromLast != size_t(-1)) {
+			if(indexFromLast > m_stackIdCalledFromPos.size() && m_message < SM_MAXCMD) {
+				indexHighlight = -1; // is the event
+			} else
 			if(indexFromLast >= m_stackIdCalledFromPos.size()) {
 				indexHighlight = 0;
 			} else {
-				indexHighlight = m_stackIdCalledFromPos.size() - indexFromLast - 1;
+				indexHighlight = static_cast<int>(m_stackIdCalledFromPos.size() - indexFromLast - 1);
 			}
 		}
-		
+	}
+	
+	if(m_message < SM_MAXCMD) {
+		std::string strEvent = std::string(ScriptEvent::name(m_message));
+		strEvent[2] = '_'; // ex.: "on main" becomes "on_main". This is important to retrieve a string of pseudo private script variables' prefix that matches "function"/event's name, see autoVarNameForScope().
+		if(indexHighlight == -1) ss << strCallStackHighlight;
+		ss << strEvent;
+		if(indexHighlight == -1) ss << strCallStackHighlight;
+		ss << between;
+	}
+	
+	if(m_stackIdCalledFromPos.size() > 0) {
 		size_t index = 0;
 		for(auto pair : m_stackIdCalledFromPos) {
 			if(index >= 1) ss << between;
-			if(indexHighlight == index) ss << "!!!";
+			if(indexHighlight == static_cast<int>(index)) ss << strCallStackHighlight;
 			ss << pair.second;
-			if(indexHighlight == index) ss << "!!!";
+			if(indexHighlight == static_cast<int>(index)) ss << strCallStackHighlight;
 			ss << getPositionAndLineNumber(true, m_stackIdCalledFromPos[index].first);
 			index++;
 		}
-		
+	}
+	
+	if(m_message < SM_MAXCMD || m_stackIdCalledFromPos.size() > 0) {
 		ss << append;
 	}
 	

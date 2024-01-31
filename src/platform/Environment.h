@@ -20,6 +20,7 @@
 #ifndef ARX_PLATFORM_ENVIRONMENT_H
 #define ARX_PLATFORM_ENVIRONMENT_H
 
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>

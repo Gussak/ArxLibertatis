@@ -905,10 +905,10 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^debugcalledfrom_")) { // ^debugcalledfrom_<indexFromLastOnTheCallStack>
 				txtcontent = "void";
 				std::string str = context.getGoSubCallStack("", "", "\n", util::parseInt(name.substr(17)));
-				size_t i = str.find("!!!", 0);
+				size_t i = str.find(context.strCallStackHighlight, 0);
 				if(i != std::string::npos) {
-					i += 3;
-					size_t i2 = str.find("!!!", i);
+					i += context.strCallStackHighlight.size();
+					size_t i2 = str.find(context.strCallStackHighlight, i);
 					txtcontent = str.substr(i, i2 - i);
 				}
 				return TYPE_TEXT;

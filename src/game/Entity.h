@@ -280,6 +280,7 @@ public:
 	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs
 	LODFlag currentLOD;
 	LODFlag previousLOD;
+	time_t lodImproveWaitUntil;
 	time_t lodCooldownUntil;
 	time_t lodLastCalcTime;
 	float lodYawBeforeFlat;

@@ -583,11 +583,11 @@ f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, const cha
 		} else {
 			f32 val = util::parseFloat(ev);
 			if(val < min) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + val + " to minimum: " + min).c_str(), ev.c_str());
+				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
 				val = min;
 			}
 			if(val > max) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + val + " to maximum: " + max).c_str(), ev.c_str());
+				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
 				val = max;
 			}
 			if(bAllowNegative) return val;
@@ -610,11 +610,11 @@ s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode, const c
 		} else {
 			s32 val = util::parseInt(ev);
 			if(val < min) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + val + " to minimum: " + min).c_str(), ev.c_str());
+				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
 				val = min;
 			}
 			if(val > max) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + val + " to maximum: " + max).c_str(), ev.c_str());
+				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
 				val = max;
 			}
 			if(bAllowNegative) return val;
