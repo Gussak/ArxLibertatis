@@ -158,8 +158,9 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	lodYawBeforeFlat = 999999999.f; // something impossible like as in it could be considered as not initialized
 	arx_assert(lodYawBeforeFlat == 999999999.f);
 	playerDistLastCalcLOD = 0.f;
-	lodLastCalcTime = 0.f;
-	lodCooldownUntil = 0.f;
+	lodLastCalcTime = time(0);
+	lodCooldownUntil = time(0);
+	lodImproveWaitUntil = time(0);
 	
 	currentLOD = LOD_PERFECT;
 	previousLOD = currentLOD;

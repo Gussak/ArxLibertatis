@@ -1604,9 +1604,11 @@ extern int iHighLight;
 
 static Entity * entNearestToImproveLOD = nullptr;
 static LODFlag maxLOD;
-static time_t lodDelayCalc = time(0);
+static time_t lodDelayCalc = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime();
+static time_t lodTimeBeforeLoop = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime();
 static int lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat("ARX_LODRecalcDelay", 'i', "", 2, false, 1);}();
 static bool lodCalcNow = false;
+static LODFlag lodToImproveAtNearestTarget;
 void ArxGame::LODbeforeEntitiesLoop() {
 	// cfg LOD
 	static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODMinimumFPS", 'i', "", 10, false, 1);}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad. export ARX_LODMinimumFPS=10
@@ -1637,72 +1639,76 @@ void ArxGame::LODbeforeEntitiesLoop() {
 	lodCalcNow = time(0) > lodDelayCalc;
 	if(lodCalcNow) lodDelayCalc += lodRecalcDelay;
 	
-	LODupdateNearestEntityToImprove();
-	//if(entNearestToImproveLOD) {
-		//if(entNearestToImproveLOD == FlyingOverIO) {
-			//entNearestToImproveLOD = nullptr;
-		//} else
-		//if(entNearestToImproveLOD->currentLOD == LOD_HIGH) {
-			//entNearestToImproveLOD = nullptr;
-		//}
-		//// TODO clear too if not in camera FOV
-	//}
-}
-
-static bool nearestEntityIsValid = false;
-void ArxGame::LODupdateNearestEntityToImprove(Entity * entity) {
-	if(entNearestToImproveLOD) {
-		if(entNearestToImproveLOD->currentLOD == LOD_HIGH) {
-			entNearestToImproveLOD = nullptr;
-		}
+	lodTimeBeforeLoop = time(0);
+	
+	lodToImproveAtNearestTarget = LOD_HIGH;
+	if(maxLOD > lodToImproveAtNearestTarget) {
+		lodToImproveAtNearestTarget = maxLOD;
 	}
 	
+	LODupdateNearestEntityToImprove();
+}
+
+static bool nearestEntityIsValid;
+void ArxGame::LODupdateNearestEntityToImprove(Entity * entity) {
+	//if(entNearestToImproveLOD) {
+		//if(entNearestToImproveLOD->currentLOD <= lodToImproveAtNearestTarget) {
+			//entNearestToImproveLOD = nullptr;
+		//}
+	//}
+	
 	if(!entity) { // before loop
-		// TODO safer and faster to just clear at ~Entity() right? put entNearestToImproveLOD at EntityManager ?
+		// TODO safer (as it could be erased before being accessed)  and faster to just clear at ~Entity() right? put entNearestToImproveLOD at EntityManager ?
 		// check if entity still exists
-		nearestEntityIsValid = false;
-		for(Entity & entExists : entities.inScene(IO_ITEM)) {
-			if(&entExists == entNearestToImproveLOD) {
-				nearestEntityIsValid = true;
-				break;
+		if(entNearestToImproveLOD) {
+			nearestEntityIsValid = false;
+			for(Entity & entExists : entities.inScene(IO_ITEM)) {
+				if(&entExists == entNearestToImproveLOD) {
+					nearestEntityIsValid = true;
+					break;
+				}
 			}
-		}
-		if(!nearestEntityIsValid) {
-			entNearestToImproveLOD = nullptr;
+			if(!nearestEntityIsValid) {
+				entNearestToImproveLOD = nullptr;
+			}
 		}
 		
 		if(entNearestToImproveLOD) {
 			if(entNearestToImproveLOD == FlyingOverIO) {
 				entNearestToImproveLOD = nullptr;
 			} else
-			if(entNearestToImproveLOD->currentLOD == LOD_HIGH) { // max auto improve reached for this one
+			if(entNearestToImproveLOD->currentLOD <= lodToImproveAtNearestTarget) { // max auto improve reached for this one
 				entNearestToImproveLOD = nullptr;
 			}
 			// TODO clear too if not in camera FOV ?
 		}
 		
 	} else { // at entities loop
+		if(entity->lodImproveWaitUntil > lodTimeBeforeLoop) return;
+		if(entNearestToImproveLOD == entity) return;
 		
-		if(!entNearestToImproveLOD) {
-			if(entity->currentLOD != LOD_HIGH) {
-				entNearestToImproveLOD = entity;
-			}
+		if(!entNearestToImproveLOD && maxLOD < entity->currentLOD && entity->currentLOD > lodToImproveAtNearestTarget) {
+			entNearestToImproveLOD = entity;
 		} else {
 			if(entNearestToImproveLOD && maxLOD > entNearestToImproveLOD->currentLOD) { // must lower the quality
 				entNearestToImproveLOD = nullptr;
 			}
 			
-			if(entNearestToImproveLOD && entNearestToImproveLOD->currentLOD == LOD_HIGH) {
+			if(entNearestToImproveLOD && entNearestToImproveLOD->currentLOD <= lodToImproveAtNearestTarget) {
 				entNearestToImproveLOD = nullptr;
 			}
 			
-			if(entNearestToImproveLOD && entNearestToImproveLOD->playerDistLastCalcLOD > entity->playerDistLastCalcLOD) {
-				entNearestToImproveLOD = nullptr;
+			bool bEntityCanBecomeNearest = maxLOD < entity->currentLOD && entity->currentLOD > lodToImproveAtNearestTarget && entity != entNearestToImproveLOD;
+			if(entNearestToImproveLOD) {
+				if(bEntityCanBecomeNearest && entity->playerDistLastCalcLOD < entNearestToImproveLOD->playerDistLastCalcLOD) {
+					entNearestToImproveLOD = entity;
+				}
+			} else {
+				if(bEntityCanBecomeNearest) {
+					entNearestToImproveLOD = entity;
+				}
 			}
 			
-			if(!entNearestToImproveLOD && maxLOD < entity->currentLOD && entity->currentLOD > LOD_HIGH) {
-				entNearestToImproveLOD = entity;
-			}
 		}
 		
 	}
@@ -1769,11 +1775,17 @@ void ArxGame::LODforEntity(Entity & entity) {
 		if(requestLOD != entity.previousLOD) {
 			if(requestLOD > entity.currentLOD) { // can always lower LOD quality
 				entity.setLOD(requestLOD);
-			} else {
+				entity.lodImproveWaitUntil = lodTimeBeforeLoop; // grant no wait after lowering quality
+			} else if(requestLOD < entity.currentLOD) {
+				LODupdateNearestEntityToImprove(&entity);
 				if(&entity == entNearestToImproveLOD) {
-					requestLOD = entity.currentLOD;
-					requestLOD = static_cast<LODFlag>(requestLOD >> 1); // improves just one LOD level per time
-					entity.setLOD(requestLOD);
+					LODFlag applyLOD = entity.currentLOD;
+					applyLOD = static_cast<LODFlag>(applyLOD >> 1); // improves just one LOD level per time to smoothly lower the FPS
+					entity.setLOD(applyLOD);
+					if(applyLOD == requestLOD) {
+						entNearestToImproveLOD->lodImproveWaitUntil = lodTimeBeforeLoop + 10;
+						entNearestToImproveLOD = nullptr;
+					}
 				}
 			}
 			
@@ -1799,7 +1811,9 @@ void ArxGame::LODforEntity(Entity & entity) {
 		//entity.lodLastCalcTime = lodTimeCheckNow;
 	//}
 	
-	LODupdateNearestEntityToImprove(&entity);
+	////if(!entNearestToImproveLOD) {
+		//LODupdateNearestEntityToImprove(&entity);
+	////}
 	
 	// FLAT look at player
 	if(entity.currentLOD == LOD_FLAT) {
