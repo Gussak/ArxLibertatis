@@ -48,14 +48,14 @@ void assertionFailed(const char * expr, const char * function, const char * file
 		file = "<unknown>";
 	}
 	
-	Logger(file, function, line, Logger::Critical) << "Assertion Failed: " << expr;
+	Logger(file, line, Logger::Critical) << "Assertion Failed: " << expr;
 	if(msg) {
 		char formattedmsgbuf[4096];
 		va_list args;
 		va_start(args, msg);
 		std::vsnprintf(formattedmsgbuf, sizeof(formattedmsgbuf) - 1, msg, args);
 		va_end(args);
-		Logger(file, function, line, Logger::Critical) << "Message: " << formattedmsgbuf;
+		Logger(file, line, Logger::Critical) << "Message: " << formattedmsgbuf;
 		if(g_assertHandler) {
 			g_assertHandler(expr, file, line, formattedmsgbuf);
 		}

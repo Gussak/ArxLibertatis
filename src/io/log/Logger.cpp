@@ -142,7 +142,7 @@ void Logger::remove(logger::Backend * backend) {
 	
 }
 
-bool Logger::isEnabled(const char * file, const char * function, LogLevel level) {
+bool Logger::isEnabled(const char * file, LogLevel level, const char * function) {
 	
 	if(level < LogManager::minimumLevel) {
 		return false;
@@ -154,7 +154,7 @@ bool Logger::isEnabled(const char * file, const char * function, LogLevel level)
 	
 	static std::string functionFilter = [](){return platform::getEnvironmentVariableValueString(functionFilter, "ARX_DebugFunctionFilter", '.');}(); // being static logs only once. ex.: export ARX_DebugFunctionFilter="isEnabled"
 	if(source->level <= level) {
-		if(functionFilter.size()) {
+		if(level == Logger::Debug && function && functionFilter.size()) {
 			return functionFilter == function;
 		}
 		return true;

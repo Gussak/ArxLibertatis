@@ -1656,7 +1656,7 @@ void ArxGame::LODbeforeEntitiesLoop() {
 		maxLOD = LOD_PERFECT;
 	}
 	
-	if(lodLagSpikeCount || maxLOD == LOD_FLAT) LogDebug("LagSpike(" << lodLagSpikeCount << "): " << "maxLOD=" << LODtoStr(maxLOD) << "fFrameInstantFPS=" << fFrameInstantFPS << ", 1sFPS=" << g_fpsCounter.FPS << ", fFrameDelay=" << fFrameDelay << ", lodDelayCalc2=?" ); // TODO how to log this??? << lodDelayCalc2 );
+	if(lodLagSpikeCount || maxLOD == LOD_FLAT) LogDebug("LagSpike(" << lodLagSpikeCount << "): " << ", maxLOD=" << LODtoStr(maxLOD) << ", fFrameInstantFPS=" << fFrameInstantFPS << ", 1sFPS=" << g_fpsCounter.FPS << ", fFrameDelay=" << fFrameDelay << ", lodDelayCalc2=?" ); // TODO how to log this??? << lodDelayCalc2 );
 	
 	lodTimeBeforeLoop = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
 	
@@ -1806,7 +1806,7 @@ void ArxGame::LODforEntity(Entity & entity) {
 					applyLOD = static_cast<LODFlag>(applyLOD >> 1); // improves just one LOD level per time to smoothly lower the FPS. setLOD() already seeks for next available if requested fails
 					entity.setLOD(applyLOD);
 					if(entity.currentLOD <= requestLOD) {
-						static int delayIgnoreLODimproveRequest = [](){return platform::getEnvironmentVariableValueInteger(delayIgnoreLODimproveRequest, "ARX_LODIgnoreImproveRequestDelay", 'i', "", 10, false);}();
+						static int delayIgnoreLODimproveRequest = [](){return platform::getEnvironmentVariableValueInteger(delayIgnoreLODimproveRequest, "ARX_LODIgnoreImproveRequestDelay", 'i', "", 1, false);}(); // TODO allow float thru PlatformDuration(1s * float) and remove all time_t
 						entNearestToImproveLOD->lodImproveWaitUntil = lodTimeBeforeLoop + delayIgnoreLODimproveRequest;
 						entNearestToImproveLOD = nullptr;
 					}

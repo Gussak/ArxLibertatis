@@ -722,7 +722,7 @@ EnvVar * getEnvVar(std::string id) { // get or create handler
 	vEnvVar.emplace_back(EnvVar(id));
 	return &vEnvVar[vEnvVar.size() - 1];
 }
-std::string getEnvVarList() {
+std::string getEnvVarList() { // TODO change vEnvVar to a std::map for nice auto sort
 	std::string str;
 	std::string str2;
 	for(size_t i = 0; i < vEnvVar.size() ; i++) {
