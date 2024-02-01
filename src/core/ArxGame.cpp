@@ -1607,8 +1607,6 @@ static LODFlag maxLOD;
 static time_t lodDelayCalc = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
 static PlatformInstant lodDelayCalc2;
 static time_t lodTimeBeforeLoop = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
-//static float lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat("ARX_LODRecalcDelay", 'i', "", 2, false, 1);}();
-static float lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat(lodRecalcDelay, "ARX_LODRecalcDelay", 'i', "", 0.33f, false, 0.1f);}();
 static bool lodCalcNow = false;
 static LODFlag lodToImproveAtNearestTarget;
 static float fFrameDelay = 0.f;
@@ -1631,6 +1629,8 @@ void ArxGame::LODbeforeEntitiesLoop() {
 	fFrameInstantFPS = 1.f / fFrameDelay;
 	previousFrameTime = frameTimeNow;
 	
+	//static float lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat("ARX_LODRecalcDelay", 'i', "", 2, false, 1);}();
+	static float lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat(lodRecalcDelay, "ARX_LODRecalcDelay", 'i', "", 0.33f, false, 0.1f);}();
 	//lodCalcNow = time(0) > lodDelayCalc;
 	//if(lodCalcNow) lodDelayCalc += lodRecalcDelay;
 	lodCalcNow = frameTimeNow > lodDelayCalc2;

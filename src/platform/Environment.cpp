@@ -646,37 +646,37 @@ EnvVar & EnvVar::initVar(std::string _id, std::string * _varString, s32 * _varIn
 bool EnvVar::setVal(std::string val) {
 	if(varString) {
 		*varString = val;
-		LogInfo << "Environment Variable Set to:" << id << "=\"" << val << "\"";
+		//LogInfo << "Environment Variable Set to:" << id << " = \"" << val << "\""; // (*CESV1) do not initialize static vars with lambda outside a function or will crash here
 		return true;
 	}
-	LogWarning << id << " not String type";
+	//LogWarning << id << " not String type";
 	return false;
 }
 bool EnvVar::setVal(s32 val) {
 	if(varInt) {
 		*varInt = val;
-		LogInfo << "Environment Variable Set to:" << id << "=\"" << val << "\"";
+		//LogInfo << "Environment Variable Set to:" << id << " = " << val; // see (*CESV1)
 		return true;
 	}
-	LogWarning << id << " not Int type";
+	//LogWarning << id << " not Int type";
 	return false;
 }
 bool EnvVar::setVal(f32 val) {
 	if(varFloat) {
 		*varFloat = val;
-		LogInfo << "Environment Variable Set to:" << id << "=\"" << val << "\"";
+		//LogInfo << "Environment Variable Set to:" << id << " = " << val; // see (*CESV1)
 		return true;
 	}
-	LogWarning << id << " not Float type";
+	//LogWarning << id << " not Float type";
 	return false;
 }
 bool EnvVar::setVal(bool val) {
 	if(varBool) {
 		*varBool = val;
-		LogInfo << "Environment Variable Set to:" << id << "=\"" << val << "\"";
+		//LogInfo << "Environment Variable Set to:" << id << " = " << (val ? "true" : "false"); // see (*CESV1)
 		return true;
 	}
-	LogWarning << id << " not Bool type";
+	//LogWarning << id << " not Bool type";
 	return false;
 }
 
