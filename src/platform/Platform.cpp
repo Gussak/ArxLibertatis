@@ -41,21 +41,21 @@ typedef void(*AssertHandler)(const char * expr, const char * file, unsigned int 
                              const char * msg);
 AssertHandler g_assertHandler = 0;
 
-void assertionFailed(const char * expr, const char * file, unsigned int line,
+void assertionFailed(const char * expr, const char * function, const char * file, unsigned int line,
                      const char * msg, ...) {
 	
 	if(!file || file[0] == '\0') {
 		file = "<unknown>";
 	}
 	
-	Logger(file, line, Logger::Critical) << "Assertion Failed: " << expr;
+	Logger(file, function, line, Logger::Critical) << "Assertion Failed: " << expr;
 	if(msg) {
 		char formattedmsgbuf[4096];
 		va_list args;
 		va_start(args, msg);
 		std::vsnprintf(formattedmsgbuf, sizeof(formattedmsgbuf) - 1, msg, args);
 		va_end(args);
-		Logger(file, line, Logger::Critical) << "Message: " << formattedmsgbuf;
+		Logger(file, function, line, Logger::Critical) << "Message: " << formattedmsgbuf;
 		if(g_assertHandler) {
 			g_assertHandler(expr, file, line, formattedmsgbuf);
 		}

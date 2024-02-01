@@ -541,13 +541,13 @@ const char * getEnvironmentVariableValueBase(const char * name, char cLogMode, c
 	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead, how to cfg it?
 	const char * pcVal = pcOverrideValue ? pcOverrideValue : getenv(name); // override is mainly to just show messages
 	if(pcVal) {
-		std::stringstream msg; msg << "[EnvironmentVariable]: " << name << " = \"" << pcVal << "\". " << strMsg;
-		LogDebug(msg.str());
+		std::stringstream msg; msg << "[EnvironmentVariable]: " << name << " = \"" << pcVal << "\"; " << strMsg;
 		switch(cLogMode) {
-			case 'i': break; // TODO LogInfo << msg.str();break;
 			case 'w': LogWarning << msg.str();break;
+			case 'i': LogInfo << msg.str(); break;
+			case 'd': LogDebug(msg.str());break;
 			case 'e': LogError << msg.str();break;
-			case '.':break; //logs nothing
+			case '.':break; // logs nothing, important in case of mutex lock (you will know you need this the moment the engine freezes)
 			default: arx_assert_msg(false, "invalid log mode '%c' obs.: msg='%s'", cLogMode, msg.str().c_str()); break;
 		}
 	} else {
@@ -559,7 +559,7 @@ const char * getEnvironmentVariableValueBase(const char * name, char cLogMode, c
 	#endif
 }
 
-std::string getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode, const char * strMsg, const char * defaultValue) {
+std::string getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode, const char * strMsg, std::string defaultValue) {
 	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : defaultValue;
 	getEnvVar(name)->initVar(name, &varString, nullptr, nullptr, nullptr).setVal(ev);

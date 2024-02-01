@@ -371,11 +371,14 @@ public:
 			std::string val = context.getStringVar(context.getWord());
 			if(val.size() == 0 || val.find_first_not_of("0123456789-.") != std::string::npos) {
 				platform::getEnvVar(envVar)->setVal(val);
+				LogInfo << "[EnvironmentVariable]: " << envVar << " = \"" << val << "\"";
 			} else
 			if(boost::contains(val, ".")) {
 				platform::getEnvVar(envVar)->setVal(util::parseFloat(val));
+				LogInfo << "[EnvironmentVariable]: " << envVar << " = " << val;
 			} else {
 				platform::getEnvVar(envVar)->setVal(util::parseInt(val));
+				LogInfo << "[EnvironmentVariable]: " << envVar << " = " << val;
 			}
 			
 			return Success;

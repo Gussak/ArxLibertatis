@@ -1613,6 +1613,7 @@ static float fFrameDelay = 0.f;
 static float fFrameInstantFPS = 0.f;
 static PlatformInstant frameTimeNow;
 static PlatformInstant previousFrameTime;
+static int lodLagSpikeCount = 0;
 void ArxGame::LODbeforeEntitiesLoop() {
 	// cfg LOD
 	static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger(lodMinFPS, "ARX_LODMinimumFPS", 'i', "", 10, false, 1);}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad. export ARX_LODMinimumFPS=10
@@ -1637,7 +1638,8 @@ void ArxGame::LODbeforeEntitiesLoop() {
 	if(lodCalcNow) lodDelayCalc2 += PlatformDuration(1s * lodRecalcDelay); // TODO cast lodRecalcDelay to duration or DurationType?
 	
 	// calc LOD
-	float FPS = fFrameInstantFPS; //g_fpsCounter.FPS;
+	float FPS = std::max(fFrameInstantFPS, g_fpsCounter.FPS);
+	lodLagSpikeCount = FPS < lodMinFPS ? lodLagSpikeCount + 1 : 0;
 	static time_t lodCalcAt;
 	time_t lodTimeNow = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
 	float fFPSmodLOD = (player.Interface & INTER_COMBATMODE) ? 2.f : 1.f;
@@ -1653,6 +1655,8 @@ void ArxGame::LODbeforeEntitiesLoop() {
 	else {
 		maxLOD = LOD_PERFECT;
 	}
+	
+	if(lodLagSpikeCount || maxLOD == LOD_FLAT) LogDebug("LagSpike(" << lodLagSpikeCount << "): " << "maxLOD=" << LODtoStr(maxLOD) << "fFrameInstantFPS=" << fFrameInstantFPS << ", 1sFPS=" << g_fpsCounter.FPS << ", fFrameDelay=" << fFrameDelay << ", lodDelayCalc2=?" ); // TODO how to log this??? << lodDelayCalc2 );
 	
 	lodTimeBeforeLoop = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
 	
@@ -1698,6 +1702,7 @@ void ArxGame::LODupdateNearestEntityToImprove(Entity * entity) {
 		
 		if(!entNearestToImproveLOD && maxLOD < entity->currentLOD && entity->currentLOD > lodToImproveAtNearestTarget) {
 			entNearestToImproveLOD = entity;
+			LogDebug("entNearestToImproveLOD=" << entNearestToImproveLOD->idString());
 		} else {
 			//if(entNearestToImproveLOD && maxLOD > entNearestToImproveLOD->currentLOD) { // must lower the quality
 				//entNearestToImproveLOD = nullptr;
@@ -1711,10 +1716,12 @@ void ArxGame::LODupdateNearestEntityToImprove(Entity * entity) {
 			if(entNearestToImproveLOD) {
 				if(bEntityCanBecomeNearest && entity->playerDistLastCalcLOD < entNearestToImproveLOD->playerDistLastCalcLOD) {
 					entNearestToImproveLOD = entity;
+					LogDebug("entNearestToImproveLOD=" << entNearestToImproveLOD->idString());
 				}
 			} else {
 				if(bEntityCanBecomeNearest) {
 					entNearestToImproveLOD = entity;
+					LogDebug("entNearestToImproveLOD=" << entNearestToImproveLOD->idString());
 				}
 			}
 			
@@ -1733,6 +1740,14 @@ void ArxGame::LODplayerDist(Entity & entity) {
 void ArxGame::LODforEntity(Entity & entity) {
 	if(!(entity.ioflags & IO_ITEM)) return;
 	if(&entity == FlyingOverIO) return;
+	if(lodLagSpikeCount) {
+		static int lodLagSpikeLimit = [](){return platform::getEnvironmentVariableValueInteger(lodLagSpikeLimit, "ARX_LODLagSpikeLimit", 'i', "", 10, false);}(); // export ARX_LODLagSpikeLimit=10 # after this count of subsequent lag spikes, all LOD will be degraded to worst allowed
+		if(lodLagSpikeCount >= lodLagSpikeLimit) {
+			lodLagSpikeCount = 0;
+		} else {
+			return;
+		}
+	}
 	
 	//static int lodRecalcDistDelay = [](){return platform::getEnvironmentVariableValueInteger("ARX_LODRecalcDistDelay", 'i', "", 2, false);}(); // how long shall player wait for the update
 	//static float minDistToRecalcLOD = [](){return platform::getEnvironmentVariableValueFloat("ARX_LODMinDistToRecalcLOD", 'i', "", 100.f, false, 0.1f);}(); // how far shall player move

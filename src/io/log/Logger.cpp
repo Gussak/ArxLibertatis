@@ -30,6 +30,7 @@
 #include "io/log/LogBackend.h"
 #include "io/log/MsvcLogger.h"
 
+#include "platform/Environment.h"
 #include "platform/ProgramOptions.h"
 
 #include "Configure.h"
@@ -141,7 +142,7 @@ void Logger::remove(logger::Backend * backend) {
 	
 }
 
-bool Logger::isEnabled(const char * file, LogLevel level) {
+bool Logger::isEnabled(const char * file, const char * function, LogLevel level) {
 	
 	if(level < LogManager::minimumLevel) {
 		return false;
@@ -149,7 +150,17 @@ bool Logger::isEnabled(const char * file, LogLevel level) {
 	
 	std::scoped_lock lock(LogManager::mutex);
 	
-	return (LogManager::getSource(file)->level <= level);
+	logger::Source * source = LogManager::getSource(file);
+	
+	static std::string functionFilter = [](){return platform::getEnvironmentVariableValueString(functionFilter, "ARX_DebugFunctionFilter", '.');}(); // being static logs only once. ex.: export ARX_DebugFunctionFilter="isEnabled"
+	if(source->level <= level) {
+		if(functionFilter.size()) {
+			return functionFilter == function;
+		}
+		return true;
+	}
+	
+	return false;
 }
 
 void Logger::log(const char * file, int line, LogLevel level, std::string_view str) {
