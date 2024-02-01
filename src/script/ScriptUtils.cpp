@@ -150,7 +150,7 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 		posID = 2;
 	}
 	if(cSeparator == '_') {
-		static bool warnLocalScopeParams = [](){return platform::getEnvironmentVariableValueBoolean("ARX_WarnGoSubWithLocalScopeParams");}();
+		static bool warnLocalScopeParams = [](){return platform::getEnvironmentVariableValueBoolean(warnLocalScopeParams, "ARX_WarnGoSubWithLocalScopeParams");}();
 		if(warnLocalScopeParams) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
 			LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
 		}

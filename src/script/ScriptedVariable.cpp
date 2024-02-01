@@ -55,6 +55,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "game/Item.h"
 #include "game/Inventory.h"
 #include "graphics/data/Mesh.h"
+#include "platform/Environment.h"
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
 #include "util/Number.h"
@@ -330,6 +331,98 @@ public:
 		return Success;
 	}
 	
+};
+
+class EnvironmentCommand : public Command {
+	
+public:
+	
+	EnvironmentCommand() : Command("env") { }
+	
+	/**
+	 * This is intended to tweak env vars in memory to avoid having to restart the game.
+	 * This is not intended to set permanent env vars on the system nor to prepare the environment for sub proccesses (but could be).
+	 * This is UNSAFE! this means that the checks performed during normal env var reading will not be performed again, so be careful.
+	 * This is intended for careful mod developers and source code developers.
+	 * env -l //list all in console log
+	 * env -s <envVarId> <value> //set EnvVar to <value>
+	 * env -g <envVarId> <scriptVariable> //get EnvVar value into <scriptVariable>
+	 */
+	Result execute(Context & context) override {
+		bool bSet = false;
+		bool bGet = false;
+		
+		HandleFlags("lsg") {
+			if(flg & flag('l')) {
+				platform::getEnvVarList();
+				return Success;
+			}
+			if(flg & flag('s')) {
+				bSet = true;
+			}
+			if(flg & flag('g')) {
+				bGet = true;
+			}
+		}
+		
+		std::string envVar = context.getStringVar(context.getWord());
+		
+		if(bSet) {
+			std::string val = context.getStringVar(context.getWord());
+			if(val.size() == 0 || val.find_first_not_of("0123456789-.") != std::string::npos) {
+				platform::getEnvVar(envVar)->setVal(val);
+			} else
+			if(boost::contains(val, ".")) {
+				platform::getEnvVar(envVar)->setVal(util::parseFloat(val));
+			} else {
+				platform::getEnvVar(envVar)->setVal(util::parseInt(val));
+			}
+			
+			return Success;
+		}
+		
+		if(bGet) {
+			std::string val = platform::getEnvVar(envVar)->getString();
+			
+			Entity * entWriteTo = context.getEntity();
+			Entity * entReadFrom = context.getEntity();
+			
+			std::string var = context.autoVarNameForScope(true, context.getWord());
+			
+			SCRIPT_VARIABLES & variablesWriteTo = isLocalVariable(var) ? entWriteTo->m_variables : svar;
+			
+			SCRIPT_VAR * sv = nullptr;
+			switch(var[0]) {
+				
+				case '$':      // global text
+				case '\xA3': { // local text
+					sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val, entReadFrom));
+					break;
+				}
+				
+				case '#':      // global long
+				case '\xA7': { // local long
+					sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val, entReadFrom)));
+					break;
+				}
+				
+				case '&':      // global float
+				case '@': {    // local float
+					sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val, entReadFrom));
+					break;
+				}
+				
+				default: {
+					ScriptWarning << "Unknown variable type: " << var;
+					return Failed;
+				}
+				
+			}
+			
+		}
+		
+		return Failed;
+	}
 };
 
 class ArithmeticCommand : public Command {
@@ -630,6 +723,7 @@ void setupScriptedVariable() {
 	ScriptEvent::registerCommand(std::make_unique<UnsetCommand>());
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("++", 1));
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("--", -1));
+	ScriptEvent::registerCommand(std::make_unique<EnvironmentCommand>());
 	
 }
 

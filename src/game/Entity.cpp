@@ -432,21 +432,34 @@ bool Entity::isInvulnerable() {
 }
 
 bool Entity::setLOD(const LODFlag lodRequest) {
+	if(currentLOD == lodRequest) return true;
+	
 	LODFlag lodChk = lodRequest;
 	
-	static LODFlag ltMax = [](){return strToLOD(platform::getEnvironmentVariableValue("ARX_LODMax", 'i', "", "PERFECT"), "PERFECT");}(); // export ARX_LODMax="PERFECT"
-	static LODFlag ltMin = [](){
-		LODFlag ltMinTmp = strToLOD(platform::getEnvironmentVariableValue("ARX_LODMin", 'i', "", "FLAT"), "FLAT"); // export ARX_LODMax="FLAT"
-		if(ltMinTmp < ltMax) {
-			ltMinTmp = ltMax;
-			LogWarning << "fixing LOD min to '" << static_cast<int>(ltMinTmp) << "'";
-		}
-		if(ltMax > ltMinTmp) {
-			ltMax = ltMinTmp;
-			LogWarning << "fixing LOD max to '" << static_cast<int>(ltMax) << "'";
-		}
-		return ltMinTmp;
-	}();
+	static std::string strLODMax = [](){return platform::getEnvironmentVariableValueString(strLODMax, "ARX_LODMax", 'i', "", "PERFECT");}(); // export ARX_LODMax="PERFECT"
+	static std::string strLODMaxPrevious;
+	static LODFlag ltMax;
+	if(strLODMax != strLODMaxPrevious) { // to cope with SetEnv script/console cmd
+		ltMax = strToLOD(strLODMax);
+		strLODMaxPrevious = strLODMax;
+	}
+	
+	static std::string strLODMin = [](){return platform::getEnvironmentVariableValueString(strLODMin, "ARX_LODMin", 'i', "", "FLAT");}(); // export ARX_LODMax="FLAT"
+	static std::string strLODMinPrevious;
+	static LODFlag ltMin;
+	if(strLODMin != strLODMinPrevious) { // to cope with SetEnv script/console cmd
+		ltMin = strToLOD(strLODMin);
+		strLODMinPrevious = strLODMin;
+	}
+	
+	if(ltMin < ltMax) {
+		ltMin = ltMax;
+		LogWarning << "fixed LOD min to '" << static_cast<int>(ltMin) << "'";
+	}
+	if(ltMax > ltMin) {
+		ltMax = ltMin;
+		LogWarning << "fixed LOD max to '" << static_cast<int>(ltMax) << "'";
+	}
 	
 	if(!obj) {
 		return false;
@@ -461,10 +474,26 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	// because max quality is lowest flag value
 	if(lodChk < ltMax) lodChk = ltMax;
 	if(lodChk > ltMin) lodChk = ltMin;
-	while(lodChk) {
-		if(availableLODFlags & lodChk) break;
-		lodChk = static_cast<LODFlag>(lodChk >> 1);
+	
+	// seek available LOD if requested not found
+	if(!(availableLODFlags & lodChk)) {
+		if(lodChk < currentLOD) { // requested to improve LOD
+			while(lodChk) {
+				if(availableLODFlags & lodChk) break;
+				// if requested LOD is not available
+				lodChk = static_cast<LODFlag>(lodChk >> 1); // will improve LOD more than requested
+			}
+			arx_assert_msg(lodChk,"LOD_PERFECT shall always be available (original 3D model) but was not found! entity='%s'", idString());
+		}
+		
+		if(lodChk > currentLOD) { // requested to lower LOD quality
+			while(lodChk != LOD_ICON) { // limit to worst quality LOD
+				if(availableLODFlags & lodChk) break;
+				lodChk = static_cast<LODFlag>(lodChk << 1);
+			}
+		}
 	}
+	
 	if(lodChk && (availableLODFlags & lodChk)) {
 		currentLOD = lodChk;
 		obj = objLOD[currentLOD];

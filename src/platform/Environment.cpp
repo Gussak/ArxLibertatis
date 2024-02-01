@@ -537,11 +537,11 @@ void setEnvironmentVariable(const char * name, const char * value) {
 	#endif
 }
 
-const char * getEnvironmentVariableValue(const char * name, char cLogMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
-	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead
-	const char * pc = pcOverrideValue ? pcOverrideValue : getenv(name); // override is mainly to just show messages
-	if(pc) {
-		std::stringstream msg; msg << "[EnvironmentVariable]: " << name << " = \"" << pc << "\". " << strMsg;
+const char * getEnvironmentVariableValueBase(const char * name, char cLogMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
+	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead, how to cfg it?
+	const char * pcVal = pcOverrideValue ? pcOverrideValue : getenv(name); // override is mainly to just show messages
+	if(pcVal) {
+		std::stringstream msg; msg << "[EnvironmentVariable]: " << name << " = \"" << pcVal << "\". " << strMsg;
 		LogDebug(msg.str());
 		switch(cLogMode) {
 			case 'i': break; // TODO LogInfo << msg.str();break;
@@ -550,82 +550,171 @@ const char * getEnvironmentVariableValue(const char * name, char cLogMode, const
 			case '.':break; //logs nothing
 			default: arx_assert_msg(false, "invalid log mode '%c' obs.: msg='%s'", cLogMode, msg.str().c_str()); break;
 		}
-		return pc;
 	} else {
-		return defaultValue;
+		pcVal = defaultValue;
 	}
+	return pcVal;
 	#else
-	// TODO ARX_UNUSED(name); ?
-	#endif
 	return nullptr;
+	#endif
 }
 
-bool getEnvironmentVariableValueBoolean(const char * name, char cLogMode, const char * strMsg, bool defaultValue) {
-	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
+std::string getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode, const char * strMsg, const char * defaultValue) {
+	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
+	std::string ev = pc ? pc : defaultValue;
+	getEnvVar(name)->initVar(name, &varString, nullptr, nullptr, nullptr).setVal(ev);
+	return ev;
+}
+
+bool getEnvironmentVariableValueBoolean(bool & varBool, const char * name, char cLogMode, const char * strMsg, bool defaultValue) {
+	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : "";
+	bool b = defaultValue;
 	if(ev.size() > 0) {
 		ev = util::toLowercase(ev);
 		if(ev == "true" || ev == "false" || ev == "1" || ev == "0") {
-			return ev == "true" || ev == "1";
+			b = ev == "true" || ev == "1";
 		} else {
-			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be 'true' or '1', 'false' or 0 ! " + std::string(strMsg)).c_str(), ev.c_str());
+			getEnvironmentVariableValueBase(name, 'e', (std::string() + "Wrong value should be 'true' or '1', 'false' or 0 ! " + std::string(strMsg)).c_str(), ev.c_str());
 		}
 	}
-	return defaultValue;
+	getEnvVar(name)->initVar(name, nullptr, nullptr, nullptr, &varBool).setVal(b);
+	return b;
 }
 
-f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, const char * strMsg, f32 defaultValue, bool bAllowNegative, f32 min, f32 max) {
-	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
+f32 getEnvironmentVariableValueFloat(float & varFloat, const char * name, char cLogMode, const char * strMsg, f32 defaultValue, f32 min, f32 max) {
+	// sync with almost identical integer code below if possible
+	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : "";
-	if(ev.size() > 0) { // sync with almost identical integer code below if possible
+	f32 val = defaultValue;
+	if(ev.size() > 0) {
 		if(ev.find_first_not_of("0123456789-.") != std::string::npos) {
-			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be float ! " + std::string(strMsg)).c_str(), ev.c_str());
+			getEnvironmentVariableValueBase(name, 'e', (std::string() + "Wrong value should be float ! " + std::string(strMsg)).c_str(), ev.c_str());
 		} else {
-			f32 val = util::parseFloat(ev);
+			val = util::parseFloat(ev);
 			if(val < min) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
+				getEnvironmentVariableValueBase(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
 				val = min;
 			}
 			if(val > max) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
+				getEnvironmentVariableValueBase(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
 				val = max;
-			}
-			if(bAllowNegative) return val;
-			if(val < 0.f) {
-				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());
-			} else {
-				return val;
 			}
 		}
 	}
-	return defaultValue;
+	getEnvVar(name)->initVar(name, nullptr, nullptr, &varFloat, nullptr).setVal(val);
+	return val;
 }
 
-s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode, const char * strMsg, s32 defaultValue, bool bAllowNegative, s32 min, s32 max) {
-	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
+s32 getEnvironmentVariableValueInteger(s32 & varInt, const char * name, char cLogMode, const char * strMsg, s32 defaultValue, s32 min, s32 max) {
+	// sync with almost identical float code above if possible
+	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : "";
-	if(ev.size() > 0) { // sync with almost identical float code above if possible
+	s32 val = defaultValue;
+	if(ev.size() > 0) {
 		if(ev.find_first_not_of("0123456789-") != std::string::npos) {
-			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be integer ! " + std::string(strMsg)).c_str(), ev.c_str());
+			getEnvironmentVariableValueBase(name, 'e', (std::string() + "Wrong value should be integer ! " + std::string(strMsg)).c_str(), ev.c_str());
 		} else {
-			s32 val = util::parseInt(ev);
+			val = util::parseInt(ev);
 			if(val < min) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
+				getEnvironmentVariableValueBase(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
 				val = min;
 			}
 			if(val > max) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
+				getEnvironmentVariableValueBase(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
 				val = max;
-			}
-			if(bAllowNegative) return val;
-			if(val < 0.f) {
-				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());
-			} else {
-				return val;
 			}
 		}
 	}
-	return defaultValue;
+	getEnvVar(name)->initVar(name, nullptr, &varInt, nullptr, nullptr).setVal(val);
+	return val;
+}
+
+EnvVar & EnvVar::initVar(std::string _id, std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool) {
+	arx_assert_msg(id == _id && (_varString || _varInt || _varFloat), "id=%s _id=%s s=%d i=%d f=%d b=%d", id.c_str(), _id.c_str(), _varString != nullptr, _varInt != nullptr, _varFloat != nullptr, _varBool != nullptr);
+	//if(varString) LogError << id << " already initialized as String (current value '" << *varString << "')";
+	//if(varInt   ) LogError << id << " already initialized as Int (current value '"    << *varInt << "')";
+	//if(varFloat ) LogError << id << " already initialized as Float (current value '"  << *varFloat << "')";
+	varString = _varString;
+	varInt    = _varInt;
+	varFloat  = _varFloat;
+	varBool   = _varBool;
+	return *this;
+}
+
+// do not convert/parse to set values, to prevent type mistakes
+bool EnvVar::setVal(std::string val) {
+	if(varString) { *varString = val; return true;}
+	LogWarning << id << " not String type";
+	return false;
+}
+bool EnvVar::setVal(s32 val) {
+	if(varInt) { *varInt = val; return true;}
+	LogWarning << id << " not Int type";
+	return false;
+}
+bool EnvVar::setVal(f32 val) {
+	if(varFloat) { *varFloat = val; return true;}
+	LogWarning << id << " not Float type";
+	return false;
+}
+bool EnvVar::setVal(bool val) {
+	if(varBool) { *varBool = val; return true;}
+	LogWarning << id << " not Bool type";
+	return false;
+}
+
+std::string EnvVar::getString() {
+	if(varString) { return *varString; }
+	if(varInt   ) { return std::to_string(*varInt); }
+	if(varFloat ) { return std::to_string(*varFloat); }
+	if(varBool  ) { return *varBool ? "true" : "false"; }
+	LogError << id << " not initialized";
+	return "";
+}
+int EnvVar::getInt() {
+	if(varInt   ) { return *varInt; }
+	if(varFloat ) { return static_cast<int>(*varFloat); }
+	if(varString) { return util::parseInt(*varString); }
+	if(varBool  ) { return *varBool ? 1 : 0; }
+	LogError << id << " not initialized";
+	return 0;
+}
+float EnvVar::getFloat() {
+	if(varFloat ) { return *varFloat; }
+	if(varInt   ) { return static_cast<float>(*varInt); }
+	if(varString) { return util::parseFloat(*varString); }
+	if(varBool  ) { return *varBool ? 1.f : 0.f; }
+	LogError << id << " not initialized";
+	return 0.f;
+}
+bool EnvVar::getBool() {
+	if(varBool  ) { return *varBool; }
+	if(varFloat ) { return *varFloat != 0; }
+	if(varInt   ) { return static_cast<float>(*varInt) != 0; }
+	if(varString) { return *varString == "true"; }
+	LogError << id << " not initialized";
+	return 0.f;
+}
+EnvVar * getEnvVar(std::string id) { // get or create handler
+	for(size_t i = 0; i < vEnvVar.size() ; i++) {
+		if(vEnvVar[i].getId() == id) {
+			return &vEnvVar[i];
+		}
+	}
+	
+	vEnvVar.emplace_back(EnvVar(id));
+	return &vEnvVar[vEnvVar.size() - 1];
+}
+std::string getEnvVarList() {
+	std::string str;
+	std::string str2;
+	for(size_t i = 0; i < vEnvVar.size() ; i++) {
+		str2 = vEnvVar[i].getId() + "=\"" + vEnvVar[i].getString() + "\"; ";
+		LogInfo << "Environment Variable: " << str2;
+		str += str2;
+	}
+	return str;
 }
 
 void unsetEnvironmentVariable(const char * name) {

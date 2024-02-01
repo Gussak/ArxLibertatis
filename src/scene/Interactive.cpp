@@ -1982,7 +1982,7 @@ void UpdateInter() {
 	
 	for(Entity & entity : entities.inScene()) {
 		
-		static f32 detectMoveDist = [](){return platform::getEnvironmentVariableValueFloat("ARX_MovementDetectedDistance", 'i', "", 3.0f, false);}();  // warns only once. set ARX_MovementDetectedDistance=3.0; // TODO this could be configurable per entity, thru a script command: DetectMove -e <entityID> <floatDist>
+		static f32 detectMoveDist = [](){return platform::getEnvironmentVariableValueFloat(detectMoveDist, "ARX_MovementDetectedDistance", 'i', "", 3.0f, false);}();  // warns only once. set ARX_MovementDetectedDistance=3.0; // TODO this could be configurable per entity, thru a script command: DetectMove -e <entityID> <floatDist>
 		if((entity.pos != entity.detectMovePos) && (fdist(entity.pos, entity.detectMovePos) >= detectMoveDist)) {
 			SendIOScriptEvent(&entity == g_draggedEntity ? entities.player() : nullptr, &entity, SM_MOVEMENTDETECTED);
 			entity.detectMovePos = entity.pos;

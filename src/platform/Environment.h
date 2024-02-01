@@ -26,6 +26,7 @@
 #include <string_view>
 #include <vector>
 #include <stddef.h>
+#include <map>
 
 #include "platform/Platform.h"
 
@@ -131,13 +132,43 @@ bool hasEnvironmentVariable(const char * name);
 //! Set an environment variable, overriding any existing values
 void setEnvironmentVariable(const char * name, const char * value);
 
-const char * getEnvironmentVariableValue(const char * name, char cLogMode = 'i', const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
-bool getEnvironmentVariableValueBoolean(const char * name, char cLogMode = 'i', const char * strMsg = "", bool defaultValue = false);
-f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode = 'i', const char * strMsg = "", f32 defaultValue = 0.f, bool bAllowNegative = true, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
-s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode = 'i', const char * strMsg = "", s32 defaultValue = 0, bool bAllowNegative = true, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());
+const char * getEnvironmentVariableValueBase(const char * name, char cLogMode = 'i', const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
+std::string getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode = 'i', const char * strMsg = "", const char * defaultValue = nullptr);
+bool getEnvironmentVariableValueBoolean(bool & varBool, const char * name, char cLogMode = 'i', const char * strMsg = "", bool defaultValue = false);
+f32 getEnvironmentVariableValueFloat(f32 & varFloat, const char * name, char cLogMode = 'i', const char * strMsg = "", f32 defaultValue = 0.f, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
+s32 getEnvironmentVariableValueInteger(s32 & varInt, const char * name, char cLogMode = 'i', const char * strMsg = "", s32 defaultValue = 0, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());
 
 //! Unset an environment variable
 void unsetEnvironmentVariable(const char * name);
+
+class EnvVar {
+	
+	std::string id;
+	std::string * varString;
+	s32 * varInt;
+	f32 * varFloat;
+	bool * varBool;
+	
+public:
+	EnvVar(std::string _id) : id(_id), varString(nullptr), varInt(nullptr), varFloat(nullptr), varBool(nullptr) {}
+	
+	EnvVar & initVar(std::string _id, std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool);
+	
+	std::string getId() { return id; }
+	
+	bool setVal(std::string val);
+	bool setVal(s32 val);
+	bool setVal(f32 val);
+	bool setVal(bool val);
+	
+	std::string getString();
+	s32 getInt();
+	f32 getFloat();
+	bool getBool();
+};
+static std::vector<EnvVar> vEnvVar;
+EnvVar * getEnvVar(std::string id);
+std::string getEnvVarList();
 
 struct EnvironmentOverride {
 	
