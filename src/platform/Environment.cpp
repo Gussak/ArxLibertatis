@@ -644,22 +644,38 @@ EnvVar & EnvVar::initVar(std::string _id, std::string * _varString, s32 * _varIn
 
 // do not convert/parse to set values, to prevent type mistakes
 bool EnvVar::setVal(std::string val) {
-	if(varString) { *varString = val; return true;}
+	if(varString) {
+		*varString = val;
+		LogInfo << "Environment Variable Set to:" << id << "=\"" << val << "\"";
+		return true;
+	}
 	LogWarning << id << " not String type";
 	return false;
 }
 bool EnvVar::setVal(s32 val) {
-	if(varInt) { *varInt = val; return true;}
+	if(varInt) {
+		*varInt = val;
+		LogInfo << "Environment Variable Set to:" << id << "=\"" << val << "\"";
+		return true;
+	}
 	LogWarning << id << " not Int type";
 	return false;
 }
 bool EnvVar::setVal(f32 val) {
-	if(varFloat) { *varFloat = val; return true;}
+	if(varFloat) {
+		*varFloat = val;
+		LogInfo << "Environment Variable Set to:" << id << "=\"" << val << "\"";
+		return true;
+	}
 	LogWarning << id << " not Float type";
 	return false;
 }
 bool EnvVar::setVal(bool val) {
-	if(varBool) { *varBool = val; return true;}
+	if(varBool) {
+		*varBool = val;
+		LogInfo << "Environment Variable Set to:" << id << "=\"" << val << "\"";
+		return true;
+	}
 	LogWarning << id << " not Bool type";
 	return false;
 }
