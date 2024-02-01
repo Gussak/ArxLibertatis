@@ -454,11 +454,11 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	
 	if(ltMin < ltMax) {
 		ltMin = ltMax;
-		LogWarning << "fixed LOD min to '" << static_cast<int>(ltMin) << "'";
+		LogWarning << "fixed LOD min to '" << LODtoStr(ltMin) << "'";
 	}
 	if(ltMax > ltMin) {
 		ltMax = ltMin;
-		LogWarning << "fixed LOD max to '" << static_cast<int>(ltMax) << "'";
+		LogWarning << "fixed LOD max to '" << LODtoStr(ltMax) << "'";
 	}
 	
 	if(!obj) {
@@ -483,7 +483,7 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 				// if requested LOD is not available
 				lodChk = static_cast<LODFlag>(lodChk >> 1); // will improve LOD more than requested
 			}
-			arx_assert_msg(lodChk,"LOD_PERFECT shall always be available (original 3D model) but was not found! entity='%s'", idString());
+			arx_assert_msg(lodChk,"LOD_PERFECT shall always be available (original 3D model) but was not found! entity='%s'", idString().c_str());
 		}
 		
 		if(lodChk > currentLOD) { // requested to lower LOD quality

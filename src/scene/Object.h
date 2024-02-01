@@ -84,6 +84,7 @@ enum LODFlag {
 DECLARE_FLAGS(LODFlag, LODFlags)
 DECLARE_FLAGS_OPERATORS(LODFlags);
 LODFlag strToLOD(std::string str, std::string strDefault = "PERFECT");
+std::string LODtoStr(LODFlag lt);
 bool load3DModelAndLOD(Entity & io, const res::path & file, bool pbox);
 res::path fix3DModelFilename(Entity & io, const res::path & fileRequest);
 

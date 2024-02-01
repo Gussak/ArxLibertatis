@@ -329,6 +329,18 @@ void EERIE_CreateCedricData(EERIE_3DOBJ * eobj) {
 	
 }
 
+std::string LODtoStr(LODFlag lt) {
+	switch(lt) {
+		case LOD_PERFECT: return "perfect";
+		case LOD_HIGH: return "high";
+		case LOD_MEDIUM: return "medium";
+		case LOD_LOW: return "low";
+		case LOD_BAD: return "bad";
+		case LOD_FLAT: return "flat";
+		case LOD_ICON: return "icon";
+	}
+	return std::string("ERROR: Unrecognized LOD = ") + std::to_string(static_cast<int>(lt));
+}
 LODFlag strToLOD(std::string str, std::string strDefault) {
 	strDefault = util::toLowercase(strDefault);
 	str = util::toLowercase(str);
