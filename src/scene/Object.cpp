@@ -423,6 +423,34 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 	
 	return fileOk;
 }
+
+void LODIconAsSkin(EERIE_3DOBJ * obj, TextureContainer * texIcon) { // copied a part of EERIE_MESH_TWEAK_Skin()
+	res::path skintochange = "graph/obj3d/textures/arx_icon_lod";
+	
+	//if(!texIcon) LogError << "icon not set";
+	arx_assert(texIcon);
+	
+	if(obj->originalMaterials.empty()) {
+		obj->originalMaterials.reserve(obj->materials.size());
+		for(TextureContainer * texture : obj->materials) {
+			obj->originalMaterials.emplace_back(texture ? texture->m_texName : std::string_view());
+		}
+	}
+	
+	arx_assert(obj->originalMaterials.size() == obj->materials.size());
+	
+	bool found = false;
+	
+	for(MaterialId id : obj->materials.handles()) {
+		if(obj->originalMaterials[id] == skintochange) {
+			obj->materials[id] = texIcon;
+			found = true;
+		}
+	}
+	
+	arx_assert(found);
+}
+
 bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { // TODO if this works, try to substitute everywhere using loadObject() for items at least, but only where the returned unique_ptr is release() !
 	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT, LOD_ICON}; // best to worst
 	
@@ -460,6 +488,8 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 			if(!objLoad && ltChkLOD == LOD_ICON) {
 				fileChkLOD = "graph/obj3d/interactive/system/lod/arx_icon_lod_32x32.ftl";
 				objLoad = loadObject(fileChkLOD, pbox).release();
+				// EERIE_MESH_TWEAK_Skin(objLoad, res::path("arx_icon_lod"), io->m_icon);
+				LODIconAsSkin(objLoad, io.m_icon);
 			}
 			
 			if(!objLoad) { // re-uses higher quality LOD in lower ones if they are not available
