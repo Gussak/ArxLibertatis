@@ -461,6 +461,13 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 				fileChkLOD = "graph/obj3d/interactive/system/lod/arx_icon_lod_32x32.ftl";
 				objLoad = loadObject(fileChkLOD, pbox).release();
 			}
+			
+			if(!objLoad) { // re-uses higher quality LOD in lower ones if they are not available
+				LODFlag ltLODup = static_cast<LODFlag>(ltChkLOD >> 1);
+				arx_assert_msg(io.objLOD[ltLODup], "higher quality LOD %s not set", LODtoStr(ltLODup).c_str());
+				objLoad = io.objLOD[ltLODup];
+			}
+			
 			if(objLoad) {
 				io.objLOD[ltChkLOD] = objLoad;
 				if(!io.obj) { // default becomes best quality available
