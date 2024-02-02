@@ -444,7 +444,7 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 		strLODMaxPrevious = strLODMax;
 	}
 	
-	static std::string strLODMin = [](){return platform::getEnvironmentVariableValueString(strLODMin, "ARX_LODMin", 'i', "", "FLAT");}(); // export ARX_LODMax="FLAT"
+	static std::string strLODMin = [](){return platform::getEnvironmentVariableValueString(strLODMin, "ARX_LODMin", 'i', "", "ICON");}();
 	static std::string strLODMinPrevious;
 	static LODFlag ltMin;
 	if(strLODMin != strLODMinPrevious) { // to cope with SetEnv script/console cmd

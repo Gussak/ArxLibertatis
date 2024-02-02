@@ -357,6 +357,8 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 		if(str == "bad"    ) lt = LOD_BAD;
 		else
 		if(str == "flat"   ) lt = LOD_FLAT;
+		else
+		if(str == "icon"   ) lt = LOD_ICON;
 		else {
 			arx_assert_msg(strDefault != "invalid", "Invalid default LOD '%s'", str.c_str());
 			
@@ -422,7 +424,7 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 	return fileOk;
 }
 bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { // TODO if this works, try to substitute everywhere using loadObject() for items at least, but only where the returned unique_ptr is release() !
-	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT}; // best to worst
+	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT, LOD_ICON}; // best to worst
 	
 	res::path fileOk = fix3DModelFilename(io, fileRequest);
 	if(fileOk.string().size() == 0) return false;
@@ -443,6 +445,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 			case LOD_LOW:     strLOD = "[LODL]"; break;
 			case LOD_BAD:     strLOD = "[LODB]"; break;
 			case LOD_FLAT:    strLOD = "[LODF]"; break;
+			case LOD_ICON:    strLOD = "[LODI]"; break;
 			default: arx_assert_msg(false, "not implemented LOD %d", ltChkLOD); break;
 		}
 		
@@ -453,7 +456,11 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 		if(io.obj && io.obj->fileUniqueRelativePathName == fileChkLOD && io.objLOD[ltChkLOD] == nullptr) {
 			io.objLOD[ltChkLOD] = io.obj;
 		} else {
-			EERIE_3DOBJ * objLoad = loadObject(fileChkLOD, pbox).release();
+			EERIE_3DOBJ * objLoad = loadObject(fileChkLOD, pbox).release(); // the mod developer may prefer to customize the LOD_ICON
+			if(!objLoad && ltChkLOD == LOD_ICON) {
+				fileChkLOD = "graph/obj3d/interactive/system/lod/arx_icon_lod_32x32.ftl";
+				objLoad = loadObject(fileChkLOD, pbox).release();
+			}
 			if(objLoad) {
 				io.objLOD[ltChkLOD] = objLoad;
 				if(!io.obj) { // default becomes best quality available
@@ -461,7 +468,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { 
 					io.currentLOD = ltChkLOD;
 				} else {
 					if(io.currentLOD == ltChkLOD && io.obj->fileUniqueRelativePathName.basename() != fileChkLOD.basename()) {
-						LogWarning << "3DModel basenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " fileLOD=" << fileChkLOD << " "; // TODO LogDebug
+						LogDebug("3DModel basenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " fileLOD=" << fileChkLOD << " ");
 					}
 				}
 			}
