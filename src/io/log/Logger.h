@@ -28,7 +28,7 @@
 
 #define ARX_LOG(Level)         ::Logger(ARX_FILE, __LINE__, Level, __func__)
 #define ARX_LOG_FORCED(Level)  ::Logger(ARX_FILE, __LINE__, Level, true)
-#define ARX_LOG_ENABLED(Level) ::Logger::isEnabled(ARX_FILE, Level, __func__)
+#define ARX_LOG_ENABLED(Level) ::Logger::isEnabled(ARX_FILE, Level, __func__, __LINE__)
 
 #ifdef ARX_DEBUG
 //! Log a Debug message. Arguments are only evaluated if their results will be used.
@@ -98,7 +98,7 @@ public:
 	Logger(const char * _file, int _line, LogLevel _level, bool _enabled)
 		: file(_file), line(_line), level(_level), enabled(_enabled) { }
 	Logger(const char * _file, int _line, LogLevel _level, const char * _function = nullptr)
-		: file(_file), line(_line), level(_level), enabled(isEnabled(_file, _level, _function)) { }
+		: file(_file), line(_line), level(_level), enabled(isEnabled(_file, _level, _function, _line)) { }
 	
 	template <class T>
 	Logger & operator<<(const T & i) {
@@ -164,7 +164,7 @@ public:
 	 *         Log levels inherit their enabled state: e.g. if Info is enabled,
 	 *         Warning and Error are also enabled.
 	 */
-	static bool isEnabled(const char * file, LogLevel level, const char * function = nullptr);
+	static bool isEnabled(const char * file, LogLevel level, const char * function = nullptr, int line = -1);
 	
 	/*!
 	 * Flush buffered output in all logging backends.

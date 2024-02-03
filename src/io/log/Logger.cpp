@@ -19,6 +19,9 @@
 
 #include "io/log/Logger.h"
 
+#include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
+#include <boost/algorithm/string/split.hpp> // Include for boost::split
+
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
@@ -142,7 +145,7 @@ void Logger::remove(logger::Backend * backend) {
 	
 }
 
-bool Logger::isEnabled(const char * file, LogLevel level, const char * function) {
+bool Logger::isEnabled(const char * file, LogLevel level, const char * function, int line) {
 	
 	if(level < LogManager::minimumLevel) {
 		return false;
@@ -152,11 +155,51 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function)
 	
 	logger::Source * source = LogManager::getSource(file);
 	
-	static std::string functionFilter = [](){return platform::getEnvironmentVariableValueString(functionFilter, "ARX_DebugFunctionFilter", '.');}(); // being static logs only once. ex.: export ARX_DebugFunctionFilter="isEnabled"
 	if(source->level <= level) {
-		if(level == Logger::Debug && function && functionFilter.size()) {
-			return functionFilter == function;
+		if(level == Logger::Debug) {
+			
+			// prepare filters
+			static platform::EnvRegex erFile = [](){return platform::getEnvironmentVariableValueRegex(erFile, "ARX_DebugFile", '.', "", ".*");}();
+			static platform::EnvRegex erFunc = [](){return platform::getEnvironmentVariableValueRegex(erFunc, "ARX_DebugFunc", '.', "", ".*");}();
+			static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", '.', "", ".*");}();
+			
+			static platform::EnvVar * evStringFileFuncLineSplitRegex = [](){
+				std::string strEV = "ARX_Debug";
+				const char * pc = platform::getEnvironmentVariableValueBase(strEV.c_str(), '.');
+				std::string str = pc ? pc : "";
+				platform::EnvVar * ev = platform::getEnvVar(strEV);
+				ev->initVar(new std::string(), nullptr, nullptr, nullptr, nullptr);
+				ev->setVal(str, false);
+				return ev;
+			}();
+			if(evStringFileFuncLineSplitRegex->checkModified()) { // ex.: ":someFileRegex:someFuncRegex:someLineRegex"
+				std::string toSplit = evStringFileFuncLineSplitRegex->getString();
+				if(toSplit.size() > 1) {
+					std::string strToken;
+					if(std::string("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789").find_first_of(toSplit[0]) != std::string::npos) {
+						strToken = toSplit[0]; // user requested a new delimiter
+						toSplit = toSplit.substr(1);
+					} else {
+						strToken = ":"; // default delimiter
+					}
+					
+					std::vector<std::string> vRegex;
+					boost::split(vRegex, toSplit, boost::is_any_of(strToken));
+					
+					if(vRegex.size() > 0) erFile.setRegex(vRegex[0], false);
+					if(vRegex.size() > 1) erFunc.setRegex(vRegex[1], false);
+					if(vRegex.size() > 2) erLine.setRegex(vRegex[2], false);
+				} else {
+					// TODO queue warn log: invalid split regex
+				}
+			}
+			
+			// apply filters
+			if(erFile.isSet() && !erFile.matchRegex(file)) return false;
+			if(erFunc.isSet() && !erFunc.matchRegex(function)) return false;
+			if(erLine.isSet() && !erLine.matchRegex(std::to_string(line))) return false;
 		}
+		
 		return true;
 	}
 	

@@ -22,6 +22,7 @@
 #include <cctype>
 #include <algorithm>
 #include <mutex>
+#include <regex>
 #include <sstream>
 #include <utility>
 
@@ -537,6 +538,30 @@ void setEnvironmentVariable(const char * name, const char * value) {
 	#endif
 }
 
+bool EnvRegex::isSet() {
+	return re && str.size(); 
+}
+bool EnvRegex::matchRegex(std::string data) {
+	return re && str.size() && std::regex_search(data.c_str(), *re);
+}
+bool EnvRegex::setRegex(std::string strRE, bool allowLog) {
+	try
+	{
+		if(!re) {
+			re = new std::regex(strRE.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
+		} else {
+			*re = std::regex(strRE.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
+		}
+		str = strRE;
+		return true;
+	} catch (const std::regex_error& e) {
+		if(allowLog) {
+			LogError << "regex_error caught: " << e.what(); // TODO queue if !allowLog ?
+		}
+	}
+	return false;
+}
+
 const char * getEnvironmentVariableValueBase(const char * name, char cLogMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
 	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead, how to cfg it?
 	const char * pcVal = pcOverrideValue ? pcOverrideValue : getenv(name); // override is mainly to just show messages
@@ -559,159 +584,222 @@ const char * getEnvironmentVariableValueBase(const char * name, char cLogMode, c
 	#endif
 }
 
-std::string getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode, const char * strMsg, std::string defaultValue) {
+EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode, const char * strMsg, std::string defaultValue) {
 	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : defaultValue;
-	getEnvVar(name)->initVar(name, &varString, nullptr, nullptr, nullptr).setVal(ev);
-	return ev;
+	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr).setVal(ev);
 }
 
-bool getEnvironmentVariableValueBoolean(bool & varBool, const char * name, char cLogMode, const char * strMsg, bool defaultValue) {
+EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, char cLogMode, const char * strMsg, std::string defaultValue) { // tip: use arx param: --debug="src"
+	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
+	std::string ev = pc ? pc : defaultValue;
+	getEnvVar(name)->initVar(nullptr, nullptr, nullptr, nullptr, &varRegex).setVal(ev);
+	return varRegex;
+}
+
+EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, char cLogMode, const char * strMsg, bool defaultValue) {
 	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : "";
-	bool b = defaultValue;
-	if(ev.size() > 0) {
-		ev = util::toLowercase(ev);
-		if(ev == "true" || ev == "false" || ev == "1" || ev == "0") {
-			b = ev == "true" || ev == "1";
-		} else {
-			getEnvironmentVariableValueBase(name, 'e', (std::string() + "Wrong value should be 'true' or '1', 'false' or 0 ! " + std::string(strMsg)).c_str(), ev.c_str());
-		}
-	}
-	getEnvVar(name)->initVar(name, nullptr, nullptr, nullptr, &varBool).setVal(b);
-	return b;
+	return getEnvVar(name)->initVar(nullptr, nullptr, nullptr, &varBool, nullptr).setValAuto(ev, cLogMode != '.', defaultValue ? "true" : "false", strMsg);
 }
 
-f32 getEnvironmentVariableValueFloat(float & varFloat, const char * name, char cLogMode, const char * strMsg, f32 defaultValue, f32 min, f32 max) {
+EnvVar & getEnvironmentVariableValueFloat(float & varFloat, const char * name, char cLogMode, const char * strMsg, f32 defaultValue, f32 min, f32 max) {
 	// sync with almost identical integer code below if possible
 	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : "";
-	f32 val = defaultValue;
-	if(ev.size() > 0) {
-		if(ev.find_first_not_of("0123456789-.") != std::string::npos) {
-			getEnvironmentVariableValueBase(name, 'e', (std::string() + "Wrong value should be float ! " + std::string(strMsg)).c_str(), ev.c_str());
-		} else {
-			val = util::parseFloat(ev);
-			if(val < min) {
-				getEnvironmentVariableValueBase(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
-				val = min;
-			}
-			if(val > max) {
-				getEnvironmentVariableValueBase(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
-				val = max;
-			}
-		}
-	}
-	getEnvVar(name)->initVar(name, nullptr, nullptr, &varFloat, nullptr).setVal(val);
-	return val;
+	return getEnvVar(name)->initVar(nullptr, nullptr, &varFloat, nullptr, nullptr).setValAuto(ev, cLogMode != '.', strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
 }
 
-s32 getEnvironmentVariableValueInteger(s32 & varInt, const char * name, char cLogMode, const char * strMsg, s32 defaultValue, s32 min, s32 max) {
+EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, char cLogMode, const char * strMsg, s32 defaultValue, s32 min, s32 max) {
 	// sync with almost identical float code above if possible
 	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
 	std::string ev = pc ? pc : "";
-	s32 val = defaultValue;
-	if(ev.size() > 0) {
-		if(ev.find_first_not_of("0123456789-") != std::string::npos) {
-			getEnvironmentVariableValueBase(name, 'e', (std::string() + "Wrong value should be integer ! " + std::string(strMsg)).c_str(), ev.c_str());
-		} else {
-			val = util::parseInt(ev);
-			if(val < min) {
-				getEnvironmentVariableValueBase(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
-				val = min;
-			}
-			if(val > max) {
-				getEnvironmentVariableValueBase(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
-				val = max;
-			}
-		}
-	}
-	getEnvVar(name)->initVar(name, nullptr, &varInt, nullptr, nullptr).setVal(val);
-	return val;
+	return getEnvVar(name)->initVar(nullptr, &varInt, nullptr, nullptr, nullptr).setValAuto(ev, cLogMode != '.', strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
 }
 
-EnvVar & EnvVar::initVar(std::string _id, std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool) {
-	arx_assert_msg(id == _id && (_varString || _varInt || _varFloat), "id=%s _id=%s s=%d i=%d f=%d b=%d", id.c_str(), _id.c_str(), _varString != nullptr, _varInt != nullptr, _varFloat != nullptr, _varBool != nullptr);
-	//if(varString) LogError << id << " already initialized as String (current value '" << *varString << "')";
-	//if(varInt   ) LogError << id << " already initialized as Int (current value '"    << *varInt << "')";
-	//if(varFloat ) LogError << id << " already initialized as Float (current value '"  << *varFloat << "')";
-	varString = _varString;
-	varInt    = _varInt;
-	varFloat  = _varFloat;
-	varBool   = _varBool;
+EnvVar & EnvVar::initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex) {
+	arx_assert_msg(!(varString || varInt || varFloat || varRegex), "already initialized: id=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr);
+	if(_varString) {
+		varString = _varString;
+	} else
+	if(_varInt) {
+		varInt    = _varInt;
+	} else
+	if(_varFloat) {
+		varFloat  = _varFloat;
+	} else
+	if(_varBool) {
+		varBool   = _varBool;
+	} else
+	if(_varRegex) {
+		varRegex  = _varRegex;
+	} else {
+    arx_assert(false);
+  }
+	
 	return *this;
 }
 
 // do not convert/parse to set values, to prevent type mistakes
-bool EnvVar::setVal(std::string val) {
+EnvVar & EnvVar::setVal(std::string val, bool allowLog) {
+	if(varRegex) {
+		if(val != varRegex->str) {
+			modified = true;
+		}
+		
+		if(val.size()) {
+			varRegex->str = val;
+			varRegex->setRegex(varRegex->str, allowLog);
+		} else {
+			varRegex->str.clear();
+		}
+		
+		if(allowLog) LogInfo << "Environment Variable (Regex) Set to:" << id << " = \"" << val << "\"";
+	} else
 	if(varString) {
-		*varString = val;
-		//LogInfo << "Environment Variable Set to:" << id << " = \"" << val << "\""; // (*CESV1) do not initialize static vars with lambda outside a function or will crash here
-		return true;
+		varString->assign(val);
+		if(allowLog) LogInfo << "Environment Variable (String) Set to:" << id << " = \"" << val << "\"";
+		modified = true;
+	} else {
+		if(allowLog) LogWarning << id << " not String type";
 	}
-	//LogWarning << id << " not String type";
-	return false;
+	
+	return *this;
 }
-bool EnvVar::setVal(s32 val) {
+EnvVar & EnvVar::setVal(s32 val, bool allowLog) {
 	if(varInt) {
 		*varInt = val;
-		//LogInfo << "Environment Variable Set to:" << id << " = " << val; // see (*CESV1)
-		return true;
+		if(allowLog) LogInfo << "Environment Variable Set to:" << id << " = " << val;
+		modified = true;
+	} else {
+		if(allowLog) LogWarning << id << " not Int type";
 	}
-	//LogWarning << id << " not Int type";
-	return false;
+	return *this;
 }
-bool EnvVar::setVal(f32 val) {
+EnvVar & EnvVar::setVal(f32 val, bool allowLog) {
 	if(varFloat) {
 		*varFloat = val;
-		//LogInfo << "Environment Variable Set to:" << id << " = " << val; // see (*CESV1)
-		return true;
+		if(allowLog) LogInfo << "Environment Variable Set to:" << id << " = " << val;
+		modified = true;
+	} else {
+		if(allowLog) LogWarning << id << " not Float type";
 	}
-	//LogWarning << id << " not Float type";
-	return false;
+	return *this;
 }
-bool EnvVar::setVal(bool val) {
+EnvVar & EnvVar::setVal(bool val, bool allowLog) {
 	if(varBool) {
 		*varBool = val;
-		//LogInfo << "Environment Variable Set to:" << id << " = " << (val ? "true" : "false"); // see (*CESV1)
-		return true;
+		if(allowLog) LogInfo << "Environment Variable (boolean) Set to:" << id << " = " << (val ? "true" : "false"); // see (*CESV1)
+		modified = true;
+	} else {
+		if(allowLog) LogWarning << id << " not Bool type";
 	}
-	//LogWarning << id << " not Bool type";
-	return false;
+	return *this;
+}
+EnvVar & EnvVar::setValAuto(std::string val, bool allowLog, std::string strMsg, std::string valDefault, std::string strMin, std::string strMax) {
+	if(!val.size()) {
+		val = valDefault;
+	}
+	
+	if(varString || varRegex) {
+		return setVal(val, allowLog);
+	} else
+	if(varInt) {
+		int value = util::parseInt(val);
+		if(val.find_first_not_of("0123456789-") != std::string::npos) {
+			if(allowLog) LogError << "Wrong value should be integer, but is \"" << val << "\" ! " << strMsg;
+		} else {
+			int min = util::parseInt(strMin);
+			int max = util::parseInt(strMax);
+			if(value < min) {
+				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << min;
+				value = min;
+			}
+			if(value > max) {
+				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << max;
+				value = max;
+			}
+		}
+		
+		return setVal(value, allowLog);
+	} else
+	if(varFloat) {
+		f32 value = util::parseFloat(val);
+		if(val.find_first_not_of("0123456789-.") != std::string::npos) {
+			if(allowLog) LogError << "Wrong value should be Float, but is \"" << val << "\" ! " << strMsg;
+		} else {
+			f32 min = util::parseFloat(strMin);
+			f32 max = util::parseFloat(strMax);
+			if(value < min) {
+				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << min;
+				value = min;
+			}
+			if(value > max) {
+				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << max;
+				value = max;
+			}
+		}
+		
+		return setVal(value, allowLog);
+	} else
+	if(varBool) {
+		bool b = false;
+		val = util::toLowercase(val);
+		if(val == "true" || val == "false" || val == "1" || val == "0") { // TODO float?
+			b = val == "true" || val == "1";
+		} else {
+			if(allowLog) LogError << "Wrong value should be 'true' or '1', 'false' or 0, but is \"" << val << "\" ! " << strMsg;
+		}
+		
+		return setVal(b, allowLog);
+	}
+	
+	if(allowLog) {
+		LogDebug("type not implemented. " << val << ", " << valDefault << ", " << strMin << ", " << strMax << ", " << strMsg);
+		LogError << "type not implemented. " << val << ", " << valDefault << ", " << strMin << ", " << strMax << ", " << strMsg;
+	}
+	arx_assert_msg(false, "type not implemented");
+	
+	return *this;
 }
 
 std::string EnvVar::getString() {
-	if(varString) { return *varString; }
+	if(varString) { return varString->c_str(); }
 	if(varInt   ) { return std::to_string(*varInt); }
 	if(varFloat ) { return std::to_string(*varFloat); }
 	if(varBool  ) { return *varBool ? "true" : "false"; }
+	if(varRegex ) { return varRegex->str; }
 	LogError << id << " not initialized";
 	return "";
 }
-int EnvVar::getInt() {
+int EnvVar::getInteger() {
 	if(varInt   ) { return *varInt; }
 	if(varFloat ) { return static_cast<int>(*varFloat); }
-	if(varString) { return util::parseInt(*varString); }
+	if(varString) { return util::parseInt(varString->c_str()); }
 	if(varBool  ) { return *varBool ? 1 : 0; }
+	if(varRegex ) { return varRegex->str.size(); }
 	LogError << id << " not initialized";
 	return 0;
 }
 float EnvVar::getFloat() {
 	if(varFloat ) { return *varFloat; }
 	if(varInt   ) { return static_cast<float>(*varInt); }
-	if(varString) { return util::parseFloat(*varString); }
+	if(varString) { return util::parseFloat(varString->c_str()); }
 	if(varBool  ) { return *varBool ? 1.f : 0.f; }
+	if(varRegex ) { return varRegex->str.size(); }
 	LogError << id << " not initialized";
 	return 0.f;
 }
-bool EnvVar::getBool() {
+bool EnvVar::getBoolean() {
 	if(varBool  ) { return *varBool; }
 	if(varFloat ) { return *varFloat != 0; }
 	if(varInt   ) { return static_cast<float>(*varInt) != 0; }
-	if(varString) { return *varString == "true"; }
+	if(varString) { return std::string(varString->c_str()) == "true"; }
+	if(varRegex ) { return varRegex->str.size(); }
 	LogError << id << " not initialized";
 	return 0.f;
 }
+
 EnvVar * getEnvVar(std::string id) { // get or create handler
 	for(size_t i = 0; i < vEnvVar.size() ; i++) {
 		if(vEnvVar[i].getId() == id) {

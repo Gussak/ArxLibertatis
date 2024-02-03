@@ -436,7 +436,7 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	
 	LODFlag lodChk = lodRequest;
 	
-	static std::string strLODMax = [](){return platform::getEnvironmentVariableValueString(strLODMax, "ARX_LODMax", 'i', "", "PERFECT");}(); // export ARX_LODMax="PERFECT"
+	static std::string strLODMax = [](){return platform::getEnvironmentVariableValueString(strLODMax, "ARX_LODMax", 'i', "", "PERFECT").getString();}(); // export ARX_LODMax="PERFECT"
 	static std::string strLODMaxPrevious;
 	static LODFlag ltMax;
 	if(strLODMax != strLODMaxPrevious) { // to cope with SetEnv script/console cmd
@@ -444,7 +444,7 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 		strLODMaxPrevious = strLODMax;
 	}
 	
-	static std::string strLODMin = [](){return platform::getEnvironmentVariableValueString(strLODMin, "ARX_LODMin", 'i', "", "ICON");}();
+	static std::string strLODMin = [](){return platform::getEnvironmentVariableValueString(strLODMin, "ARX_LODMin", 'i', "", "ICON").getString();}();
 	static std::string strLODMinPrevious;
 	static LODFlag ltMin;
 	if(strLODMin != strLODMinPrevious) { // to cope with SetEnv script/console cmd

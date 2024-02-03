@@ -502,7 +502,7 @@ bool askOkCancel(const std::string & question, const std::string & title) {
  * 		TODO
  */
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, size_t lineAtFileToEdit) {
-	static std::string systemPopupCmd = [](){return platform::getEnvironmentVariableValueString(systemPopupCmd, "ARX_ScriptErrorPopupCommand", 'w', "Attention: custom user command!");}(); // being static logs only once
+	static std::string systemPopupCmd = [](){return platform::getEnvironmentVariableValueString(systemPopupCmd, "ARX_ScriptErrorPopupCommand", 'w', "Attention: custom user command!").getString();}(); // being static logs only once
 	static time_t ignoreTo = time(0);time_t now = time(0); // TODO? static PlatformInstant ignoreTo = platform::getTime();PlatformInstant now = platform::getTime(); // See LOD code about PlatformDuration(1s * float)
 	if(systemPopupCmd.size() && now >= ignoreTo) {
 		std::string strSysPopupCmd = systemPopupCmd;
@@ -518,7 +518,7 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 			ssMsg << " [FileToEdit] '" << strFileToEdit << ":" << lineAtFileToEdit << "'\n";
 		}
 		
-		static std::string codeEditorCmd = [](){return platform::getEnvironmentVariableValueString(codeEditorCmd, "ARX_ScriptCodeEditorCommand", 'w', "Attention: custom user command!");}();  // being static logs only once
+		static std::string codeEditorCmd = [](){return platform::getEnvironmentVariableValueString(codeEditorCmd, "ARX_ScriptCodeEditorCommand", 'w', "Attention: custom user command!").getString();}();  // being static logs only once
 		if(codeEditorCmd.size()) {
 			ssMsg << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
 		}

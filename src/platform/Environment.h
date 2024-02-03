@@ -22,6 +22,7 @@
 
 #include <limits>
 #include <optional>
+#include <regex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -132,43 +133,87 @@ bool hasEnvironmentVariable(const char * name);
 //! Set an environment variable, overriding any existing values
 void setEnvironmentVariable(const char * name, const char * value);
 
-const char * getEnvironmentVariableValueBase(const char * name, char cLogMode = 'i', const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
-std::string getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode = 'i', const char * strMsg = "", std::string defaultValue = "");
-bool getEnvironmentVariableValueBoolean(bool & varBool, const char * name, char cLogMode = 'i', const char * strMsg = "", bool defaultValue = false);
-f32 getEnvironmentVariableValueFloat(f32 & varFloat, const char * name, char cLogMode = 'i', const char * strMsg = "", f32 defaultValue = 0.f, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
-s32 getEnvironmentVariableValueInteger(s32 & varInt, const char * name, char cLogMode = 'i', const char * strMsg = "", s32 defaultValue = 0, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());
-
 //! Unset an environment variable
 void unsetEnvironmentVariable(const char * name);
 
+class EnvRegex {
+	
+	friend class EnvVar;
+	
+	std::regex * re;
+	std::string str;
+	
+public:
+
+	EnvRegex() { }
+	
+	bool isSet();
+	bool matchRegex(std::string data);
+	bool setRegex(std::string strRE, bool allowLog);
+};
+
+//struct EnvVarHandler {
+//private:
+	//bool modified = false;
+	//std::string strRegex;
+//public:
+	//std::string * str = nullptr;
+	//std::regex * re = nullptr;
+	//s32 * i = nullptr;
+	//f32 * f = nullptr;
+	//bool * b = nullptr;
+	
+	//bool checkModified();
+	//bool isSet();
+	//bool regexMatch(std::string data);
+//};
+
 class EnvVar {
 	
+private:
 	std::string id;
+	
 	std::string * varString;
+	EnvRegex * varRegex;
 	s32 * varInt;
 	f32 * varFloat;
 	bool * varBool;
 	
-public:
-	EnvVar(std::string _id) : id(_id), varString(nullptr), varInt(nullptr), varFloat(nullptr), varBool(nullptr) {}
+	bool modified;
 	
-	EnvVar & initVar(std::string _id, std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool);
+public:
+	
+	EnvVar(std::string _id) : id(_id), varString(nullptr), varRegex(nullptr), varInt(nullptr), varFloat(nullptr), varBool(nullptr) {}
+	
+	EnvVar & initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex);
 	
 	std::string getId() { return id; }
 	
-	bool setVal(std::string val);
-	bool setVal(s32 val);
-	bool setVal(f32 val);
-	bool setVal(bool val);
+	EnvVar & setVal(std::string val, bool allowLog = false);
+	EnvVar & setVal(s32 val, bool allowLog = false);
+	EnvVar & setVal(f32 val, bool allowLog = false);
+	EnvVar & setVal(bool val, bool allowLog = false);
+	EnvVar & setValAuto(std::string val, bool allowLog = false, std::string strMsg = "", std::string valDefault = "", std::string valMin = "", std::string valMax = "");
 	
 	std::string getString();
-	s32 getInt();
+	s32 getInteger();
 	f32 getFloat();
-	bool getBool();
+	bool getBoolean();
+	
+	bool checkModified() { if(modified) { modified = false; return true; } return false; }
+	
+	bool isString() { return varString || varRegex; }
 };
 static std::vector<EnvVar> vEnvVar;
 EnvVar * getEnvVar(std::string id);
 std::string getEnvVarList();
+
+const char * getEnvironmentVariableValueBase(const char * name, char cLogMode = 'i', const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
+EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode = 'i', const char * strMsg = "", std::string defaultValue = "");
+EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, char cLogMode = 'i', const char * strMsg = "", std::string defaultValue = "");
+EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, char cLogMode = 'i', const char * strMsg = "", bool defaultValue = false);
+EnvVar & getEnvironmentVariableValueFloat(f32 & varFloat, const char * name, char cLogMode = 'i', const char * strMsg = "", f32 defaultValue = 0.f, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
+EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, char cLogMode = 'i', const char * strMsg = "", s32 defaultValue = 0, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());
 
 struct EnvironmentOverride {
 	

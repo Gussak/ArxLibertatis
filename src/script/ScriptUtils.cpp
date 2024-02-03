@@ -150,7 +150,7 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 		posID = 2;
 	}
 	if(cSeparator == '_') {
-		static bool warnLocalScopeParams = [](){return platform::getEnvironmentVariableValueBoolean(warnLocalScopeParams, "ARX_WarnGoSubWithLocalScopeParams");}();
+		static bool warnLocalScopeParams = [](){return platform::getEnvironmentVariableValueBoolean(warnLocalScopeParams, "ARX_WarnGoSubWithLocalScopeParams").getBoolean();}();
 		if(warnLocalScopeParams) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
 			LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
 		}
@@ -361,6 +361,32 @@ std::string Context::getGoSubCallStack(std::string_view prepend, std::string_vie
 
 void Context::seekToPosition(size_t pos) { 
 	m_pos=pos; 
+}
+
+/**
+ * //TODO sketch studing script pre-compilation
+ * it is like a pre-compiled script
+ * TODO clean all comments
+ * TODO convert all \n to ' '
+ */
+bool Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount) { //std::string word, PreCompileReference & ref) { //std::string reference) {
+	static int allowPreCompilation = [](){const char * pc = std::getenv("ARX_AllowScriptPreCompilation"); if(pc) { LogWarning << "[ARX_AllowScriptPreCompilation] = \"" << pc << "\""; return util::parseInt(pc);} return 0;}();  // warns only once. set ARX_AllowScriptPreCompilation=1
+	if(!allowPreCompilation) return false;
+	
+	//arx_assert_msg(!(word.size() < reference.size()),"pre-compiled reference=%s needs to be at most word=%s size", reference.c_str(), word.c_str());
+	//m_script->data[pos] = PreCompiled::REFERENCE;
+	//m_script->data[pos+1] = c;
+	//m_script->data[pos+1] = ref;
+	//m_script->data[pos+2] = word.size();
+	esdat[pos] = script::PreCompiled::REFERENCE;
+	//pos++;arx_assert_msg(pos<esdat.size(),"beyond esdat size for cCmd=%d",cCmd);
+	pos++;arx_assert_msg(pos<esdat.size(),"%lu should be < esdat size=%lu for cCmd=%d",pos,esdat.size(),cCmd);
+	esdat[pos] = cCmd;
+	//pos++;arx_assert_msg(pos<esdat.size(),"beyond esdat size for cSkipCharsCount=%d",cSkipCharsCount);
+	pos++;arx_assert_msg(pos<esdat.size(),"%lu should be < esdat size=%lu for cSkipCharsCount=%d",pos,esdat.size(),cSkipCharsCount);
+	esdat[pos] = cSkipCharsCount;
+	
+	return true;
 }
 
 std::string Context::getWord(bool evaluateVars) {

@@ -147,7 +147,7 @@ bool Image::load(const char * data, size_t size, const char * file) {
 	// Release resources
 	stbi::stbi_image_free(pixels);
 	
-	static s32 iMax = [](){return platform::getEnvironmentVariableValueInteger(iMax, "ARX_MaxTextureSize", 'i', "", 0, false);}();  // being static warns only once. export ARX_MaxTextureSize=512;
+	static s32 iMax = [](){return platform::getEnvironmentVariableValueInteger(iMax, "ARX_MaxTextureSize", 'i', "", 0, false).getInteger();}();  // being static warns only once. export ARX_MaxTextureSize=512;
 	if(iMax > 0 && (width > iMax || height > iMax)) {
 		if(!boost::contains(file, "interface")) { // TODO filter out everything that glitches, or convert them (dinamically if possible) to a format that do not glitch.
 			int widthNew = 0;

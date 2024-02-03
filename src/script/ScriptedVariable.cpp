@@ -369,17 +369,16 @@ public:
 		
 		if(bSet) {
 			std::string val = context.getStringVar(context.getWord());
-			if(val.size() == 0 || val.find_first_not_of("0123456789-.") != std::string::npos) {
-				platform::getEnvVar(envVar)->setVal(val);
-				LogInfo << "[EnvironmentVariable]: " << envVar << " = \"" << val << "\"";
-			} else
-			if(boost::contains(val, ".")) {
-				platform::getEnvVar(envVar)->setVal(util::parseFloat(val));
-				LogInfo << "[EnvironmentVariable]: " << envVar << " = " << val;
-			} else {
-				platform::getEnvVar(envVar)->setVal(util::parseInt(val));
-				LogInfo << "[EnvironmentVariable]: " << envVar << " = " << val;
-			}
+			//platform::EnvVar ev = platform::getEnvVar(envVar);
+			platform::getEnvVar(envVar)->setValAuto(val, true);
+			//if(ev.isString()) {
+				//platform::getEnvVar(envVar)->setVal(val, true);
+			//} else
+			//if(boost::contains(val, ".")) {
+				//platform::getEnvVar(envVar)->setVal(util::parseFloat(val), true);
+			//} else {
+				//platform::getEnvVar(envVar)->setVal(util::parseInt(val), true);
+			//}
 			
 			return Success;
 		}
@@ -396,7 +395,6 @@ public:
 			
 			SCRIPT_VAR * sv = nullptr;
 			switch(var[0]) {
-				
 				case '$':      // global text
 				case '\xA3': { // local text
 					sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val, entReadFrom));
@@ -419,9 +417,14 @@ public:
 					ScriptWarning << "Unknown variable type: " << var;
 					return Failed;
 				}
-				
 			}
 			
+			if(!sv) {
+				ScriptWarning << "Unable to set variable " << var;
+				return Failed;
+			}
+			
+			return Success;
 		}
 		
 		return Failed;

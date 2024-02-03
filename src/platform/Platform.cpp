@@ -41,7 +41,7 @@ typedef void(*AssertHandler)(const char * expr, const char * file, unsigned int 
                              const char * msg);
 AssertHandler g_assertHandler = 0;
 
-void assertionFailed(const char * expr, const char * function, const char * file, unsigned int line,
+void assertionFailed(const char * expr, const char * file, unsigned int line,
                      const char * msg, ...) {
 	
 	if(!file || file[0] == '\0') {
