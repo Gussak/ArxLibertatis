@@ -158,6 +158,8 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 	logger::Source * source = LogManager::getSource(file);
 	
 	if(source->level <= level) {
+		
+		#ifdef ARX_DEBUG
 		if(level == Logger::Debug) {
 			
 			// prepare filters
@@ -165,6 +167,8 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 			static platform::EnvRegex erFunc = [](){return platform::getEnvironmentVariableValueRegex(erFunc, "ARX_DebugFunc", '.', "", ".*");}();
 			static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", '.', "", ".*");}();
 			
+			// multi regex ex.: ":someFileRegex:someFuncRegex:someLineRegex"
+			/* toggleCommentSection: this 1st section is not working yet TODO fix it
 			static platform::EnvVar * evStringFileFuncLineSplitRegex = [](){
 				std::string strEV = "ARX_Debug";
 				const char * pc = platform::getEnvironmentVariableValueBase(strEV.c_str(), '.');
@@ -172,21 +176,23 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 				platform::EnvVar * ev = platform::getEnvVar(strEV);
 				ev->initVar(new std::string(), nullptr, nullptr, nullptr, nullptr);
 				ev->setVal(str, false);
+				arx_assert(str == ev->getString());
 				return ev;
 			}();
-			if(evStringFileFuncLineSplitRegex->checkModified()) { // ex.: ":someFileRegex:someFuncRegex:someLineRegex"
-				std::string toSplit = evStringFileFuncLineSplitRegex->getString();
-				if(toSplit.size() > 1) {
-					std::string strToken;
-					if(std::string("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789").find_first_of(toSplit[0]) != std::string::npos) {
-						strToken = toSplit[0]; // user requested a new delimiter
-						toSplit = toSplit.substr(1);
-					} else {
-						strToken = ":"; // default delimiter
-					}
+			if(evStringFileFuncLineSplitRegex->checkModified()) {
+				std::string strMultiRegex = evStringFileFuncLineSplitRegex->getString();
+			/*/ // toggleCommentSection: 2nd section
+			static std::string strMultiRegexDefault = "";
+			static std::string strMultiRegex = [](){return platform::getEnvironmentVariableValueString(strMultiRegex, "ARX_Debug", '.', "", strMultiRegexDefault).getString();}();
+			static std::string strMultiRegexPrevious = strMultiRegexDefault;
+			if(strMultiRegex != strMultiRegexPrevious) { // detect changed
+			//*/ // toggleCommentSection: end
+				if(strMultiRegex.size() > 1) {
+					std::string strToken = strMultiRegex.substr(0, 1); // user requested delimiter
+					std::string strMultiRegexTmp = strMultiRegex.substr(1);
 					
 					std::vector<std::string> vRegex;
-					boost::split(vRegex, toSplit, boost::is_any_of(strToken));
+					boost::split(vRegex, strMultiRegexTmp, boost::is_any_of(strToken));
 					
 					if(vRegex.size() > 0) erFile.setRegex(vRegex[0], false);
 					if(vRegex.size() > 1) erFunc.setRegex(vRegex[1], false);
@@ -194,6 +200,7 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 				} else {
 					// TODO queue warn log: invalid split regex
 				}
+				strMultiRegexPrevious = strMultiRegex;
 			}
 			
 			// apply filters
@@ -201,6 +208,7 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 			if(erFunc.isSet() && !erFunc.matchRegex(function)) return false;
 			if(erLine.isSet() && !erLine.matchRegex(std::to_string(line))) return false;
 		}
+		#endif
 		
 		return true;
 	}
