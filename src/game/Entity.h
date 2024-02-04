@@ -283,9 +283,10 @@ public:
 	time_t lodImproveWaitUntil;
 	time_t lodCooldownUntil;
 	time_t lodLastCalcTime;
-	float lodYawBeforeFlat;
+	float lodYawBeforeLookAtCam;
 	float playerDistLastCalcLOD;
 	LODFlags availableLODFlags;
+	LODFlags iconLODFlags;
 	std::array<ANIM_HANDLE *, MAX_ANIMS> anims; // Object Animations
 	std::array<AnimLayer, MAX_ANIM_LAYERS> animlayer;
 	

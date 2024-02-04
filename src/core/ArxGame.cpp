@@ -1659,7 +1659,7 @@ void ArxGame::LODbeforeEntitiesLoop() {
 		maxLOD = LOD_PERFECT;
 	}
 	
-	if(lodLagSpikeCount || maxLOD == LOD_ICON) LogDebug("LagSpike(" << lodLagSpikeCount << "): " << ", maxLOD=" << LODtoStr(maxLOD) << ", fFrameInstantFPS=" << fFrameInstantFPS << ", 1sFPS=" << g_fpsCounter.FPS << ", fFrameDelay=" << fFrameDelay << ", lodDelayCalc2=?" ); // TODO how to log this??? << lodDelayCalc2 );
+	LogDebugIf(lodLagSpikeCount || maxLOD == LOD_ICON, "LagSpike(" << lodLagSpikeCount << "): " << ", maxLOD=" << LODtoStr(maxLOD) << ", fFrameInstantFPS=" << fFrameInstantFPS << ", 1sFPS=" << g_fpsCounter.FPS << ", fFrameDelay=" << fFrameDelay << ", lodDelayCalc2=?" ); // TODO how to log this??? << lodDelayCalc2 );
 	
 	lodTimeBeforeLoop = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
 	
@@ -1822,7 +1822,7 @@ void ArxGame::LODforEntity(Entity & entity) {
 			}
 			
 			//if(requestLOD == LOD_FLAT) {
-				//entity.lodYawBeforeFlat = entity.angle.getYaw();
+				//entity.lodYawBeforeLookAtCam = entity.angle.getYaw();
 			//}
 				
 			//entity.setLOD(requestLOD);
@@ -1832,10 +1832,10 @@ void ArxGame::LODforEntity(Entity & entity) {
 			//entity.lodLastCalcTime = lodTimeCheckNow;
 			
 			//if(entity.currentLOD == LOD_FLAT) {
-				//entity.lodYawBeforeFlat = entity.angle.getYaw();
+				//entity.lodYawBeforeLookAtCam = entity.angle.getYaw();
 			//} else {
-				//if(entity.lodYawBeforeFlat != 999999999.f) { // because this may happen before the 1st flat request
-					//entity.angle.setYaw(entity.lodYawBeforeFlat);
+				//if(entity.lodYawBeforeLookAtCam != 999999999.f) { // because this may happen before the 1st flat request
+					//entity.angle.setYaw(entity.lodYawBeforeLookAtCam);
 				//}
 			//}
 		}
@@ -1847,16 +1847,17 @@ void ArxGame::LODforEntity(Entity & entity) {
 		//LODupdateNearestEntityToImprove(&entity);
 	////}
 	
-	// FLAT look at player
-	if(entity.currentLOD == LOD_FLAT || entity.currentLOD == LOD_ICON) { // TODO LOD_ICON should also look upwards downwards
-		if(entity.lodYawBeforeFlat == 999999999.f) {
-			entity.lodYawBeforeFlat = entity.angle.getYaw();
+	// simple ICON looks at player
+	if(entity.iconLODFlags & entity.currentLOD) { // TODO should also look upwards downwards
+		if(entity.lodYawBeforeLookAtCam == 999999999.f) {
+			entity.lodYawBeforeLookAtCam = entity.angle.getYaw();
 		}
 		entity.angle.setYaw(MAKEANGLE(Camera::getLookAtAngle(entity.pos, player.pos).getYaw()));
+		LogDebug(entity.idString() << ", lodYawBeforeLookAtCam=" << entity.lodYawBeforeLookAtCam << ", yaw=" << entity.angle.getYaw());
 	} else {
-		if(entity.lodYawBeforeFlat != 999999999.f) {
-			entity.angle.setYaw(entity.lodYawBeforeFlat);
-			entity.lodYawBeforeFlat = 999999999.f;
+		if(entity.lodYawBeforeLookAtCam != 999999999.f) {
+			entity.angle.setYaw(entity.lodYawBeforeLookAtCam);
+			entity.lodYawBeforeLookAtCam = 999999999.f;
 		}
 	}
 	

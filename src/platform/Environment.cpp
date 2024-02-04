@@ -592,8 +592,9 @@ EnvVar & getEnvironmentVariableValueString(std::string & varString, const char *
 
 EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, char cLogMode, const char * strMsg, std::string defaultValue) { // tip: use arx param: --debug="src"
 	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
-	std::string ev = pc ? pc : defaultValue;
-	getEnvVar(name)->initVar(nullptr, nullptr, nullptr, nullptr, &varRegex).setVal(ev);
+	std::string strRegex = pc ? pc : defaultValue;
+	getEnvVar(name)->initVar(nullptr, nullptr, nullptr, nullptr, &varRegex).setVal(strRegex);
+	arx_assert(strRegex == varRegex.getRegex());
 	return varRegex;
 }
 
@@ -649,16 +650,19 @@ EnvVar & EnvVar::setVal(std::string val, bool allowLog) {
 		
 		if(val.size()) {
 			varRegex->str = val;
+			arx_assert(varRegex->str == val);
 			varRegex->setRegex(varRegex->str, allowLog);
 		} else {
 			varRegex->str.clear();
 		}
 		
-		if(allowLog) LogInfo << "Environment Variable (Regex) Set to:" << id << " = \"" << val << "\"";
+		if(allowLog) LogInfo << "Environment Variable (Regex) Set to: " << id << " = \"" << val << "\"";
 	} else
 	if(varString) {
-		varString->assign(val);
-		if(allowLog) LogInfo << "Environment Variable (String) Set to:" << id << " = \"" << val << "\"";
+		//varString->assign(val);
+		(*varString) = val;
+		arx_assert(val == (varString->c_str()));
+		if(allowLog) LogInfo << "Environment Variable (String) Set to: " << id << " = \"" << val << "\"";
 		modified = true;
 	} else {
 		if(allowLog) LogWarning << id << " not String type";
@@ -668,8 +672,8 @@ EnvVar & EnvVar::setVal(std::string val, bool allowLog) {
 }
 EnvVar & EnvVar::setVal(s32 val, bool allowLog) {
 	if(varInt) {
-		*varInt = val;
-		if(allowLog) LogInfo << "Environment Variable Set to:" << id << " = " << val;
+		(*varInt) = val;
+		if(allowLog) LogInfo << "Environment Variable (Integer) Set to: " << id << " = " << val;
 		modified = true;
 	} else {
 		if(allowLog) LogWarning << id << " not Int type";
@@ -678,8 +682,8 @@ EnvVar & EnvVar::setVal(s32 val, bool allowLog) {
 }
 EnvVar & EnvVar::setVal(f32 val, bool allowLog) {
 	if(varFloat) {
-		*varFloat = val;
-		if(allowLog) LogInfo << "Environment Variable Set to:" << id << " = " << val;
+		(*varFloat) = val;
+		if(allowLog) LogInfo << "Environment Variable (Float) Set to: " << id << " = " << val;
 		modified = true;
 	} else {
 		if(allowLog) LogWarning << id << " not Float type";
@@ -688,8 +692,8 @@ EnvVar & EnvVar::setVal(f32 val, bool allowLog) {
 }
 EnvVar & EnvVar::setVal(bool val, bool allowLog) {
 	if(varBool) {
-		*varBool = val;
-		if(allowLog) LogInfo << "Environment Variable (boolean) Set to:" << id << " = " << (val ? "true" : "false"); // see (*CESV1)
+		(*varBool) = val;
+		if(allowLog) LogInfo << "Environment Variable (Boolean) Set to:" << id << " = " << (val ? "true" : "false"); // see (*CESV1)
 		modified = true;
 	} else {
 		if(allowLog) LogWarning << id << " not Bool type";
@@ -754,10 +758,7 @@ EnvVar & EnvVar::setValAuto(std::string val, bool allowLog, std::string strMsg, 
 		return setVal(b, allowLog);
 	}
 	
-	if(allowLog) {
-		LogDebug("type not implemented. " << val << ", " << valDefault << ", " << strMin << ", " << strMax << ", " << strMsg);
-		LogError << "type not implemented. " << val << ", " << valDefault << ", " << strMin << ", " << strMax << ", " << strMsg;
-	}
+	LogDebugIf(allowLog, "type not implemented. " << val << ", " << valDefault << ", " << strMin << ", " << strMax << ", " << strMsg);
 	arx_assert_msg(false, "type not implemented");
 	
 	return *this;

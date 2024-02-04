@@ -150,6 +150,7 @@ public:
 	bool isSet();
 	bool matchRegex(std::string data);
 	bool setRegex(std::string strRE, bool allowLog);
+	std::string getRegex() { return str; }
 };
 
 //struct EnvVarHandler {
