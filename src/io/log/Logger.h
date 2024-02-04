@@ -35,8 +35,11 @@
 #define LogDebug(...)    \
 	if(arx_unlikely(ARX_LOG_ENABLED(::Logger::Debug))) \
 		ARX_LOG_FORCED(::Logger::Debug) << __VA_ARGS__
+#define LogDebugIf(condition, ...)    \
+	if(condition) { LogDebug(__VA_ARGS__); }
 #else
-#define LogDebug(...)    ARX_DISCARD(__VA_ARGS__)
+#define LogDebug(...)               ARX_DISCARD(__VA_ARGS__)
+#define LogDebugIf(condition, ...)  ARX_DISCARD(__VA_ARGS__)
 #endif
 
 //! Log an Info message. Arguments are always evaluated.

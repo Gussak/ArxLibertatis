@@ -2103,9 +2103,7 @@ void ARX_INTERACTIVE_DestroyIOdelayedRemove(Entity * entity) {
 
 void ARX_INTERACTIVE_DestroyIOdelayedExecute() {
 	
-	if(!toDestroy.empty()) {
-		LogDebug("executing delayed entity destruction");
-	}
+	LogDebugIf(!toDestroy.empty(), "executing delayed entity destruction");
 	
 	for(Entity * entity : toDestroy) {
 		if(entity) {

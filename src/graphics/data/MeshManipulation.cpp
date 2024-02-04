@@ -74,25 +74,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "scene/Object.h"
 
-void EERIE_MESH_TWEAK_Skin(EERIE_3DOBJ * obj, const res::path & s1, const res::path & s2) {
-	
-	LogDebug("Tweak Skin " << s1 << " " << s2);
-	
-	if(obj == nullptr || s1.empty() || s2.empty()) {
-		LogError << "Tweak Skin got NULL Pointer";
-		return;
-	}
-	
-	LogDebug("Tweak Skin " << s1 << " " << s2);
-	
-	res::path skintochange = "graph/obj3d/textures" / s1;
-	
-	res::path skinname = "graph/obj3d/textures" / s2;
-	TextureContainer * tex = TextureContainer::Load(skinname);
-	if(!tex) {
-		return;
-	}
-	
+void ReplaceTexture(EERIE_3DOBJ * obj, TextureContainer * tex, res::path skintochange) {
 	if(obj->originalMaterials.empty()) {
 		obj->originalMaterials.reserve(obj->materials.size());
 		for(TextureContainer * texture : obj->materials) {
@@ -121,6 +103,27 @@ void EERIE_MESH_TWEAK_Skin(EERIE_3DOBJ * obj, const res::path & s1, const res::p
 		}
 	}
 	
+}
+void EERIE_MESH_TWEAK_Skin(EERIE_3DOBJ * obj, const res::path & s1, const res::path & s2) {
+	
+	LogDebug("Tweak Skin " << s1 << " " << s2);
+	
+	if(obj == nullptr || s1.empty() || s2.empty()) {
+		LogError << "Tweak Skin got NULL Pointer";
+		return;
+	}
+	
+	LogDebug("Tweak Skin " << s1 << " " << s2);
+	
+	res::path skintochange = "graph/obj3d/textures" / s1;
+	
+	res::path skinname = "graph/obj3d/textures" / s2;
+	TextureContainer * tex = TextureContainer::Load(skinname);
+	if(!tex) {
+		return;
+	}
+	
+	ReplaceTexture(obj, tex, skintochange);
 }
 
 bool IsInSelection(const EERIE_3DOBJ * obj, VertexId vert, VertexSelectionId tw) {
