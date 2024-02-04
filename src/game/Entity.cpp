@@ -155,14 +155,14 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	
 	std::fill(anims.begin(), anims.end(), nullptr);
 	
-	lodYawBeforeFlat = 999999999.f; // something impossible like as in it could be considered as not initialized
-	arx_assert(lodYawBeforeFlat == 999999999.f);
+	lodYawBeforeLookAtCam = 999999999.f; // something impossible like as in it could be considered as not initialized
+	arx_assert(lodYawBeforeLookAtCam == 999999999.f);
 	playerDistLastCalcLOD = 0.f;
 	lodLastCalcTime = time(0);
 	lodCooldownUntil = time(0);
 	lodImproveWaitUntil = time(0);
 	
-	currentLOD = LOD_PERFECT;
+	currentLOD = LOD_NONE;
 	previousLOD = currentLOD;
 	// TODO something like std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr); ?
 	objLOD.emplace(LOD_PERFECT, nullptr);
@@ -433,6 +433,15 @@ bool Entity::isInvulnerable() {
 
 bool Entity::setLOD(const LODFlag lodRequest) {
 	if(currentLOD == lodRequest) return true;
+	if(!(ioflags & IO_ITEM)) return false; // only items for now
+	if(currentLOD == LOD_NONE) {
+		if(!obj) return false; // wait it be initialized elsewhere
+		if(lodRequest != LOD_PERFECT) return false; // wait first proper request happen
+		
+		//previousLOD = currentLOD;
+		//objLOD[LOD_PERFECT] = obj; // grants main/original/vanilla/correct model is the LOD_PERFECT
+		//currentLOD = LOD_PERFECT;
+	}
 	
 	LODFlag lodChk = lodRequest;
 	

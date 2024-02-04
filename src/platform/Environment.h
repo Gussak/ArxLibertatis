@@ -205,9 +205,11 @@ public:
 	
 	bool isString() { return varString || varRegex; }
 };
+
 static std::vector<EnvVar> vEnvVar;
 EnvVar * getEnvVar(std::string id);
 std::string getEnvVarList();
+EnvVar * EnvVarHandler(const char varType, const std::string envVarID, const char logMode = 'i', const std::string strMsg = "", const std::string valDefault = "", const std::string strMin = "", const std::string strMax = "");
 
 const char * getEnvironmentVariableValueBase(const char * name, char cLogMode = 'i', const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
 EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode = 'i', const char * strMsg = "", std::string defaultValue = "");

@@ -826,10 +826,24 @@ static bool ARX_CHANGELEVEL_Push_AllIO(AreaId area) {
 	bool ok = true;
 	
 	for(Entity & entity : entities) {
-		if(!(entity.ioflags & IO_NOSAVE)
-		   && &entity != g_draggedEntity
-		   && entity != *entities.player()
-		   && !isInPlayerInventoryOrEquipment(entity)) {
+		if( !(entity.ioflags & IO_NOSAVE)
+		    && &entity != g_draggedEntity
+		    && entity != *entities.player()
+		    && !isInPlayerInventoryOrEquipment(entity) )
+		{
+			// grant main entity.obj is the original model that must be in sync with linked.obj
+			if(entity.currentLOD != LOD_PERFECT) {
+				entity.setLOD(LOD_PERFECT);
+			}
+			for(EERIE_LINKED & linked : entity.obj->linked) {
+				if(linked.io) {
+					if(linked.io->currentLOD != LOD_PERFECT) {
+						linked.io->setLOD(LOD_PERFECT);
+					}
+					arx_assert(linked.obj == linked.io->obj);
+				}
+			}
+			
 			ok = ARX_CHANGELEVEL_Push_IO(&entity, area) && ok;
 		}
 	}
@@ -986,11 +1000,20 @@ static bool ARX_CHANGELEVEL_Push_IO(const Entity * io, AreaId area) {
 	if(io->obj) {
 		for(const EERIE_LINKED & linked : io->obj->linked) {
 			if(linked.io) {
+				#define LogPtrToHex(x) "\t[" << #x << "=0x" << std::uppercase << std::hex << static_cast<const void*>(x) << "]:" // #define LogPtrToHex(x) "[" << #x << "=0x" << std::uppercase << std::setfill('0') << std::setw(16) << std::hex << static_cast<const void*>(x) << "]:"
+				#define LogCppVar(v) #v << "=\"" << v << "\";\n"
+				#define LogPtrCppVar(p,v) LogPtrToHex(p) << LogCppVar(p->v)
+				#define LogObj(p) "" << LogPtrCppVar(p,fileUniqueRelativePathName.string())
+				#define LogIO(p) "" << LogPtrCppVar(p,idString()) << LogObj(p->obj)
+				LogDebug("LINKED:\n" << LogIO(io) << LogIO(linked.io) << LogObj(linked.obj));
+				
 				arx_assert(linked.obj == linked.io->obj);
+				
 				if(size_t(ais.nb_linked) == std::size(ais.linked_data)) {
 					LogError << "Entity " << io->idString() << " has more than " << MAX_LINKED_SAVE << " linked entities";
 					break;
 				}
+				
 				// TODO this breaks when the object changes between saving and loading
 				ais.linked_data[ais.nb_linked].lgroup = linked.lgroup ? s32(linked.lgroup) : -1;
 				ais.linked_data[ais.nb_linked].lidx = linked.lidx ? s32(linked.lidx) : -1;

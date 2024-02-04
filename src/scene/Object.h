@@ -73,6 +73,7 @@ void EERIE_OBJECT_CenterObjectCoordinates(EERIE_3DOBJ * ret);
 void EERIE_CreateCedricData(EERIE_3DOBJ * eobj);
 
 enum LODFlag {
+	LOD_NONE = 0,
 	LOD_PERFECT = 1 << 0, // perfect/original, last 3D model aimed at and nearby
 	LOD_HIGH    = 1 << 1, // perceptually High, little loss, still nearby camera
 	LOD_MEDIUM  = 1 << 2, // perceptually Medium, some loss, a bit far, but still looks good

@@ -661,7 +661,7 @@ EnvVar & EnvVar::setVal(std::string val, bool allowLog) {
 	if(varString) {
 		//varString->assign(val);
 		(*varString) = val;
-		arx_assert(val == (varString->c_str()));
+		arx_assert(val == varString->c_str());
 		if(allowLog) LogInfo << "Environment Variable (String) Set to: " << id << " = \"" << val << "\"";
 		modified = true;
 	} else {
@@ -820,6 +820,39 @@ std::string getEnvVarList() { // TODO change vEnvVar to a std::map for nice auto
 		str += str2;
 	}
 	return str;
+}
+
+platform::EnvVar * EnvVarHandler(const char varType, const std::string envVarID, const char logMode, const std::string strMsg, const std::string valDefault, const std::string strMin, const std::string strMax) { // TODO test it, see Logger::isEnabled()
+	const char * pc = platform::getEnvironmentVariableValueBase(envVarID.c_str(), logMode);
+	std::string str = pc ? pc : "";
+	platform::EnvVar * ev2 = platform::getEnvVar(envVarID);
+	static std::vector<void*> store;
+	switch(varType) {
+		case 's':
+			store.emplace_back(new std::string());
+			ev2->initVar(static_cast<std::string*>(store[store.size()-1]), nullptr, nullptr, nullptr, nullptr);
+			break;
+		case 'i':
+			store.emplace_back(new int());
+			ev2->initVar(nullptr, static_cast<int*>(store[store.size()-1]), nullptr, nullptr, nullptr);
+			break;
+		case 'f':
+			store.emplace_back(new float());
+			ev2->initVar(nullptr, nullptr, static_cast<float*>(store[store.size()-1]), nullptr, nullptr);
+			break;
+		case 'b':
+			store.emplace_back(new bool());
+			ev2->initVar(nullptr, nullptr, nullptr, static_cast<bool*>(store[store.size()-1]), nullptr);
+			break;
+		case 'r':
+			store.emplace_back(new platform::EnvRegex());
+			ev2->initVar(nullptr, nullptr, nullptr, nullptr, static_cast<platform::EnvRegex*>(store[store.size()-1]) );
+			break;
+		default: arx_assert(false); break;
+	}
+	//if (typeid(store) == typeid(std::string())) {
+	ev2->setValAuto(str, false, strMsg, valDefault, strMin, strMax); 
+	return ev2; 
 }
 
 void unsetEnvironmentVariable(const char * name) {
