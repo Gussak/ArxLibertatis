@@ -277,6 +277,7 @@ public:
 	float original_radius;
 	TextureContainer * m_icon; // Object Icon
 	EERIE_3DOBJ * obj; // IO Mesh data
+	//static std::map<EERIE_3DOBJ*, std::map<LODFlag, EERIE_3DOBJ*>> listObjAndLODs;
 	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs
 	LODFlag currentLOD;
 	LODFlag previousLOD;

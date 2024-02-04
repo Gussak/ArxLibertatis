@@ -370,7 +370,7 @@ void Context::seekToPosition(size_t pos) {
  * TODO convert all \n to ' '
  */
 bool Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount) { //std::string word, PreCompileReference & ref) { //std::string reference) {
-	static int allowPreCompilation = [](){const char * pc = std::getenv("ARX_AllowScriptPreCompilation"); if(pc) { LogWarning << "[ARX_AllowScriptPreCompilation] = \"" << pc << "\""; return util::parseInt(pc);} return 0;}();  // warns only once. set ARX_AllowScriptPreCompilation=1
+	static bool allowPreCompilation = [](){return platform::getEnvironmentVariableValueBoolean(allowPreCompilation, "ARX_AllowScriptPreCompilation").getInteger();}();
 	if(!allowPreCompilation) return false;
 	
 	//arx_assert_msg(!(word.size() < reference.size()),"pre-compiled reference=%s needs to be at most word=%s size", reference.c_str(), word.c_str());

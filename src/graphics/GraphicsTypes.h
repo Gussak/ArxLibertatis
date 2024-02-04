@@ -208,7 +208,6 @@ struct EERIE_3DOBJ {
 	
 	std::unique_ptr<Skeleton> m_skeleton;
 	util::HandleVector<VertexGroupId, std::vector<VertexId>> m_boneVertices;
-	
 };
 
 struct Plane {
