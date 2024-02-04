@@ -754,10 +754,7 @@ EnvVar & EnvVar::setValAuto(std::string val, bool allowLog, std::string strMsg, 
 		return setVal(b, allowLog);
 	}
 	
-	if(allowLog) {
-		LogDebug("type not implemented. " << val << ", " << valDefault << ", " << strMin << ", " << strMax << ", " << strMsg);
-		LogError << "type not implemented. " << val << ", " << valDefault << ", " << strMin << ", " << strMax << ", " << strMsg;
-	}
+	LogDebugIf(allowLog, "type not implemented. " << val << ", " << valDefault << ", " << strMin << ", " << strMax << ", " << strMsg);
 	arx_assert_msg(false, "type not implemented");
 	
 	return *this;

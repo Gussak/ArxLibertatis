@@ -19,7 +19,9 @@
 
 #include "io/log/Logger.h"
 
+
 #include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/split.hpp> // Include for boost::split
 
 #include <cstdlib>
