@@ -158,6 +158,7 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	lodYawBeforeLookAtCam = 999999999.f; // something impossible like as in it could be considered as not initialized
 	arx_assert(lodYawBeforeLookAtCam == 999999999.f);
 	playerDistLastCalcLOD = 0.f;
+	LODpreventDegradeDelayUntil = 0;
 	lodLastCalcTime = time(0);
 	lodCooldownUntil = time(0);
 	lodImproveWaitUntil = time(0);
@@ -475,7 +476,7 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	}
 	
 	if(availableLODFlags == 0) {
-		if(!load3DModelAndLOD(*this, obj->file, obj->pbox != nullptr)) {
+		if(!load3DModelAndLOD(*this, classPath(), obj->pbox != nullptr)) {
 			return false;
 		}
 	}

@@ -1631,10 +1631,7 @@ void ArxGame::LODbeforeEntitiesLoop() {
 	fFrameInstantFPS = 1.f / fFrameDelay;
 	previousFrameTime = frameTimeNow;
 	
-	//static float lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat("ARX_LODRecalcDelay", 'i', "", 2, false, 1).getFloat();}();
 	static float lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat(lodRecalcDelay, "ARX_LODRecalcDelay", 'i', "", 0.33f, false, 0.1f).getFloat();}();
-	//lodCalcNow = time(0) > lodDelayCalc;
-	//if(lodCalcNow) lodDelayCalc += lodRecalcDelay;
 	lodCalcNow = frameTimeNow > lodDelayCalc2;
 	if(lodCalcNow) lodDelayCalc2 += PlatformDuration(1s * lodRecalcDelay); // TODO cast lodRecalcDelay to duration or DurationType?
 	
@@ -1907,13 +1904,21 @@ void ArxGame::updateLevel() {
 			if(player.Interface & INTER_COMBATMODE) { // best quality if it has focus
 				LODforEntity(entity);
 			} else {
+				static Entity * entityWasFlyingOverIO = nullptr;
 				if(&entity == FlyingOverIO) { // best quality if it has focus
 					entity.setLOD(LOD_PERFECT);
 					if(&entity == entNearestToImproveLOD) {
 						entNearestToImproveLOD = nullptr;
 					}
+					entityWasFlyingOverIO = &entity;
 				} else {
-					if(lodCalcNow) {
+					if(entityWasFlyingOverIO == &entity) {
+						static float fLODpreventDegradeDelay = [](){return platform::getEnvironmentVariableValueFloat(fLODpreventDegradeDelay, "ARX_LODPreventDegradeDelayAfterFocus", 'i', "", 2.f, false, 0.33f).getFloat();}(); // this helps on prevent flickering after aiming an item that only have LOD_PERFECT and LOD_ICON
+						entity.LODpreventDegradeDelayUntil = frameTimeNow + PlatformDuration(1s * fLODpreventDegradeDelay);
+						entityWasFlyingOverIO = nullptr;
+					}
+					
+					if(lodCalcNow && frameTimeNow >= entity.LODpreventDegradeDelayUntil) {
 						LODforEntity(entity);
 					}
 				}

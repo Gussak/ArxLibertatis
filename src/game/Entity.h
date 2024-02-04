@@ -285,6 +285,7 @@ public:
 	time_t lodLastCalcTime;
 	float lodYawBeforeLookAtCam;
 	float playerDistLastCalcLOD;
+	PlatformInstant LODpreventDegradeDelayUntil;
 	LODFlags availableLODFlags;
 	LODFlags iconLODFlags;
 	std::array<ANIM_HANDLE *, MAX_ANIMS> anims; // Object Animations

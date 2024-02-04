@@ -331,6 +331,7 @@ void EERIE_CreateCedricData(EERIE_3DOBJ * eobj) {
 
 std::string LODtoStr(LODFlag lt) {
 	switch(lt) {
+		case LOD_NONE: return "_INVALID_SHALL_NOT_BE_USED_";
 		case LOD_PERFECT: return "perfect";
 		case LOD_HIGH: return "high";
 		case LOD_MEDIUM: return "medium";
@@ -386,6 +387,7 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 	std::ifstream fileValidate;
 	char cCheck;
 	std::vector<std::string> vFiles; // priority is by probable request
+	vFiles.push_back(io.classPath().string());
 	vFiles.push_back(fileRequest.string());
 	vFiles.push_back(io.usemesh.string());
 	if(io.obj) {
@@ -393,16 +395,20 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 		vFiles.push_back(io.obj->file.string());
 	}
 	bool bCanMsg = false;
+	res::path fileChk;
 	for(std::string strFl : vFiles) {
 		if(strFl.size() == 0) continue;
 		bCanMsg = true;
 		//LogWarning << "trying: " << strFl; // comment
 		LogDebug(strFl);
 		if(boost::starts_with(strFl, "graph/")) {
-			fileValidate.open((std::string() + "game/" + strFl).c_str(), std::ifstream::in);
-		} else {
-			fileValidate.open(strFl.c_str(), std::ifstream::in);
+			fileChk = std::string() + "game/" + strFl;
 		}
+		// fileChk.set_ext(".ftl"); // a file with a dot, other than for the extension, would break with this.
+		if(!boost::ends_with(fileChk.string(), ".ftl")) {
+			fileChk.append(".ftl");
+		}
+		fileValidate.open(fileChk.string().c_str(), std::ifstream::in);
 		cCheck = fileValidate.get();
 		if(fileValidate.good()) {
 			fileOk = strFl;
@@ -519,15 +525,15 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 	//objLOD[LOD_PERFECT] = obj; // grants main/original/vanilla/correct model is the LOD_PERFECT
 	//currentLOD = LOD_PERFECT;
 
-	res::path fileOk = fix3DModelFilename(io, fileRequest);
-	if(fileOk.string().size() == 0) return false;
+	//res::path fileOk = fix3DModelFilename(io, fileRequest);
+	//res::path fileOk = fileRequest;
+	if(fileRequest.string().size() == 0) return false;
 	
 	res::path fileChkLOD;
 	std::string strLOD;
 	for(LODFlag ltChkLOD : ltOrderedList) {
 		// TODO limit LOD loading? least worst and best: if(ltChkLOD != LOD_PERFECT && ltChkLOD != LOD_ICON && ((ltChkLOD < ltMaxLoadQuality) || (ltChkLOD > ltMinLoadQuality)) continue; // this would improve RAM usage and game load time
 		
-		fileChkLOD = fileOk;
 		strLOD = "";
 		
 		switch(ltChkLOD) {
@@ -542,8 +548,12 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 		}
 		
 		if(strLOD.size() > 0) {
-			// TODO create a func that grants sync with FTL.cpp:ARX_FTL_Load:fileUniqueRelativePathName (that removes prepended "game/" and grants ".ftl" ext)
-			fileChkLOD.remove_ext().append( util::toLowercase(strLOD) ).append( fileOk.ext() );
+			// TODO ? create a func that grants sync with FTL.cpp:ARX_FTL_Load:fileUniqueRelativePathName (that removes prepended "game/" and grants ".ftl" ext)
+			fileChkLOD = fileRequest;
+			if(boost::ends_with(fileChkLOD.string(), ".ftl")) {
+				fileChkLOD.remove_ext();
+			}
+			fileChkLOD.append( util::toLowercase(strLOD) ).append( ".ftl" );
 		}
 		
 		EERIE_3DOBJ * objLoad = nullptr;
