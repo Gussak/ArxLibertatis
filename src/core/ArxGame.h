@@ -97,6 +97,7 @@ private:
 	void LODplayerDist(Entity & entity);
 	void LODupdateNearestEntityToImprove(Entity * entity = nullptr);
 	void LODforEntity(Entity & entity);
+	void LODwork(Entity & entity);
 	
 	void updateLevel();
 	void renderLevel();

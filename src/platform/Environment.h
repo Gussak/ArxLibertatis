@@ -154,6 +154,7 @@ public:
 	std::string getRegex() { return str; }
 };
 
+template <typename T>
 class EnvVarMulti { // useful to take action only when the envvar is modified dinamically
 private:
 	std::string strId;
@@ -180,7 +181,16 @@ public:
 	f32 f;
 	bool b;
 	
-	bool chkMod();
+	bool chkMod() {
+		switch(evt) {
+			case EV_STR  : if(str != strOld) { strOld = str; return true; }; break;
+			case EV_INT  : if(  i !=   iOld) {   iOld =   i; return true; }; break;
+			case EV_FLOAT: if(  f !=   fOld) {   fOld =   f; return true; }; break;
+			case EV_BOOL : if(  b !=   bOld) {   bOld =   b; return true; }; break;
+			default: arx_assert_msg(false, "%s was not set to a type yet", strId.c_str()); break;
+		}
+		return false;
+	}
 	
 	EnvVarMulti(std::string _str) { init(); str = _str; arx_assert(evt == EV_NONE); evt = EV_STR  ; }
 	EnvVarMulti(int         _i  ) { init();   i = _i  ; arx_assert(evt == EV_NONE); evt = EV_INT  ; }
@@ -189,6 +199,8 @@ public:
 	
 	std::string id() { return strId; }
 	EnvVarMulti & setId(std::string _id) { arx_assert(strId == "" && _id != ""); strId = _id; return *this; }
+
+	T custom; // this is an extra help, as a string may be converted into something special
 };
 
 class EnvVar {

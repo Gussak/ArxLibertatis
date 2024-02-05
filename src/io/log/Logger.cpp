@@ -164,22 +164,11 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 		static platform::EnvRegex erFile = [](){return platform::getEnvironmentVariableValueRegex(erFile, "ARX_DebugFile", Logger::LogLevel::None, "", ".*");}();
 		static platform::EnvRegex erFunc = [](){return platform::getEnvironmentVariableValueRegex(erFunc, "ARX_DebugFunc", Logger::LogLevel::None, "", ".*");}();
 		static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", Logger::LogLevel::None, "", ".*");}();
-		if(level == Logger::Debug) { // before lock mutex
+		if(level == Logger::Debug) {
 			// multi regex ex.: ":someFileRegex:someFuncRegex:someLineRegex"
-			//* toggleCommentSection: this 1st section is WIP
-			//static platform::EnvVar * evStringFileFuncLineSplitRegex = EnvVarHandler('s', "ARX_Debug", '.', "", "", "", "");
-			//if(evStringFileFuncLineSplitRegex->checkModified()) {
-				//std::string strMultiRegex = evStringFileFuncLineSplitRegex->getString();
-			static platform::EnvVarMulti evmFileFuncLineSplitRegexStr = [](){evmFileFuncLineSplitRegexStr.setId("ARX_Debug"); return platform::getEnvironmentVariableValueString(evmFileFuncLineSplitRegexStr.str, evmFileFuncLineSplitRegexStr.id().c_str(), Logger::LogLevel::None).getString();}();
+			static platform::EnvVarMulti<int> evmFileFuncLineSplitRegexStr = [](){evmFileFuncLineSplitRegexStr.setId("ARX_Debug"); return platform::getEnvironmentVariableValueString(evmFileFuncLineSplitRegexStr.str, evmFileFuncLineSplitRegexStr.id().c_str(), Logger::LogLevel::None).getString();}();
 			if(evmFileFuncLineSplitRegexStr.chkMod()) {
 				std::string strMultiRegex = evmFileFuncLineSplitRegexStr.str;
-			/*/ // toggleCommentSection: 2nd section works
-			static std::string strMultiRegexDefault = "";
-			static std::string strMultiRegex = [](){return platform::getEnvironmentVariableValueString(strMultiRegex, "ARX_Debug", '.', "", strMultiRegexDefault).getString();}();
-			static std::string strMultiRegexPrevious = strMultiRegexDefault;
-			if(strMultiRegex != strMultiRegexPrevious) { // detect changed
-				strMultiRegexPrevious = strMultiRegex;
-			//*/ // toggleCommentSection: end
 				if(strMultiRegex.size() > 1) {
 					std::string strToken = strMultiRegex.substr(0, 1); // user requested delimiter
 					std::string strMultiRegexTmp = strMultiRegex.substr(1);
@@ -191,7 +180,7 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 					if(vRegex.size() > 1) erFunc.setRegex(vRegex[1], false);
 					if(vRegex.size() > 2) erLine.setRegex(vRegex[2], false);
 				} else {
-					// TODO queue warn log: invalid split regex
+					LogError << "invalid split regex \"" << evmFileFuncLineSplitRegexStr.str << "\" for " << evmFileFuncLineSplitRegexStr.id();
 				}
 			}
 			

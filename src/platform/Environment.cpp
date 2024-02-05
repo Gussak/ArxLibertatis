@@ -538,17 +538,6 @@ void setEnvironmentVariable(const char * name, const char * value) {
 	#endif
 }
 
-bool EnvVarMulti::chkMod() {
-	switch(evt) {
-		case EV_STR  : if(str != strOld) { strOld = str; return true; }; break;
-		case EV_INT  : if(  i !=   iOld) {   iOld =   i; return true; }; break;
-		case EV_FLOAT: if(  f !=   fOld) {   fOld =   f; return true; }; break;
-		case EV_BOOL : if(  b !=   bOld) {   bOld =   b; return true; }; break;
-		default: arx_assert_msg(false, "%s was not set to a type yet", strId.c_str()); break;
-	}
-	return false;
-}
-
 bool EnvRegex::isSet() {
 	return re && str.size(); 
 }
@@ -670,8 +659,7 @@ EnvVar & EnvVar::setVal(std::string val, bool allowLog) {
 		if(allowLog) LogInfo << "Environment Variable (Regex) Set to: " << id << " = \"" << val << "\"";
 	} else
 	if(varString) {
-		//varString->assign(val);
-		(*varString) = val;
+		varString->assign(val); // (*varString) = val;
 		arx_assert(val == varString->c_str());
 		if(allowLog) LogInfo << "Environment Variable (String) Set to: " << id << " = \"" << val << "\"";
 		modified = true;

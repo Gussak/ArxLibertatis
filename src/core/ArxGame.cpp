@@ -1604,6 +1604,11 @@ void ArxGame::updateInput() {
 
 extern int iHighLight;
 
+class LODControl {
+	LODControl() {
+		// todoa 
+	}
+};
 static Entity * entNearestToImproveLOD = nullptr;
 static LODFlag maxLOD;
 static time_t lodDelayCalc = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
@@ -1612,10 +1617,11 @@ static time_t lodTimeBeforeLoop = time(0); // TODO how to make this work instead
 static bool lodCalcNow = false;
 static LODFlag lodToImproveAtNearestTarget;
 static float fFrameDelay = 0.f;
-static float fFrameInstantFPS = 0.f;
+static float fFrameInstantFPS = 0.f; // no need to wait a whole second
 static PlatformInstant frameTimeNow;
 static PlatformInstant previousFrameTime;
 static int lodLagSpikeCount = 0;
+static float FPSforLOD = 0.f;
 void ArxGame::LODbeforeEntitiesLoop() {
 	// cfg LOD
 	static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger(lodMinFPS, "ARX_LODMinimumFPS", Logger::LogLevel::Info, "", 10, 1).getInteger();}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad
@@ -1638,22 +1644,22 @@ void ArxGame::LODbeforeEntitiesLoop() {
 	if(lodCalcNow) lodDelayCalc2 += PlatformDuration(1s * lodRecalcDelay); // TODO cast lodRecalcDelay to duration or DurationType?
 	
 	// calc LOD
-	float FPS = std::max(fFrameInstantFPS, g_fpsCounter.FPS);
-	lodLagSpikeCount = FPS < lodMinFPS ? lodLagSpikeCount + 1 : 0;
+	FPSforLOD = std::max(fFrameInstantFPS, g_fpsCounter.FPS);
+	lodLagSpikeCount = FPSforLOD < lodMinFPS ? lodLagSpikeCount + 1 : 0;
 	//static time_t lodCalcAt;
 	//time_t lodTimeNow = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
 	float fFPSmodLOD = (player.Interface & INTER_COMBATMODE) ? 2.f : 1.f;
-	if(FPS < lodFPSIco*fFPSmodLOD) maxLOD = LOD_ICON;
+	if(FPSforLOD < lodFPSIco*fFPSmodLOD) maxLOD = LOD_ICON;
 	else
-	if(FPS < lodFPSFla*fFPSmodLOD) maxLOD = LOD_FLAT;
+	if(FPSforLOD < lodFPSFla*fFPSmodLOD) maxLOD = LOD_FLAT;
 	else
-	if(FPS < lodFPSBad*fFPSmodLOD) maxLOD = LOD_BAD;
+	if(FPSforLOD < lodFPSBad*fFPSmodLOD) maxLOD = LOD_BAD;
 	else
-	if(FPS < lodFPSLow*fFPSmodLOD) maxLOD = LOD_LOW;
+	if(FPSforLOD < lodFPSLow*fFPSmodLOD) maxLOD = LOD_LOW;
 	else
-	if(FPS < lodFPSMed*fFPSmodLOD) maxLOD = LOD_MEDIUM;
+	if(FPSforLOD < lodFPSMed*fFPSmodLOD) maxLOD = LOD_MEDIUM;
 	else
-	if(FPS < lodFPSHig*fFPSmodLOD) maxLOD = LOD_HIGH;
+	if(FPSforLOD < lodFPSHig*fFPSmodLOD) maxLOD = LOD_HIGH;
 	else {
 		maxLOD = LOD_PERFECT;
 	}
@@ -1737,6 +1743,48 @@ void ArxGame::LODplayerDist(Entity & entity) {
 	if(&entity == FlyingOverIO) return;
 	entity.playerDistLastCalcLOD = fdist(player.pos, entity.pos);
 	//LODupdateNearestEntityToImprove(&entity);
+}
+
+void ArxGame::LODwork(Entity & entity) {
+	if(player.Interface & INTER_COMBATMODE) { // always best performance if in combat mode
+		LODforEntity(entity);
+	} else {
+		static Entity * entityWasFlyingOverIO = nullptr;
+		if(&entity == g_draggedEntity && entity._itemdata->count > 1 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())) {
+			static platform::EnvVarMulti<LODFlag> evmThrowLOD = [](){
+				evmThrowLOD.setId("ARX_LODThrownItems"); 
+				evmThrowLOD.custom = LOD_LOW; 
+				std::string strLOD = LODtoStr(evmThrowLOD.custom);
+				return platform::getEnvironmentVariableValueString(
+					evmThrowLOD.str, 
+					evmThrowLOD.id().c_str(), 
+					Logger::LogLevel::None,
+					"",
+					strLOD
+				).getString();
+			}();
+			if(evmThrowLOD.chkMod()) evmThrowLOD.custom = strToLOD(evmThrowLOD.str);
+			
+			entity.setLOD(evmThrowLOD.custom); // important to prevent slow down in case of throwing a stack of items
+		} else if(&entity == FlyingOverIO && FPSforLOD >= 15) { // best quality if it has focus todoa use LODControl.lodFPSLow instead of 15
+			entity.setLOD(LOD_PERFECT);
+			if(&entity == entNearestToImproveLOD) {
+				entNearestToImproveLOD = nullptr;
+			}
+			entityWasFlyingOverIO = &entity;
+		} else {
+			if(entityWasFlyingOverIO == &entity) {
+				static float fLODpreventDegradeDelay = [](){return platform::getEnvironmentVariableValueFloat(fLODpreventDegradeDelay, "ARX_LODPreventDegradeDelayAfterFocus", Logger::LogLevel::Info, "", 2.f, 0.33f).getFloat();}(); // this helps on prevent flickering after aiming an item that only have LOD_PERFECT and LOD_ICON
+				entity.LODpreventDegradeDelayUntil = frameTimeNow + PlatformDuration(1s * fLODpreventDegradeDelay);
+				entityWasFlyingOverIO = nullptr;
+			}
+			
+			if(lodCalcNow && frameTimeNow >= entity.LODpreventDegradeDelayUntil) {
+				LODforEntity(entity);
+			}
+		}
+	}
+	entity.previousPosForLOD = entity.pos;
 }
 
 void ArxGame::LODforEntity(Entity & entity) {
@@ -1901,32 +1949,7 @@ void ArxGame::updateLevel() {
 				entity.highlightColor = Color3f::black;
 			}
 			
-			// calc LOD
-			if(player.Interface & INTER_COMBATMODE) { // always best performance if in combat mode
-				LODforEntity(entity);
-			} else {
-				static Entity * entityWasFlyingOverIO = nullptr;
-				if(&entity == g_draggedEntity && entity._itemdata->count > 1 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())) {
-					entity.setLOD(LOD_ICON); // important to prevent slow down in case of throwing a stack of items
-				} else if(&entity == FlyingOverIO) { // best quality if it has focus
-					entity.setLOD(LOD_PERFECT);
-					if(&entity == entNearestToImproveLOD) {
-						entNearestToImproveLOD = nullptr;
-					}
-					entityWasFlyingOverIO = &entity;
-				} else {
-					if(entityWasFlyingOverIO == &entity) {
-						static float fLODpreventDegradeDelay = [](){return platform::getEnvironmentVariableValueFloat(fLODpreventDegradeDelay, "ARX_LODPreventDegradeDelayAfterFocus", Logger::LogLevel::Info, "", 2.f, 0.33f).getFloat();}(); // this helps on prevent flickering after aiming an item that only have LOD_PERFECT and LOD_ICON
-						entity.LODpreventDegradeDelayUntil = frameTimeNow + PlatformDuration(1s * fLODpreventDegradeDelay);
-						entityWasFlyingOverIO = nullptr;
-					}
-					
-					if(lodCalcNow && frameTimeNow >= entity.LODpreventDegradeDelayUntil) {
-						LODforEntity(entity);
-					}
-				}
-			}
-			entity.previousPosForLOD = entity.pos;
+			LODwork(entity);
 			
 			Cedric_ApplyLightingFirstPartRefactor(entity);
 			
