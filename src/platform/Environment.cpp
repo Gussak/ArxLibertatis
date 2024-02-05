@@ -538,6 +538,17 @@ void setEnvironmentVariable(const char * name, const char * value) {
 	#endif
 }
 
+bool EnvVarMulti::chkMod() {
+	switch(evt) {
+		case EV_STR  : if(str != strOld) { strOld = str; return true; }; break;
+		case EV_INT  : if(  i !=   iOld) {   iOld =   i; return true; }; break;
+		case EV_FLOAT: if(  f !=   fOld) {   fOld =   f; return true; }; break;
+		case EV_BOOL : if(  b !=   bOld) {   bOld =   b; return true; }; break;
+		default: arx_assert_msg(false, "%s was not set to a type yet", strId.c_str()); break;
+	}
+	return false;
+}
+
 bool EnvRegex::isSet() {
 	return re && str.size(); 
 }
@@ -562,18 +573,18 @@ bool EnvRegex::setRegex(std::string strRE, bool allowLog) {
 	return false;
 }
 
-const char * getEnvironmentVariableValueBase(const char * name, char cLogMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
+const char * getEnvironmentVariableValueBase(const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
 	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead, how to cfg it?
 	const char * pcVal = pcOverrideValue ? pcOverrideValue : getenv(name); // override is mainly to just show messages
 	if(pcVal) {
 		std::stringstream msg; msg << "[EnvironmentVariable]: " << name << " = \"" << pcVal << "\"; " << strMsg;
-		switch(cLogMode) {
-			case 'w': LogWarning << msg.str();break;
-			case 'i': LogInfo << msg.str(); break;
-			case 'd': LogDebug(msg.str());break;
-			case 'e': LogError << msg.str();break;
-			case '.':break; // logs nothing, important in case of mutex lock (you will know you need this the moment the engine freezes)
-			default: arx_assert_msg(false, "invalid log mode '%c' obs.: msg='%s'", cLogMode, msg.str().c_str()); break;
+		switch(logMode) {
+			case Logger::LogLevel::Warning: LogWarning << msg.str();break;
+			case Logger::LogLevel::Info   : LogInfo    << msg.str(); break;
+			case Logger::LogLevel::Error  : LogError   << msg.str();break;
+			case Logger::LogLevel::Debug  : LogDebug(msg.str());break;
+			case Logger::LogLevel::None   : break; // logs nothing, important in case of mutex lock (you will know you need this the moment the engine freezes)
+			default: arx_assert_msg(false, "invalid log mode '%d' obs.: msg='%s'", logMode, msg.str().c_str()); break;
 		}
 	} else {
 		pcVal = defaultValue;
@@ -584,38 +595,38 @@ const char * getEnvironmentVariableValueBase(const char * name, char cLogMode, c
 	#endif
 }
 
-EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode, const char * strMsg, std::string defaultValue) {
-	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
+EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode, const char * strMsg, std::string defaultValue) {
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string ev = pc ? pc : defaultValue;
 	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr).setVal(ev);
 }
 
-EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, char cLogMode, const char * strMsg, std::string defaultValue) { // tip: use arx param: --debug="src"
-	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
+EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode, const char * strMsg, std::string defaultValue) { // tip: use arx param: --debug="src"
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string strRegex = pc ? pc : defaultValue;
 	getEnvVar(name)->initVar(nullptr, nullptr, nullptr, nullptr, &varRegex).setVal(strRegex);
 	arx_assert(strRegex == varRegex.getRegex());
 	return varRegex;
 }
 
-EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, char cLogMode, const char * strMsg, bool defaultValue) {
-	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
+EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode, const char * strMsg, bool defaultValue) {
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string ev = pc ? pc : "";
-	return getEnvVar(name)->initVar(nullptr, nullptr, nullptr, &varBool, nullptr).setValAuto(ev, cLogMode != '.', defaultValue ? "true" : "false", strMsg);
+	return getEnvVar(name)->initVar(nullptr, nullptr, nullptr, &varBool, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, defaultValue ? "true" : "false", strMsg);
 }
 
-EnvVar & getEnvironmentVariableValueFloat(float & varFloat, const char * name, char cLogMode, const char * strMsg, f32 defaultValue, f32 min, f32 max) {
+EnvVar & getEnvironmentVariableValueFloat(float & varFloat, const char * name, const Logger::LogLevel logMode, const char * strMsg, f32 defaultValue, f32 min, f32 max) {
 	// sync with almost identical integer code below if possible
-	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string ev = pc ? pc : "";
-	return getEnvVar(name)->initVar(nullptr, nullptr, &varFloat, nullptr, nullptr).setValAuto(ev, cLogMode != '.', strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
+	return getEnvVar(name)->initVar(nullptr, nullptr, &varFloat, nullptr, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
 }
 
-EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, char cLogMode, const char * strMsg, s32 defaultValue, s32 min, s32 max) {
+EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, const Logger::LogLevel logMode, const char * strMsg, s32 defaultValue, s32 min, s32 max) {
 	// sync with almost identical float code above if possible
-	const char * pc = getEnvironmentVariableValueBase(name, cLogMode, strMsg);
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string ev = pc ? pc : "";
-	return getEnvVar(name)->initVar(nullptr, &varInt, nullptr, nullptr, nullptr).setValAuto(ev, cLogMode != '.', strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
+	return getEnvVar(name)->initVar(nullptr, &varInt, nullptr, nullptr, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
 }
 
 EnvVar & EnvVar::initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex) {
@@ -822,6 +833,7 @@ std::string getEnvVarList() { // TODO change vEnvVar to a std::map for nice auto
 	return str;
 }
 
+/*
 platform::EnvVar * EnvVarHandler(const char varType, const std::string envVarID, const char logMode, const std::string strMsg, const std::string valDefault, const std::string strMin, const std::string strMax) { // TODO test it, see Logger::isEnabled()
 	const char * pc = platform::getEnvironmentVariableValueBase(envVarID.c_str(), logMode);
 	std::string str = pc ? pc : "";
@@ -854,6 +866,7 @@ platform::EnvVar * EnvVarHandler(const char varType, const std::string envVarID,
 	ev2->setValAuto(str, false, strMsg, valDefault, strMin, strMax); 
 	return ev2; 
 }
+*/
 
 void unsetEnvironmentVariable(const char * name) {
 	#if ARX_PLATFORM == ARX_PLATFORM_WIN32

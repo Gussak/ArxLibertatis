@@ -29,6 +29,7 @@
 #include <stddef.h>
 #include <map>
 
+#include "io/log/Logger.h"
 #include "platform/Platform.h"
 
 namespace fs { class path; }
@@ -153,21 +154,42 @@ public:
 	std::string getRegex() { return str; }
 };
 
-//struct EnvVarHandler {
-//private:
-	//bool modified = false;
-	//std::string strRegex;
-//public:
-	//std::string * str = nullptr;
-	//std::regex * re = nullptr;
-	//s32 * i = nullptr;
-	//f32 * f = nullptr;
-	//bool * b = nullptr;
+class EnvVarMulti { // useful to take action only when the envvar is modified dinamically
+private:
+	std::string strId;
 	
-	//bool checkModified();
-	//bool isSet();
-	//bool regexMatch(std::string data);
-//};
+	enum EnvVarType {
+		EV_NONE,
+		EV_STR,
+		EV_INT,
+		EV_BOOL,
+		EV_FLOAT,
+	};
+	EnvVarType evt;
+	
+	std::string strOld;
+	s32 iOld;
+	f32 fOld;
+	bool bOld;
+	
+public:
+	void init() { evt=(EV_NONE), iOld=(0), fOld=(0.f), bOld=(false); i=(0), f=(0.f), b=(false); }
+	
+	std::string str;
+	s32 i;
+	f32 f;
+	bool b;
+	
+	bool chkMod();
+	
+	EnvVarMulti(std::string _str) { init(); str = _str; arx_assert(evt == EV_NONE); evt = EV_STR  ; }
+	EnvVarMulti(int         _i  ) { init();   i = _i  ; arx_assert(evt == EV_NONE); evt = EV_INT  ; }
+	EnvVarMulti(float       _f  ) { init();   f = _f  ; arx_assert(evt == EV_NONE); evt = EV_FLOAT; }
+	EnvVarMulti(bool        _b  ) { init();   b = _b  ; arx_assert(evt == EV_NONE); evt = EV_BOOL ; }
+	
+	std::string id() { return strId; }
+	EnvVarMulti & setId(std::string _id) { arx_assert(strId == "" && _id != ""); strId = _id; return *this; }
+};
 
 class EnvVar {
 	
@@ -209,14 +231,14 @@ public:
 static std::vector<EnvVar> vEnvVar;
 EnvVar * getEnvVar(std::string id);
 std::string getEnvVarList();
-EnvVar * EnvVarHandler(const char varType, const std::string envVarID, const char logMode = 'i', const std::string strMsg = "", const std::string valDefault = "", const std::string strMin = "", const std::string strMax = "");
+//EnvVar * EnvVarHandler(const char varType, const std::string envVarID, const char logMode = 'i', const std::string strMsg = "", const std::string valDefault = "", const std::string strMin = "", const std::string strMax = "");
 
-const char * getEnvironmentVariableValueBase(const char * name, char cLogMode = 'i', const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
-EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, char cLogMode = 'i', const char * strMsg = "", std::string defaultValue = "");
-EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, char cLogMode = 'i', const char * strMsg = "", std::string defaultValue = "");
-EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, char cLogMode = 'i', const char * strMsg = "", bool defaultValue = false);
-EnvVar & getEnvironmentVariableValueFloat(f32 & varFloat, const char * name, char cLogMode = 'i', const char * strMsg = "", f32 defaultValue = 0.f, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
-EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, char cLogMode = 'i', const char * strMsg = "", s32 defaultValue = 0, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());
+const char * getEnvironmentVariableValueBase(const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
+EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", std::string defaultValue = "");
+EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", std::string defaultValue = "");
+EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", bool defaultValue = false);
+EnvVar & getEnvironmentVariableValueFloat(f32 & varFloat, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", f32 defaultValue = 0.f, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
+EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", s32 defaultValue = 0, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());
 
 struct EnvironmentOverride {
 	

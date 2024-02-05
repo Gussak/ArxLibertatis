@@ -332,7 +332,7 @@ void EERIE_CreateCedricData(EERIE_3DOBJ * eobj) {
 
 std::string LODtoStr(LODFlag lt) {
 	switch(lt) {
-		case LOD_NONE: return "_INVALID_SHALL_NOT_BE_USED_";
+		case LOD_NONE: LogWarning << "LOD 'none' should not be used."; return "none";
 		case LOD_PERFECT: return "perfect";
 		case LOD_HIGH: return "high";
 		case LOD_MEDIUM: return "medium";
@@ -361,20 +361,23 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 		if(str == "flat"   ) lt = LOD_FLAT;
 		else
 		if(str == "icon"   ) lt = LOD_ICON;
+		else
+		if(str == "none"   ) { lt = LOD_NONE; LogWarning << "LOD 'none' should not be used."; }
 		else {
-			arx_assert_msg(strDefault != "invalid", "Invalid default LOD '%s'", str.c_str());
-			
-			LogWarning << "fixing invalid LOD '" << str << "' to '" << strDefault << "'";
-			str = strDefault;
-			strDefault = "invalid";
-			continue;
+			if(i == 0) {
+				LogWarning << "fixing invalid LOD '" << str << "' to '" << strDefault << "'";
+				str = strDefault;
+				continue;
+			} else {
+				LogError << "Invalid default LOD " << strDefault;
+			}
 		}
 		
 		break;
 	}
 	return lt;
 }
-res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
+res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // tries to guess where is the valid model filename
 	//PakFile * pf = g_resources->getFile(io.usemesh);
 	//if(pf) return io.usemesh;
 	//if(io.obj) {
@@ -382,19 +385,19 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 		//if(pf) return io.obj->fileUniqueRelativePathName;
 	//}
 	
-	// TODO all below may be unnecessary...
+	// TODO all below may be unnecessary?
 	res::path fileOk;
 	std::string strErrMsg;
 	std::ifstream fileValidate;
 	char cCheck;
 	
-	std::vector<std::string> vFiles; // priority is by probable request
+	std::vector<std::string> vFiles; // priority is by most probable request
 	vFiles.push_back(fileRequest.string());
 	vFiles.push_back(io.usemesh.string());
 	if(io.obj) {
 		vFiles.push_back(io.obj->fileUniqueRelativePathName.string());
 		vFiles.push_back(io.obj->file.string());
-		vFiles.push_back(io.classPath().string()); //overkill as model may have changed
+		vFiles.push_back(io.classPath().string()); //overkill as 3D model may have changed
 	}
 	
 	bool bCanMsg = false;

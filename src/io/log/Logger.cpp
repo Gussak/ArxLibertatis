@@ -48,7 +48,7 @@ struct LogManager {
 	static const Logger::LogLevel defaultLevel;
 	static Logger::LogLevel minimumLevel;
 	
-	static std::mutex mutex;
+	static std::recursive_mutex mutex;
 	
 	//! note: using the pointer value of a string constant as a hash map index.
 	typedef std::unordered_map<const char *, logger::Source> Sources;
@@ -70,7 +70,7 @@ Logger::LogLevel LogManager::minimumLevel = LogManager::defaultLevel;
 LogManager::Sources LogManager::sources;
 LogManager::Backends LogManager::backends;
 LogManager::Rules LogManager::rules;
-std::mutex LogManager::mutex;
+std::recursive_mutex LogManager::mutex;
 
 logger::Source * LogManager::getSource(const char * file) {
 	
@@ -161,16 +161,19 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 	if(source->level <= level) {
 		#ifdef ARX_DEBUG
 		// prepare filters
-		static platform::EnvRegex erFile = [](){return platform::getEnvironmentVariableValueRegex(erFile, "ARX_DebugFile", '.', "", ".*");}();
-		static platform::EnvRegex erFunc = [](){return platform::getEnvironmentVariableValueRegex(erFunc, "ARX_DebugFunc", '.', "", ".*");}();
-		static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", '.', "", ".*");}();
+		static platform::EnvRegex erFile = [](){return platform::getEnvironmentVariableValueRegex(erFile, "ARX_DebugFile", Logger::LogLevel::None, "", ".*");}();
+		static platform::EnvRegex erFunc = [](){return platform::getEnvironmentVariableValueRegex(erFunc, "ARX_DebugFunc", Logger::LogLevel::None, "", ".*");}();
+		static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", Logger::LogLevel::None, "", ".*");}();
 		if(level == Logger::Debug) { // before lock mutex
 			// multi regex ex.: ":someFileRegex:someFuncRegex:someLineRegex"
-			/* toggleCommentSection: this 1st section is not working yet TODO fix it
-			static platform::EnvVar * evStringFileFuncLineSplitRegex = EnvVarHandler('s', "ARX_Debug", '.', "", "", "", "");
-			if(evStringFileFuncLineSplitRegex->checkModified()) {
-				std::string strMultiRegex = evStringFileFuncLineSplitRegex->getString();
-			/*/ // toggleCommentSection: 2nd section
+			//* toggleCommentSection: this 1st section is WIP
+			//static platform::EnvVar * evStringFileFuncLineSplitRegex = EnvVarHandler('s', "ARX_Debug", '.', "", "", "", "");
+			//if(evStringFileFuncLineSplitRegex->checkModified()) {
+				//std::string strMultiRegex = evStringFileFuncLineSplitRegex->getString();
+			static platform::EnvVarMulti evmFileFuncLineSplitRegexStr = [](){evmFileFuncLineSplitRegexStr.setId("ARX_Debug"); return platform::getEnvironmentVariableValueString(evmFileFuncLineSplitRegexStr.str, evmFileFuncLineSplitRegexStr.id().c_str(), Logger::LogLevel::None).getString();}();
+			if(evmFileFuncLineSplitRegexStr.chkMod()) {
+				std::string strMultiRegex = evmFileFuncLineSplitRegexStr.str;
+			/*/ // toggleCommentSection: 2nd section works
 			static std::string strMultiRegexDefault = "";
 			static std::string strMultiRegex = [](){return platform::getEnvironmentVariableValueString(strMultiRegex, "ARX_Debug", '.', "", strMultiRegexDefault).getString();}();
 			static std::string strMultiRegexPrevious = strMultiRegexDefault;

@@ -110,6 +110,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "gui/Console.h"
 #include "gui/Cursor.h"
+#include "gui/Dragging.h"
 #include "gui/Hud.h"
 #include "gui/Interface.h"
 #include "gui/LoadLevelScreen.h"
@@ -126,6 +127,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "gui/debug/DebugHudAudio.h"
 #include "gui/debug/DebugHudCulling.h"
 #include "gui/hud/PlayerInventory.h"
+#include "gui/hud/SecondaryInventory.h"
 
 #include "input/Input.h"
 #include "input/Keyboard.h"
@@ -1616,8 +1618,8 @@ static PlatformInstant previousFrameTime;
 static int lodLagSpikeCount = 0;
 void ArxGame::LODbeforeEntitiesLoop() {
 	// cfg LOD
-	static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger(lodMinFPS, "ARX_LODMinimumFPS", 'i', "", 10, 1).getInteger();}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad
-	static int lodStepFPS = [](){return platform::getEnvironmentVariableValueInteger(lodStepFPS, "ARX_LODStepFPS", 'i', "", 4, 1).getInteger();}(); // this range difference in FPS to determine the proper LOD
+	static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger(lodMinFPS, "ARX_LODMinimumFPS", Logger::LogLevel::Info, "", 10, 1).getInteger();}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad
+	static int lodStepFPS = [](){return platform::getEnvironmentVariableValueInteger(lodStepFPS, "ARX_LODStepFPS", Logger::LogLevel::Info, "", 4, 1).getInteger();}(); // this range difference in FPS to determine the proper LOD
 	static int lodFPSIco = (lodMinFPS + lodStepFPS*0); // default 10 FPS
 	static int lodFPSFla = (lodMinFPS + lodStepFPS*1);
 	static int lodFPSBad = (lodMinFPS + lodStepFPS*2);
@@ -1631,7 +1633,7 @@ void ArxGame::LODbeforeEntitiesLoop() {
 	fFrameInstantFPS = 1.f / fFrameDelay;
 	previousFrameTime = frameTimeNow;
 	
-	static float lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat(lodRecalcDelay, "ARX_LODRecalcDelay", 'i', "", 0.33f, 0.1f).getFloat();}();
+	static float lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat(lodRecalcDelay, "ARX_LODRecalcDelay", Logger::LogLevel::Info, "", 0.33f, 0.1f).getFloat();}();
 	lodCalcNow = frameTimeNow > lodDelayCalc2;
 	if(lodCalcNow) lodDelayCalc2 += PlatformDuration(1s * lodRecalcDelay); // TODO cast lodRecalcDelay to duration or DurationType?
 	
@@ -1748,7 +1750,7 @@ void ArxGame::LODforEntity(Entity & entity) {
 	if(!(entity.ioflags & IO_ITEM)) return;
 	if(&entity == FlyingOverIO) return;
 	if(lodLagSpikeCount) {
-		static int lodLagSpikeLimit = [](){return platform::getEnvironmentVariableValueInteger(lodLagSpikeLimit, "ARX_LODLagSpikeLimit", 'i', "", 10, 1).getInteger();}(); // export ARX_LODLagSpikeLimit=10 # after this count of subsequent lag spikes, all LOD will be degraded to worst allowed
+		static int lodLagSpikeLimit = [](){return platform::getEnvironmentVariableValueInteger(lodLagSpikeLimit, "ARX_LODLagSpikeLimit", Logger::LogLevel::Info, "", 10, 1).getInteger();}(); // export ARX_LODLagSpikeLimit=10 # after this count of subsequent lag spikes, all LOD will be degraded to worst allowed
 		if(lodLagSpikeCount >= lodLagSpikeLimit) {
 			lodLagSpikeCount = 0;
 		} else {
@@ -1765,11 +1767,11 @@ void ArxGame::LODforEntity(Entity & entity) {
 		//LODplayerDist(entity);
 	//}
 	
-	static int distLodHigh = [](){return platform::getEnvironmentVariableValueInteger(distLodHigh, "ARX_LODHighDist", 'i', "", 200, 1).getInteger();}();
-	static int distLodMed = [](){return platform::getEnvironmentVariableValueInteger(distLodMed, "ARX_LODMediumDist", 'i', "", 400, 2).getInteger();}();
-	static int distLodLow = [](){return platform::getEnvironmentVariableValueInteger(distLodLow, "ARX_LODLowDist", 'i', "", 600, 3).getInteger();}();
-	static int distLodBad = [](){return platform::getEnvironmentVariableValueInteger(distLodBad, "ARX_LODBadDist", 'i', "", 800, 4).getInteger();}();
-	static int distLodFlat = [](){return platform::getEnvironmentVariableValueInteger(distLodFlat, "ARX_LODFlatDist", 'i', "", 1000, 5).getInteger();}();
+	static int distLodHigh = [](){return platform::getEnvironmentVariableValueInteger(distLodHigh, "ARX_LODHighDist", Logger::LogLevel::Info, "", 200, 1).getInteger();}();
+	static int distLodMed = [](){return platform::getEnvironmentVariableValueInteger(distLodMed, "ARX_LODMediumDist", Logger::LogLevel::Info, "", 400, 2).getInteger();}();
+	static int distLodLow = [](){return platform::getEnvironmentVariableValueInteger(distLodLow, "ARX_LODLowDist", Logger::LogLevel::Info, "", 600, 3).getInteger();}();
+	static int distLodBad = [](){return platform::getEnvironmentVariableValueInteger(distLodBad, "ARX_LODBadDist", Logger::LogLevel::Info, "", 800, 4).getInteger();}();
+	static int distLodFlat = [](){return platform::getEnvironmentVariableValueInteger(distLodFlat, "ARX_LODFlatDist", Logger::LogLevel::Info, "", 1000, 5).getInteger();}();
 	if(!(distLodHigh <= distLodMed && distLodMed <= distLodLow && distLodLow <= distLodBad && distLodBad <= distLodFlat)) { // to cope with SetEnv cmd
 		LogError << "invalid LOD distances calibration, should be LodHigh(" << distLodHigh << ") <= LodMed(" << distLodMed << ") <= LodLow(" << distLodLow << ") <= LodBad(" << distLodBad << ") <= LodFlat(" << distLodFlat << "), restoring defaults";
 		distLodHigh = 200;
@@ -1817,7 +1819,7 @@ void ArxGame::LODforEntity(Entity & entity) {
 					applyLOD = static_cast<LODFlag>(applyLOD >> 1); // improves just one LOD level per time to smoothly lower the FPS. setLOD() already seeks for next available if requested fails
 					entity.setLOD(applyLOD);
 					if(entity.currentLOD <= requestLOD) {
-						static int delayIgnoreLODimproveRequest = [](){return platform::getEnvironmentVariableValueInteger(delayIgnoreLODimproveRequest, "ARX_LODIgnoreImproveRequestDelay", 'i', "", 1, 0).getInteger();}(); // TODO allow float thru PlatformDuration(1s * float) and remove all time_t
+						static int delayIgnoreLODimproveRequest = [](){return platform::getEnvironmentVariableValueInteger(delayIgnoreLODimproveRequest, "ARX_LODIgnoreImproveRequestDelay", Logger::LogLevel::Info, "", 1, 0).getInteger();}(); // TODO allow float thru PlatformDuration(1s * float) and remove all time_t
 						entNearestToImproveLOD->lodImproveWaitUntil = lodTimeBeforeLoop + delayIgnoreLODimproveRequest;
 						entNearestToImproveLOD = nullptr;
 					}
@@ -1900,11 +1902,13 @@ void ArxGame::updateLevel() {
 			}
 			
 			// calc LOD
-			if(player.Interface & INTER_COMBATMODE) { // best quality if it has focus
+			if(player.Interface & INTER_COMBATMODE) { // always best performance if in combat mode
 				LODforEntity(entity);
 			} else {
 				static Entity * entityWasFlyingOverIO = nullptr;
-				if(&entity == FlyingOverIO) { // best quality if it has focus
+				if(&entity == g_draggedEntity && entity._itemdata->count > 1 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())) {
+					entity.setLOD(LOD_ICON); // important to prevent slow down in case of throwing a stack of items
+				} else if(&entity == FlyingOverIO) { // best quality if it has focus
 					entity.setLOD(LOD_PERFECT);
 					if(&entity == entNearestToImproveLOD) {
 						entNearestToImproveLOD = nullptr;
@@ -1912,7 +1916,7 @@ void ArxGame::updateLevel() {
 					entityWasFlyingOverIO = &entity;
 				} else {
 					if(entityWasFlyingOverIO == &entity) {
-						static float fLODpreventDegradeDelay = [](){return platform::getEnvironmentVariableValueFloat(fLODpreventDegradeDelay, "ARX_LODPreventDegradeDelayAfterFocus", 'i', "", 2.f, 0.33f).getFloat();}(); // this helps on prevent flickering after aiming an item that only have LOD_PERFECT and LOD_ICON
+						static float fLODpreventDegradeDelay = [](){return platform::getEnvironmentVariableValueFloat(fLODpreventDegradeDelay, "ARX_LODPreventDegradeDelayAfterFocus", Logger::LogLevel::Info, "", 2.f, 0.33f).getFloat();}(); // this helps on prevent flickering after aiming an item that only have LOD_PERFECT and LOD_ICON
 						entity.LODpreventDegradeDelayUntil = frameTimeNow + PlatformDuration(1s * fLODpreventDegradeDelay);
 						entityWasFlyingOverIO = nullptr;
 					}
