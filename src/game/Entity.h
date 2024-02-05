@@ -269,6 +269,7 @@ public:
 	EERIE_3DOBJ * getObjMain() { return objMain; }
 	void setObjMain(EERIE_3DOBJ * o);
 	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs TODO: remove in favor of mainModelVsLODs
+	Vec3f previousPosForLOD;
 	
 	EntityFlags ioflags; // IO type
 	Vec3f lastpos; // IO last position

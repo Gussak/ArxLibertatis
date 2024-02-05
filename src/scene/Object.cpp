@@ -183,6 +183,7 @@ EERIE_3DOBJ * Eerie_Copy(const EERIE_3DOBJ * obj) {
 	nouvo->vertexColors.resize(nouvo->vertexlist.size());
 	
 	nouvo->file = obj->file;
+	nouvo->fileUniqueRelativePathName = obj->fileUniqueRelativePathName;
 	
 	nouvo->origin = obj->origin;
 	

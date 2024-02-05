@@ -1922,6 +1922,7 @@ void ArxGame::updateLevel() {
 					}
 				}
 			}
+			entity.previousPosForLOD = entity.pos;
 			
 			Cedric_ApplyLightingFirstPartRefactor(entity);
 			

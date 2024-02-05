@@ -174,6 +174,7 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	objLOD.emplace(LOD_FLAT, nullptr);
 	objLOD.emplace(LOD_ICON, nullptr);
 	availableLODFlags = 0;
+	previousPosForLOD = Vec3f(0.f);
 	
 	for(size_t l = 0; l < MAX_ANIM_LAYERS; l++) {
 		animlayer[l] = AnimLayer();
@@ -443,11 +444,8 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	if(currentLOD == LOD_NONE) {
 		if(!obj) return false; // wait it be initialized elsewhere
 		if(lodRequest != LOD_PERFECT) return false; // wait first proper request happen
-		
-		//previousLOD = currentLOD;
-		//objLOD[LOD_PERFECT] = obj; // grants main/original/vanilla/correct model is the LOD_PERFECT
-		//currentLOD = LOD_PERFECT;
 	}
+	if(previousPosForLOD != pos) return false; // wait physics rest. wont work with: if(lastpos != pos) if(obj->pbox->active)
 	
 	LODFlag lodChk = lodRequest;
 	
@@ -512,6 +510,7 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	if(lodChk && (availableLODFlags & lodChk)) {
 		currentLOD = lodChk;
 		obj = objLOD[currentLOD];
+		//TODO *(obj->pbox) = *(objLOD[currentLOD]->pbox); // TODO not working, should continue a physics impulse from the other lod. use a part of Eerie_Copy ?
 		usemesh = obj->fileUniqueRelativePathName;
 		return true;
 	}
