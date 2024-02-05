@@ -386,36 +386,37 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 	std::string strErrMsg;
 	std::ifstream fileValidate;
 	char cCheck;
+	
 	std::vector<std::string> vFiles; // priority is by probable request
-	vFiles.push_back(io.classPath().string());
 	vFiles.push_back(fileRequest.string());
 	vFiles.push_back(io.usemesh.string());
 	if(io.obj) {
 		vFiles.push_back(io.obj->fileUniqueRelativePathName.string());
 		vFiles.push_back(io.obj->file.string());
+		vFiles.push_back(io.classPath().string()); //overkill as model may have changed
 	}
+	
 	bool bCanMsg = false;
 	res::path fileChk;
-	for(std::string strFl : vFiles) {
-		if(strFl.size() == 0) continue;
+	for(std::string strFlChk : vFiles) {
+		if(strFlChk.size() == 0) continue;
 		bCanMsg = true;
-		//LogWarning << "trying: " << strFl; // comment
-		LogDebug(strFl);
-		if(boost::starts_with(strFl, "graph/")) {
-			fileChk = std::string() + "game/" + strFl;
+		if(boost::starts_with(strFlChk, "graph/")) {
+			fileChk = std::string() + "game/" + strFlChk;
 		}
 		// fileChk.set_ext(".ftl"); // a file with a dot, other than for the extension, would break with this.
 		if(!boost::ends_with(fileChk.string(), ".ftl")) {
 			fileChk.append(".ftl");
 		}
+		LogDebug("Trying: " << fileChk);
 		fileValidate.open(fileChk.string().c_str(), std::ifstream::in);
 		cCheck = fileValidate.get();
 		if(fileValidate.good()) {
-			fileOk = strFl;
+			fileOk = strFlChk;
 			fileValidate.close();
 			break;
 		} else {
-			strErrMsg += " '" + strFl + "'" + (cCheck = '.');
+			strErrMsg += " '" + strFlChk + "'" + (cCheck = '.');
 		}
 	}
 	
@@ -437,6 +438,8 @@ void LODIconAsSkin(EERIE_3DOBJ * obj, TextureContainer * tex) {
 	arx_assert(tex);
 	
 	ReplaceTexture(obj, tex, skintochange);
+	
+	LogDebug("icon skin " << tex->m_texName);
 }
 
 /* toggleCommentSection
@@ -525,8 +528,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 	//objLOD[LOD_PERFECT] = obj; // grants main/original/vanilla/correct model is the LOD_PERFECT
 	//currentLOD = LOD_PERFECT;
 
-	//res::path fileOk = fix3DModelFilename(io, fileRequest);
-	//res::path fileOk = fileRequest;
+	res::path fileOk = fix3DModelFilename(io, fileRequest);
 	if(fileRequest.string().size() == 0) return false;
 	
 	res::path fileChkLOD;
@@ -547,14 +549,15 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 			default: arx_assert_msg(false, "not implemented LOD %d", ltChkLOD); break;
 		}
 		
-		if(strLOD.size() > 0) {
+		//if(strLOD.size() > 0) {
 			// TODO ? create a func that grants sync with FTL.cpp:ARX_FTL_Load:fileUniqueRelativePathName (that removes prepended "game/" and grants ".ftl" ext)
-			fileChkLOD = fileRequest;
+			fileChkLOD = fileOk;
 			if(boost::ends_with(fileChkLOD.string(), ".ftl")) {
 				fileChkLOD.remove_ext();
 			}
 			fileChkLOD.append( util::toLowercase(strLOD) ).append( ".ftl" );
-		}
+		//}
+		LogDebug("fileChkLOD=" << fileChkLOD);
 		
 		EERIE_3DOBJ * objLoad = nullptr;
 		if(ltChkLOD == LOD_PERFECT) { // LOD_PERFECT (original/vanilla/main) must be initialized elsewhere
@@ -574,6 +577,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 			LODFlag ltLODfix = static_cast<LODFlag>(ltChkLOD << 1);
 			arx_assert_msg(io.objLOD[ltLODfix], "lower quality LOD %s not set", LODtoStr(ltLODfix).c_str());
 			objLoad = io.objLOD[ltLODfix];
+			LogDebug("reused LOD " << LODtoStr(ltLODfix) << " at LOD " << LODtoStr(ltChkLOD));
 		}
 		
 		if(objLoad) {
@@ -584,6 +588,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 			io.availableLODFlags |= ltChkLOD;
 			if(io.objLOD[ltChkLOD] == io.objLOD[LOD_ICON]) {
 				io.iconLODFlags |= ltChkLOD;
+				LogDebug("added LOD " << LODtoStr(ltChkLOD) << " to " << io.idString());
 			}
 		}
 		

@@ -267,6 +267,11 @@ Entity::~Entity() {
 	
 }
 
+void Entity::setObjMain(EERIE_3DOBJ * o) {
+	objMain = o;
+	objCurrentLOD = objMain;
+}
+
 res::path Entity::instancePath() const {
 	return m_classPath.parent() / idString();
 }
@@ -476,7 +481,7 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	}
 	
 	if(availableLODFlags == 0) {
-		if(!load3DModelAndLOD(*this, classPath(), obj->pbox != nullptr)) {
+		if(!load3DModelAndLOD(*this, obj->fileUniqueRelativePathName, obj->pbox != nullptr)) {
 			return false;
 		}
 	}

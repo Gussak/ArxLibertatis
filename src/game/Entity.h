@@ -253,6 +253,10 @@ struct AnimationBlendStatus {
 
 class Entity {
 	
+	EERIE_3DOBJ * objCurrentLOD; // IO Mesh data that will be rendered
+	EERIE_3DOBJ * objMain;
+	static std::map<EERIE_3DOBJ*, std::map<LODFlag, EERIE_3DOBJ*>> mainModelVsLODs; // ex.: objCurrentLOD = objMainLOD[objMain][LOD_HIGH]
+	
 public:
 	
 	Entity(const Entity &) = delete;
@@ -260,6 +264,11 @@ public:
 	
 	explicit Entity(const res::path & classPath, EntityInstance instance);
 	~Entity();
+	
+	EERIE_3DOBJ * getObjCurrentLOD() { return objCurrentLOD; } // use only for rendering
+	EERIE_3DOBJ * getObjMain() { return objMain; }
+	void setObjMain(EERIE_3DOBJ * o);
+	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs TODO: remove in favor of mainModelVsLODs
 	
 	EntityFlags ioflags; // IO type
 	Vec3f lastpos; // IO last position
@@ -276,9 +285,7 @@ public:
 	float original_height;
 	float original_radius;
 	TextureContainer * m_icon; // Object Icon
-	EERIE_3DOBJ * obj; // IO Mesh data
-	//static std::map<EERIE_3DOBJ*, std::map<LODFlag, EERIE_3DOBJ*>> listObjAndLODs;
-	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs
+	EERIE_3DOBJ * obj; // IO Mesh data TODO: remove in favor of setObjMain() getObjMain() getObjCurrentLOD() for LOD
 	LODFlag currentLOD;
 	LODFlag previousLOD;
 	time_t lodImproveWaitUntil;
