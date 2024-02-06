@@ -166,7 +166,7 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 		static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", Logger::LogLevel::None, "", ".*");}();
 		if(level == Logger::Debug) {
 			// multi regex ex.: ":someFileRegex:someFuncRegex:someLineRegex:someMessageRegex"
-			static platform::EnvVarHandler<std::string> evFileFuncLineSplitRegexStr = [](){evFileFuncLineSplitRegexStr.setId("ARX_Debug"); return platform::getEnvironmentVariableValueString(evFileFuncLineSplitRegexStr.evar, evFileFuncLineSplitRegexStr.id().c_str(), Logger::LogLevel::None).getString();}();
+			static platform::EnvVarHandler<std::string> evFileFuncLineSplitRegexStr = [](){evFileFuncLineSplitRegexStr.setId("ARX_Debug"); return platform::getEnvironmentVariableValueString(evFileFuncLineSplitRegexStr.evar, evFileFuncLineSplitRegexStr.id().c_str(), Logger::LogLevel::None, "" , "").getString();}();
 			if(evFileFuncLineSplitRegexStr.chkMod()) {
 				std::string strMultiRegex = evFileFuncLineSplitRegexStr.evar;
 				if(strMultiRegex.size() > 1) {

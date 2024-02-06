@@ -584,24 +584,31 @@ const char * getEnvironmentVariableValueBase(const char * name, const Logger::Lo
 	#endif
 }
 
-EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode, const char * strMsg, std::string defaultValue) {
+//EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const char * defaultValue, const Logger::LogLevel logMode, const char * strMsg) {
+	//return getEnvironmentVariableValueString(varString, name, logMode, strMsg, defaultValue);
+//}
+EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) {
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
+	//std::string ev = (pc ? std::string(pc) : (defaultValue ? std::string(defaultValue) : std::string("")));
 	std::string ev = pc ? pc : defaultValue;
 	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr).setVal(ev);
+//	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr).setValAuto(pc ? pc : "", logMode != Logger::LogLevel::None, strMsg, defaultValue ? defaultValue : ""); //.setVal(ev); .setVal((pc ? std::string(pc) : (defaultValue ? std::string(defaultValue) : std::string(""))));
 }
 
-EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode, const char * strMsg, std::string defaultValue) { // tip: use arx param: --debug="src"
+EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) { // tip: use arx param: --debug="src"
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
+	//std::string strRegex = (pc ? std::string(pc) : (defaultValue ? std::string(defaultValue) : std::string("")));
 	std::string strRegex = pc ? pc : defaultValue;
 	getEnvVar(name)->initVar(nullptr, nullptr, nullptr, nullptr, &varRegex).setVal(strRegex);
-	arx_assert(strRegex == varRegex.getRegex());
+//	getEnvVar(name)->initVar(nullptr, nullptr, nullptr, nullptr, &varRegex).setValAuto(pc ? pc : "", logMode != Logger::LogLevel::None, strMsg, defaultValue ? defaultValue : ""); //.setVal(strRegex);
+	//arx_assert(strRegex == varRegex.getRegex());
 	return varRegex;
 }
 
-EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode, const char * strMsg, bool defaultValue) { //TODOA fix defaultValue true not being set
+EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode, const char * strMsg, bool defaultValue) {
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string ev = pc ? pc : "";
-	return getEnvVar(name)->initVar(nullptr, nullptr, nullptr, &varBool, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, defaultValue ? "true" : "false", strMsg);
+	return getEnvVar(name)->initVar(nullptr, nullptr, nullptr, &varBool, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, strMsg, defaultValue ? "true" : "false");
 }
 
 EnvVar & getEnvironmentVariableValueFloat(float & varFloat, const char * name, const Logger::LogLevel logMode, const char * strMsg, f32 defaultValue, f32 min, f32 max) {
@@ -619,7 +626,8 @@ EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, con
 }
 
 EnvVar & EnvVar::initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex) {
-	arx_assert_msg(!(varString || varInt || varFloat || varRegex), "already initialized: id=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr); // this will happen on env var name clash
+	arx_assert_msg(!(varString || varInt || varFloat || varRegex), "this ID was already initialized: id=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr); // this will happen on env var name clash
+	
 	if(_varString) {
 		varString = _varString;
 	} else
@@ -635,8 +643,22 @@ EnvVar & EnvVar::initVar(std::string * _varString, s32 * _varInt, f32 * _varFloa
 	if(_varRegex) {
 		varRegex  = _varRegex;
 	} else {
-    arx_assert(false);
-  }
+		arx_assert(false);
+	}
+	
+	for(size_t i = 0; i < vEnvVar.size() ; i++) { // TODO try unique_ptr in some way instead?
+		if(&vEnvVar[i] == this) continue;
+		
+		if(
+			(varString && vEnvVar[i].varString == varString) ||
+			(varInt    && vEnvVar[i].varInt    == varInt   ) ||
+			(varFloat  && vEnvVar[i].varFloat  == varFloat ) ||
+			(varBool   && vEnvVar[i].varBool   == varBool  ) ||
+			(varRegex  && vEnvVar[i].varRegex  == varRegex )
+		) {
+			arx_assert_msg(false, "id=%s using a pointer already used by idOther=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), vEnvVar[i].id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr);
+		}
+	}
 	
 	return *this;
 }
@@ -648,9 +670,8 @@ EnvVar & EnvVar::setVal(std::string val, bool allowLog) {
 			modified = true;
 		}
 		
-		if(val.size()) {
+		if(val.size() > 0) {
 			varRegex->str = val;
-			arx_assert(varRegex->str == val);
 			varRegex->setRegex(varRegex->str, allowLog);
 		} else {
 			varRegex->str.clear();
@@ -659,8 +680,12 @@ EnvVar & EnvVar::setVal(std::string val, bool allowLog) {
 		if(allowLog) LogInfo << "Environment Variable (Regex) Set to: " << id << " = \"" << val << "\"";
 	} else
 	if(varString) {
-		varString->assign(val); // (*varString) = val;
-		arx_assert(val == varString->c_str());
+		if(val.size() == 0) {
+			(*varString) = "DUMMY"; // Keep here!!! why this is important? probably because the std::string variable pointed by varString was not initialized (not constructed yet) when setVal() is called from getEnvironmentVariableValueString(). So, without this line, it will crash! These all failed (without "DUMMY" first): varString->assign(val); (*varString) = ""; (*varString).clear();
+			(*varString) = "";
+		} else {
+			(*varString) = val;
+		}
 		if(allowLog) LogInfo << "Environment Variable (String) Set to: " << id << " = \"" << val << "\"";
 		modified = true;
 	} else {
@@ -715,11 +740,11 @@ EnvVar & EnvVar::setValAuto(std::string val, bool allowLog, std::string strMsg, 
 			int min = util::parseInt(strMin);
 			int max = util::parseInt(strMax);
 			if(value < min) {
-				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << min;
+				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << min << "; " << strMsg;
 				value = min;
 			}
 			if(value > max) {
-				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << max;
+				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << max << "; " << strMsg;
 				value = max;
 			}
 		}
@@ -734,11 +759,11 @@ EnvVar & EnvVar::setValAuto(std::string val, bool allowLog, std::string strMsg, 
 			f32 min = util::parseFloat(strMin);
 			f32 max = util::parseFloat(strMax);
 			if(value < min) {
-				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << min;
+				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << min << "; " << strMsg;
 				value = min;
 			}
 			if(value > max) {
-				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << max;
+				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << max << "; " << strMsg;
 				value = max;
 			}
 		}

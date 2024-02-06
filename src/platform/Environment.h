@@ -176,22 +176,24 @@ public:
 	EnvVarHandler & setId(std::string _id) { arx_assert(strId == "" && _id != ""); strId = _id; return *this; }
 };
 
+// TODO template <typename TB> ? but what about the conversions between types? would have to be handled outside here right?
 class EnvVar {
 	
 private:
 	std::string id;
 	
-	std::string * varString;
-	EnvRegex * varRegex;
-	s32 * varInt;
-	f32 * varFloat;
-	bool * varBool;
+	// TODO TB* evarPointer;
+	std::string * varString = nullptr;
+	EnvRegex * varRegex = nullptr;
+	s32 * varInt = nullptr;
+	f32 * varFloat = nullptr;
+	bool * varBool = nullptr;
 	
 	bool modified;
 	
 public:
 	
-	EnvVar(std::string _id) : id(_id), varString(nullptr), varRegex(nullptr), varInt(nullptr), varFloat(nullptr), varBool(nullptr) {}
+	EnvVar(std::string _id) : id(_id), varString(nullptr), varRegex(nullptr), varInt(nullptr), varFloat(nullptr), varBool(nullptr), modified(false) {}
 	
 	EnvVar & initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex);
 	
@@ -216,11 +218,10 @@ public:
 static std::vector<EnvVar> vEnvVar;
 EnvVar * getEnvVar(std::string id);
 std::string getEnvVarList();
-//EnvVar * EnvVarHandler(const char varType, const std::string envVarID, const char logMode = 'i', const std::string strMsg = "", const std::string valDefault = "", const std::string strMin = "", const std::string strMax = "");
 
 const char * getEnvironmentVariableValueBase(const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
-EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", std::string defaultValue = "");
-EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", std::string defaultValue = "");
+EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = "");
+EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = ".*");
 EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", bool defaultValue = false);
 EnvVar & getEnvironmentVariableValueFloat(f32 & varFloat, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", f32 defaultValue = 0.f, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
 EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", s32 defaultValue = 0, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());

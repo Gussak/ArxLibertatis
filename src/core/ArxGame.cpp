@@ -1688,7 +1688,7 @@ void ArxGame::LODbeforeEntitiesLoop() {
 		LODctrl.maxLOD = LOD_PERFECT;
 	}
 	
-	static int FPStoScaleLODdist = [](){return platform::getEnvironmentVariableValueInteger(LODctrl.lodMinFPS, "ARX_LODdistScaledByThisFPS", Logger::LogLevel::Info, "", 20, 1).getInteger();}();
+	static int FPStoScaleLODdist = [](){return platform::getEnvironmentVariableValueInteger(FPStoScaleLODdist, "ARX_LODdistScaledByThisFPS", Logger::LogLevel::Info, "", 20, 1).getInteger();}();
 	LODctrl.fLODscaleDistance = LODctrl.FPSforLOD / FPStoScaleLODdist;
 	
 	if(LODctrl.LODimprovedForEntityAtThisFrame) {
@@ -1787,7 +1787,7 @@ void ArxGame::LODworkAtEntityLoop(Entity & entity) {
 	} else {
 		static Entity * entityWasFlyingOverIO = nullptr;
 		if(&entity == g_draggedEntity && entity._itemdata->count > 1 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())) {
-			static platform::EnvVarHandler<std::string,LODFlag> evThrowLOD = [](){ evThrowLOD.setId("ARX_LODThrownItems").evarCustom = LOD_LOW; return platform::getEnvironmentVariableValueString(evThrowLOD.evar, evThrowLOD.id().c_str(), Logger::LogLevel::None, "", LODtoStr(evThrowLOD.evarCustom) ).getString(); }();
+			static platform::EnvVarHandler<std::string,LODFlag> evThrowLOD = [](){ evThrowLOD.setId("ARX_LODThrownItems").evarCustom = LOD_LOW; return platform::getEnvironmentVariableValueString(evThrowLOD.evar, evThrowLOD.id().c_str(), Logger::LogLevel::None, "", LODtoStr(evThrowLOD.evarCustom).c_str() ).getString(); }();
 			if(evThrowLOD.chkMod()) evThrowLOD.evarCustom = strToLOD(evThrowLOD.evar);
 			
 			entity.setLOD(evThrowLOD.evarCustom); // important to prevent slow down in case of throwing a stack of items

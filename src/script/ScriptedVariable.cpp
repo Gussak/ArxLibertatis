@@ -339,6 +339,41 @@ public:
 	
 	EnvironmentCommand() : Command("env") { }
 	
+	#ifdef ARX_DEBUG
+	void envVarDebugTests() {
+		// TODO add a platform::removeEnvVar(...) to just unbloat the list ?
+		static int iTst1 = [](){return platform::getEnvironmentVariableValueInteger(iTst1, "ARX_iTst1").getInteger();}();
+		static int iTst2 = [](){return platform::getEnvironmentVariableValueInteger(iTst2, "ARX_iTst2", Logger::LogLevel::Info).getInteger();}();
+		//static int iTst2wrong = [](){return platform::getEnvironmentVariableValueInteger(iTst2wrong, "ARX_iTst2", Logger::LogLevel::Info).getInteger();}();
+		static int iTst3 = [](){return platform::getEnvironmentVariableValueInteger(iTst3, "ARX_iTst3", Logger::LogLevel::Info, "").getInteger();}();
+		static int iTst4 = [](){return platform::getEnvironmentVariableValueInteger(iTst4, "ARX_iTst4", Logger::LogLevel::Info, "msg", 4, 1, 10).getInteger();}();arx_assert(iTst4==4);
+		static int iTst5 = [](){return platform::getEnvironmentVariableValueInteger(iTst5, "ARX_iTst5", Logger::LogLevel::Info, "", 5, 15).getInteger();}();arx_assert(iTst5==15);
+		static int iTst6 = [](){return platform::getEnvironmentVariableValueInteger(iTst6, "ARX_iTst6", Logger::LogLevel::Info, "", 13, 6, 12).getInteger();}();arx_assert(iTst6==12);
+		
+		static float fTst1 = [](){return platform::getEnvironmentVariableValueFloat(fTst1, "ARX_fTst1", Logger::LogLevel::Info, "", 0.33f, 0.1f, 10.f).getFloat();}();arx_assert(fTst1 == 0.33f);
+		static float fTst2 = [](){return platform::getEnvironmentVariableValueFloat(fTst2, "ARX_fTst2", Logger::LogLevel::Info, "msg", 0.05f, 0.1f).getFloat();}();arx_assert(fTst2 == 0.1f);
+		static float fTst3 = [](){return platform::getEnvironmentVariableValueFloat(fTst3, "ARX_fTst3", Logger::LogLevel::Info, "", 0.33f).getFloat();}();arx_assert(fTst3 == 0.33f);
+		static float fTst4 = [](){return platform::getEnvironmentVariableValueFloat(fTst4, "ARX_fTst4", Logger::LogLevel::Info, "msg").getFloat();}();
+		static float fTst5 = [](){return platform::getEnvironmentVariableValueFloat(fTst5, "ARX_fTst5", Logger::LogLevel::Info).getFloat();}();
+		static float fTst6 = [](){return platform::getEnvironmentVariableValueFloat(fTst6, "ARX_fTst6").getFloat();}();
+		
+		static bool bTst1 = [](){return platform::getEnvironmentVariableValueBoolean(bTst1, "ARX_bTst1").getBoolean();}();
+		static bool bTst2 = [](){return platform::getEnvironmentVariableValueBoolean(bTst2, "ARX_bTst2", Logger::LogLevel::Info, "", true).getBoolean();}();arx_assert(bTst2 == true);
+		static bool bTst3 = [](){return platform::getEnvironmentVariableValueBoolean(bTst3, "ARX_bTst3", Logger::LogLevel::Info, "").getBoolean();}();
+		static bool bTst4 = [](){return platform::getEnvironmentVariableValueBoolean(bTst4, "ARX_bTst4", Logger::LogLevel::Info).getBoolean();}();
+		
+		// TODO erroring
+		static std::string strTst5 = [](){return platform::getEnvironmentVariableValueString(strTst5, "ARX_strTst5", Logger::LogLevel::Info, "", "tSt5").getString();}();arx_assert(strTst5 == "tSt5");
+		static std::string strTst3 = [](){return platform::getEnvironmentVariableValueString(strTst3, "ARX_strTst3", Logger::LogLevel::Info, "").getString();}();
+		//static std::string strTst3 = [](){return platform::getEnvironmentVariableValueString(strTst3, "ARX_strTst3", "").getString();}();
+		static std::string strTst4 = [](){return platform::getEnvironmentVariableValueString(strTst4, "ARX_strTst4", Logger::LogLevel::Info, "msg", "").getString();}();
+		static std::string strTst2 = [](){return platform::getEnvironmentVariableValueString(strTst2, "ARX_strTst2", Logger::LogLevel::Info).getString();}();
+		//static std::string strTst2 = [](){return platform::getEnvironmentVariableValueString(strTst2, "ARX_strTst2", "", Logger::LogLevel::Info).getString();}();
+		//static std::string strTst1 = [](){return platform::getEnvironmentVariableValueString(strTst1, "ARX_strTst1", "", Logger::LogLevel::Info, "msg").getString();}();
+		static std::string strTst1 = [](){return platform::getEnvironmentVariableValueString(strTst1, "ARX_strTst1", Logger::LogLevel::Info, "msg").getString();}();
+	}
+	#endif
+	
 	/**
 	 * This is intended to tweak env vars in memory to avoid having to restart the game.
 	 * This is not intended to set permanent env vars on the system nor to prepare the environment for sub proccesses (but could be).
@@ -349,6 +384,10 @@ public:
 	 * env -g <envVarId> <scriptVariable> //get EnvVar value into <scriptVariable>
 	 */
 	Result execute(Context & context) override {
+		#ifdef ARX_DEBUG
+		envVarDebugTests();
+		#endif
+		
 		bool bSet = false;
 		bool bGet = false;
 		
