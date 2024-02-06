@@ -1604,9 +1604,8 @@ void ArxGame::updateInput() {
 
 extern int iHighLight;
 
-class LODControl {
+class LODControl { // TODOA put all LOD control vars here and: static LODControl LODctrl;
 	LODControl() {
-		// todoa 
 	}
 };
 static Entity * entNearestToImproveLOD = nullptr;

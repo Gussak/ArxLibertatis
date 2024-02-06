@@ -537,6 +537,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 	
 	res::path fileChkLOD;
 	std::string strLOD;
+	size_t facesChk = 0;
 	for(LODFlag ltChkLOD : ltOrderedList) {
 		// TODO limit LOD loading? least worst and best: if(ltChkLOD != LOD_PERFECT && ltChkLOD != LOD_ICON && ((ltChkLOD < ltMaxLoadQuality) || (ltChkLOD > ltMinLoadQuality)) continue; // this would improve RAM usage and game load time
 		
@@ -544,12 +545,12 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 		
 		switch(ltChkLOD) {
 			case LOD_PERFECT: break;
-			case LOD_HIGH:    strLOD = "[LODH]"; break;
-			case LOD_MEDIUM:  strLOD = "[LODM]"; break;
-			case LOD_LOW:     strLOD = "[LODL]"; break;
-			case LOD_BAD:     strLOD = "[LODB]"; break;
-			case LOD_FLAT:    strLOD = "[LODF]"; break;
-			case LOD_ICON:    strLOD = "[LODI]"; break;
+			case LOD_HIGH:    strLOD = "[LODH]"; facesChk = 1000; break;
+			case LOD_MEDIUM:  strLOD = "[LODM]"; facesChk =  500; break;
+			case LOD_LOW:     strLOD = "[LODL]"; facesChk =  250; break;
+			case LOD_BAD:     strLOD = "[LODB]"; facesChk =  150; break;
+			case LOD_FLAT:    strLOD = "[LODF]"; facesChk =   13; break;
+			case LOD_ICON:    strLOD = "[LODI]"; facesChk =    3; break;
 			default: arx_assert_msg(false, "not implemented LOD %d", ltChkLOD); break;
 		}
 		
@@ -579,6 +580,9 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 		
 		if(!objLoad) { // re-uses lower quality LOD in higher ones if they are not available
 			LODFlag ltLODfix = static_cast<LODFlag>(ltChkLOD << 1);
+			if(io.objLOD[LOD_PERFECT]->facelist.size() <= static_cast<size_t>(facesChk*1.25f)) { // TODOA faces multiplier as envvar
+				ltLODfix = LOD_PERFECT; // As all vanilla items are very low poly, this suffices for now. TODOA another loop with all LODs, just after this loop, to reuse nearest better LOD into lower ones, based on faces count. 
+			}
 			arx_assert_msg(io.objLOD[ltLODfix], "lower quality LOD %s not set", LODtoStr(ltLODfix).c_str());
 			objLoad = io.objLOD[ltLODfix];
 			LogDebug("reused LOD " << LODtoStr(ltLODfix) << " at LOD " << LODtoStr(ltChkLOD));

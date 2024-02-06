@@ -106,7 +106,7 @@ public:
 	
 };
 
-class TextInputCommand : public Command {
+class TextInputCommand : public Command { // TODOA not working yet
 	
 	public:
 	
@@ -140,8 +140,7 @@ class TextInputCommand : public Command {
 				return Failed;
 			}
 			
-			//todoa wait enter or esc key ? or is it automatic?
-			g_gameTime.resume(GameTime::PauseUser);
+			g_gameTime.resume(GameTime::PauseUser); // TODOA wait enter or esc key ? or is it automatic?
 			
 			if(!textbox.text().empty()) {
 				if(!SETVarValueText(context.getEntity()->m_variables, strVar, context.getStringVar(textbox.text(), context.getEntity()))) {
