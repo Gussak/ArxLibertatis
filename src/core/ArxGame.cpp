@@ -1605,144 +1605,167 @@ void ArxGame::updateInput() {
 extern int iHighLight;
 
 class LODControl { // TODOA put all LOD control vars here and: static LODControl LODctrl;
-	LODControl() {
+private:
+	bool binitEnvVars = false;
+public:
+	Entity * entNearestToImproveLOD = nullptr;
+	LODFlag maxLOD;
+	time_t lodDelayCalc = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
+	PlatformInstant lodDelayCalc2;
+	time_t lodTimeBeforeLoop = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
+	bool lodCalcNow = false;
+	LODFlag lodToImproveAtNearestTarget;
+	float fFrameDelay = 0.f;
+	float fFrameInstantFPS = 0.f; // no need to wait a whole second
+	PlatformInstant frameTimeNow;
+	PlatformInstant previousFrameTime;
+	int lodLagSpikeCount = 0;
+	float FPSforLOD = 0.f;
+	float fLODscaleDistance = 1.f;
+	Vec3f playerPosRecalcUpLODlast = Vec3f();
+	bool playerMoveDistAllowLODimproveNow = false;
+	Entity * LODimprovedForEntityAtThisFrame = nullptr; // one entity per frame
+	
+	// env vars
+	float playerPosRecalcUpLODminDist;
+	int lodMinFPS;
+	
+	bool initEnvVars(bool bDummy) {
+		arx_assert(!binitEnvVars);
+		
+		playerPosRecalcUpLODminDist = [this](){return platform::getEnvironmentVariableValueFloat(playerPosRecalcUpLODminDist, "ARX_LODPlayerMoveDistToRecalcLOD", Logger::LogLevel::Info, "", 100.f, 10.f).getFloat();}(); // how far shall player move
+		lodMinFPS = [this](){return platform::getEnvironmentVariableValueInteger(lodMinFPS, "ARX_LODMinimumFPS", Logger::LogLevel::Info, "", 10, 1).getInteger();}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad
+		
+		return bDummy;
 	}
 };
-static Entity * entNearestToImproveLOD = nullptr;
-static LODFlag maxLOD;
-static time_t lodDelayCalc = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
-static PlatformInstant lodDelayCalc2;
-static time_t lodTimeBeforeLoop = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
-static bool lodCalcNow = false;
-static LODFlag lodToImproveAtNearestTarget;
-static float fFrameDelay = 0.f;
-static float fFrameInstantFPS = 0.f; // no need to wait a whole second
-static PlatformInstant frameTimeNow;
-static PlatformInstant previousFrameTime;
-static int lodLagSpikeCount = 0;
-static float FPSforLOD = 0.f;
-static float fLODscaleDistance = 1.f;
-static Vec3f playerPosRecalcUpLODlast = Vec3f();
-static bool playerMoveDistAllowLODimproveNow = false;
+static LODControl LODctrl;
 void ArxGame::LODbeforeEntitiesLoop() {
-	static float playerPosRecalcUpLODminDist = [](){return platform::getEnvironmentVariableValueFloat(playerPosRecalcUpLODminDist, "ARX_LODPlayerMoveDistToRecalcLOD", Logger::LogLevel::Info, "", 100.f, 10.f).getFloat();}(); // how far shall player move
-	if(fdist(player.pos, playerPosRecalcUpLODlast) > playerPosRecalcUpLODminDist) {
-		playerMoveDistAllowLODimproveNow = true;
-		playerPosRecalcUpLODlast = player.pos;
+	static bool bDummy = [](){return LODctrl.initEnvVars(bDummy);}();
+	
+	if(fdist(player.pos, LODctrl.playerPosRecalcUpLODlast) > LODctrl.playerPosRecalcUpLODminDist) {
+		LODctrl.playerMoveDistAllowLODimproveNow = true;
+		LODctrl.playerPosRecalcUpLODlast = player.pos;
 	}
 	
 	// cfg LOD
-	static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger(lodMinFPS, "ARX_LODMinimumFPS", Logger::LogLevel::Info, "", 10, 1).getInteger();}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad
 	static int lodStepFPS = [](){return platform::getEnvironmentVariableValueInteger(lodStepFPS, "ARX_LODStepFPS", Logger::LogLevel::Info, "", 4, 1).getInteger();}(); // this range difference in FPS to determine the proper LOD
-	static int lodFPSIco = (lodMinFPS + lodStepFPS*0); // default 10 FPS
-	static int lodFPSFla = (lodMinFPS + lodStepFPS*1);
-	static int lodFPSBad = (lodMinFPS + lodStepFPS*2);
-	static int lodFPSLow = (lodMinFPS + lodStepFPS*3);
-	static int lodFPSMed = (lodMinFPS + lodStepFPS*4);
-	static int lodFPSHig = (lodMinFPS + lodStepFPS*5); // default 30 FPS
+	static int lodFPSIco = (LODctrl.lodMinFPS + lodStepFPS*0); // default 10 FPS
+	static int lodFPSFla = (LODctrl.lodMinFPS + lodStepFPS*1);
+	static int lodFPSBad = (LODctrl.lodMinFPS + lodStepFPS*2);
+	static int lodFPSLow = (LODctrl.lodMinFPS + lodStepFPS*3);
+	static int lodFPSMed = (LODctrl.lodMinFPS + lodStepFPS*4);
+	static int lodFPSHig = (LODctrl.lodMinFPS + lodStepFPS*5); // default 30 FPS
 	
 	// considers that LODbeforeEntitiesLoop() is called once per frame
-	frameTimeNow = g_platformTime.frameStart();
-	fFrameDelay = toS(frameTimeNow - previousFrameTime);
-	fFrameInstantFPS = 1.f / fFrameDelay;
-	previousFrameTime = frameTimeNow;
+	LODctrl.frameTimeNow = g_platformTime.frameStart();
+	LODctrl.fFrameDelay = toS(LODctrl.frameTimeNow - LODctrl.previousFrameTime);
+	LODctrl.fFrameInstantFPS = 1.f / LODctrl.fFrameDelay;
+	LODctrl.previousFrameTime = LODctrl.frameTimeNow;
 	
 	static float lodRecalcDelay = [](){return platform::getEnvironmentVariableValueFloat(lodRecalcDelay, "ARX_LODRecalcDelay", Logger::LogLevel::Info, "", 0.33f, 0.1f).getFloat();}();
-	lodCalcNow = frameTimeNow > lodDelayCalc2;
-	if(lodCalcNow) lodDelayCalc2 += PlatformDuration(1s * lodRecalcDelay); // TODO cast lodRecalcDelay to duration or DurationType?
+	LODctrl.lodCalcNow = LODctrl.frameTimeNow > LODctrl.lodDelayCalc2;
+	if(LODctrl.lodCalcNow) LODctrl.lodDelayCalc2 += PlatformDuration(1s * lodRecalcDelay); // TODO cast lodRecalcDelay to duration or DurationType?
 	
 	// calc LOD
-	FPSforLOD = std::max(fFrameInstantFPS, g_fpsCounter.FPS);
-	lodLagSpikeCount = FPSforLOD < lodMinFPS ? lodLagSpikeCount + 1 : 0;
+	LODctrl.FPSforLOD = std::max(LODctrl.fFrameInstantFPS, g_fpsCounter.FPS);
+	LODctrl.lodLagSpikeCount = LODctrl.FPSforLOD < LODctrl.lodMinFPS ? LODctrl.lodLagSpikeCount + 1 : 0;
 	//static time_t lodCalcAt;
 	//time_t lodTimeNow = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
 	float fFPSmodLOD = (player.Interface & INTER_COMBATMODE) ? 2.f : 1.f;
-	static float fTotalLODs = 7;
-	if(FPSforLOD < lodFPSIco*fFPSmodLOD) { maxLOD = LOD_ICON; fLODscaleDistance = 1/(fTotalLODs - 0.f); }
+	if(LODctrl.FPSforLOD < lodFPSIco*fFPSmodLOD) { LODctrl.maxLOD = LOD_ICON; }
 	else
-	if(FPSforLOD < lodFPSFla*fFPSmodLOD) { maxLOD = LOD_FLAT; fLODscaleDistance = 1/(fTotalLODs - 1.f); }
+	if(LODctrl.FPSforLOD < lodFPSFla*fFPSmodLOD) { LODctrl.maxLOD = LOD_FLAT; }
 	else
-	if(FPSforLOD < lodFPSBad*fFPSmodLOD) { maxLOD = LOD_BAD; fLODscaleDistance = 1/(fTotalLODs - 2.f); }
+	if(LODctrl.FPSforLOD < lodFPSBad*fFPSmodLOD) { LODctrl.maxLOD = LOD_BAD; }
 	else
-	if(FPSforLOD < lodFPSLow*fFPSmodLOD) { maxLOD = LOD_LOW; fLODscaleDistance = 1/(fTotalLODs - 3.f); }
+	if(LODctrl.FPSforLOD < lodFPSLow*fFPSmodLOD) { LODctrl.maxLOD = LOD_LOW; }
 	else
-	if(FPSforLOD < lodFPSMed*fFPSmodLOD) { maxLOD = LOD_MEDIUM; fLODscaleDistance = 1/(fTotalLODs - 4.f); }
+	if(LODctrl.FPSforLOD < lodFPSMed*fFPSmodLOD) { LODctrl.maxLOD = LOD_MEDIUM; }
 	else
-	if(FPSforLOD < lodFPSHig*fFPSmodLOD) { maxLOD = LOD_HIGH; fLODscaleDistance = 1/(fTotalLODs - 5.f); }
+	if(LODctrl.FPSforLOD < lodFPSHig*fFPSmodLOD) { LODctrl.maxLOD = LOD_HIGH; }
 	else {
-		maxLOD = LOD_PERFECT; fLODscaleDistance = 1/(fTotalLODs - 6.f);
+		LODctrl.maxLOD = LOD_PERFECT;
 	}
 	
-	LogDebugIf(lodLagSpikeCount || maxLOD == LOD_ICON, "LagSpike(" << lodLagSpikeCount << "): " << ", maxLOD=" << LODtoStr(maxLOD) << ", fFrameInstantFPS=" << fFrameInstantFPS << ", 1sFPS=" << g_fpsCounter.FPS << ", fFrameDelay=" << fFrameDelay << ", lodDelayCalc2=?" ); // TODO how to log this??? << lodDelayCalc2 );
+	static int FPStoScaleLODdist = [](){return platform::getEnvironmentVariableValueInteger(LODctrl.lodMinFPS, "ARX_LODdistScaledByThisFPS", Logger::LogLevel::Info, "", 20, 1).getInteger();}();
+	LODctrl.fLODscaleDistance = LODctrl.FPSforLOD / FPStoScaleLODdist;
 	
-	lodTimeBeforeLoop = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
+	if(LODctrl.LODimprovedForEntityAtThisFrame) {
+		LODctrl.LODimprovedForEntityAtThisFrame->obj->lod.calcFpsCost(LODctrl.FPSforLOD, false);
+	}
 	
-	lodToImproveAtNearestTarget = LOD_HIGH;
-	if(maxLOD > lodToImproveAtNearestTarget) {
-		lodToImproveAtNearestTarget = maxLOD;
+	LogDebugIf(LODctrl.lodLagSpikeCount || LODctrl.maxLOD == LOD_ICON, "LagSpike(" << LODctrl.lodLagSpikeCount << "): " << ", maxLOD=" << LODtoStr(LODctrl.maxLOD) << ", fFrameInstantFPS=" << LODctrl.fFrameInstantFPS << ", 1sFPS=" << g_fpsCounter.FPS << ", fFrameDelay=" << LODctrl.fFrameDelay << ", lodDelayCalc2=?" ); // TODO how to log this??? << lodDelayCalc2 );
+	
+	LODctrl.lodTimeBeforeLoop = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
+	
+	LODctrl.lodToImproveAtNearestTarget = LOD_HIGH;
+	if(LODctrl.maxLOD > LODctrl.lodToImproveAtNearestTarget) {
+		LODctrl.lodToImproveAtNearestTarget = LODctrl.maxLOD;
 	}
 	
 	LODupdateNearestEntityToImprove();
 }
 
 void ArxGame::LODafterEntitiesLoop() {
-	playerMoveDistAllowLODimproveNow = false;
+	LODctrl.playerMoveDistAllowLODimproveNow = false;
+	LODctrl.LODimprovedForEntityAtThisFrame = nullptr;
 }
 
 static bool nearestEntityIsValid;
 void ArxGame::LODupdateNearestEntityToImprove(Entity * entity) {
 	if(!entity) { // before loop
-		if(entNearestToImproveLOD) {
+		if(LODctrl.entNearestToImproveLOD) {
 			// check if entity still exists
-			nearestEntityIsValid = false; // TODO safer (as it could be erased before being accessed)  and faster to just clear at ~Entity() right? put entNearestToImproveLOD at EntityManager ?
+			nearestEntityIsValid = false; // TODO safer (as it could be erased before being accessed)  and faster to just clear at ~Entity() right? put LODctrl.entNearestToImproveLOD at EntityManager ?
 			for(Entity & entExists : entities.inScene(IO_ITEM)) {
-				if(&entExists == entNearestToImproveLOD) {
+				if(&entExists == LODctrl.entNearestToImproveLOD) {
 					nearestEntityIsValid = true;
 					break;
 				}
 			}
 			if(!nearestEntityIsValid) {
-				entNearestToImproveLOD = nullptr;
+				LODctrl.entNearestToImproveLOD = nullptr;
 			}
 		}
 		
-		if(entNearestToImproveLOD) {
-			if(entNearestToImproveLOD == FlyingOverIO) {
-				entNearestToImproveLOD = nullptr;
+		if(LODctrl.entNearestToImproveLOD) {
+			if(LODctrl.entNearestToImproveLOD == FlyingOverIO) {
+				LODctrl.entNearestToImproveLOD = nullptr;
 			} else
-			if(entNearestToImproveLOD->currentLOD <= lodToImproveAtNearestTarget) { // max auto improve reached for this one
-				entNearestToImproveLOD = nullptr;
+			if(LODctrl.entNearestToImproveLOD->currentLOD <= LODctrl.lodToImproveAtNearestTarget) { // max auto improve reached for this one
+				LODctrl.entNearestToImproveLOD = nullptr;
 			}
 			
 			// TODO clear too if not in camera FOV, if not visible
 		}
 		
 	} else { // at entities loop
-		if(entity->lodImproveWaitUntil > lodTimeBeforeLoop) return;
-		if(entNearestToImproveLOD == entity) return;
+		if(entity->lodImproveWaitUntil > LODctrl.lodTimeBeforeLoop) return;
+		if(LODctrl.entNearestToImproveLOD == entity) return;
 		
-		if(!entNearestToImproveLOD && maxLOD < entity->currentLOD && entity->currentLOD > lodToImproveAtNearestTarget) {
-			entNearestToImproveLOD = entity;
-			LogDebug("entNearestToImproveLOD=" << entNearestToImproveLOD->idString());
+		if(!LODctrl.entNearestToImproveLOD && (LODctrl.maxLOD < entity->currentLOD) && (entity->currentLOD > LODctrl.lodToImproveAtNearestTarget)) {
+			LODctrl.entNearestToImproveLOD = entity;
+			LogDebug("LODctrl.entNearestToImproveLOD=" << LODctrl.entNearestToImproveLOD->idString());
 		} else {
-			//if(entNearestToImproveLOD && maxLOD > entNearestToImproveLOD->currentLOD) { // must lower the quality
-				//entNearestToImproveLOD = nullptr;
+			//if(LODctrl.entNearestToImproveLOD && LODctrl.maxLOD > LODctrl.entNearestToImproveLOD->currentLOD) { // must lower the quality
+				//LODctrl.entNearestToImproveLOD = nullptr;
 			//}
 			
-			//if(entNearestToImproveLOD && entNearestToImproveLOD->currentLOD <= lodToImproveAtNearestTarget) {
-				//entNearestToImproveLOD = nullptr;
+			//if(LODctrl.entNearestToImproveLOD && LODctrl.entNearestToImproveLOD->currentLOD <= LODctrl.lodToImproveAtNearestTarget) {
+				//LODctrl.entNearestToImproveLOD = nullptr;
 			//}
 			
-			bool bEntityCanBecomeNearest = maxLOD < entity->currentLOD && entity->currentLOD > lodToImproveAtNearestTarget && entity != entNearestToImproveLOD;
-			if(entNearestToImproveLOD) {
-				if(bEntityCanBecomeNearest && entity->playerDistLastCalcLOD < entNearestToImproveLOD->playerDistLastCalcLOD) {
-					entNearestToImproveLOD = entity;
-					LogDebug("entNearestToImproveLOD=" << entNearestToImproveLOD->idString());
+			bool bEntityCanBecomeNearest = LODctrl.maxLOD < entity->currentLOD && entity->currentLOD > LODctrl.lodToImproveAtNearestTarget && entity != LODctrl.entNearestToImproveLOD;
+			if(LODctrl.entNearestToImproveLOD) {
+				if(bEntityCanBecomeNearest && entity->playerDistLastCalcLOD < LODctrl.entNearestToImproveLOD->playerDistLastCalcLOD) {
+					LODctrl.entNearestToImproveLOD = entity;
+					LogDebug("LODctrl.entNearestToImproveLOD=" << LODctrl.entNearestToImproveLOD->idString());
 				}
 			} else {
 				if(bEntityCanBecomeNearest) {
-					entNearestToImproveLOD = entity;
-					LogDebug("entNearestToImproveLOD=" << entNearestToImproveLOD->idString());
+					LODctrl.entNearestToImproveLOD = entity;
+					LogDebug("LODctrl.entNearestToImproveLOD=" << LODctrl.entNearestToImproveLOD->idString());
 				}
 			}
 			
@@ -1768,20 +1791,20 @@ void ArxGame::LODworkAtEntityLoop(Entity & entity) {
 			if(evThrowLOD.chkMod()) evThrowLOD.evarCustom = strToLOD(evThrowLOD.evar);
 			
 			entity.setLOD(evThrowLOD.evarCustom); // important to prevent slow down in case of throwing a stack of items
-		} else if(&entity == FlyingOverIO && FPSforLOD >= 15) { // best quality if it has focus TODOA use LODControl.lodFPSLow instead of 15
+		} else if(&entity == FlyingOverIO && LODctrl.FPSforLOD >= 15) { // best quality if it has focus TODOA use LODControl.lodFPSLow instead of 15
 			entity.setLOD(LOD_PERFECT);
-			if(&entity == entNearestToImproveLOD) {
-				entNearestToImproveLOD = nullptr;
+			if(&entity == LODctrl.entNearestToImproveLOD) {
+				LODctrl.entNearestToImproveLOD = nullptr;
 			}
 			entityWasFlyingOverIO = &entity;
 		} else {
 			if(entityWasFlyingOverIO == &entity) {
 				static float fLODpreventDegradeDelay = [](){return platform::getEnvironmentVariableValueFloat(fLODpreventDegradeDelay, "ARX_LODPreventDegradeDelayAfterFocus", Logger::LogLevel::Info, "", 2.f, 0.33f).getFloat();}(); // this helps on prevent flickering after aiming an item that only have LOD_PERFECT and LOD_ICON
-				entity.LODpreventDegradeDelayUntil = frameTimeNow + PlatformDuration(1s * fLODpreventDegradeDelay);
+				entity.LODpreventDegradeDelayUntil = LODctrl.frameTimeNow + PlatformDuration(1s * fLODpreventDegradeDelay);
 				entityWasFlyingOverIO = nullptr;
 			}
 			
-			if(lodCalcNow && frameTimeNow >= entity.LODpreventDegradeDelayUntil) {
+			if(LODctrl.lodCalcNow && LODctrl.frameTimeNow >= entity.LODpreventDegradeDelayUntil) {
 				LODforEntity(entity);
 			}
 		}
@@ -1799,10 +1822,10 @@ void ArxGame::LODforEntity(Entity & entity) {
 	
 	if(!(entity.ioflags & IO_ITEM)) return;
 	if(&entity == FlyingOverIO) return;
-	if(lodLagSpikeCount) {
+	if(LODctrl.lodLagSpikeCount) {
 		static int lodLagSpikeLimit = [](){return platform::getEnvironmentVariableValueInteger(lodLagSpikeLimit, "ARX_LODLagSpikeLimit", Logger::LogLevel::Info, "", 10, 1).getInteger();}(); // export ARX_LODLagSpikeLimit=10 # after this count of subsequent lag spikes, all LOD will be degraded to worst allowed
-		if(lodLagSpikeCount >= lodLagSpikeLimit) {
-			lodLagSpikeCount = 0;
+		if(LODctrl.lodLagSpikeCount >= lodLagSpikeLimit) {
+			LODctrl.lodLagSpikeCount = 0;
 		} else {
 			return;
 		}
@@ -1825,14 +1848,14 @@ void ArxGame::LODforEntity(Entity & entity) {
 		distLodHigh = 400;		distLodMed = 800;		distLodLow = 1200;		distLodBad = 1600;		distLodFlat = 2000;
 	}
 	
-	//if(lodTimeCheckNow >= entity.lodCooldownUntil || maxLOD > entity.currentLOD || entity.playerDistLastCalcLOD > minDistToRecalcLOD) { 
-	//if(maxLOD > entity.currentLOD) {
+	//if(lodTimeCheckNow >= entity.lodCooldownUntil || LODctrl.maxLOD > entity.currentLOD || entity.playerDistLastCalcLOD > minDistToRecalcLOD) { 
+	//if(LODctrl.maxLOD > entity.currentLOD) {
 		LODplayerDist(entity);
 		
 		entity.previousLOD = entity.currentLOD;
 		
 		// by distance
-		LODFlag maxLODentity = maxLOD;
+		//LODFlag maxLODentity = LODctrl.maxLOD;
 		LODFlag requestLOD;
 		/*
 		if(entity.playerDistLastCalcLOD <= distLodHigh && LOD_HIGH   >= maxLODentity) {
@@ -1853,19 +1876,19 @@ void ArxGame::LODforEntity(Entity & entity) {
 			requestLOD = LOD_ICON  ;
 		}
 		/*/
-		if(entity.playerDistLastCalcLOD <= distLodHigh*fLODscaleDistance) {
+		if(entity.playerDistLastCalcLOD <= distLodHigh*LODctrl.fLODscaleDistance) {
 			requestLOD = LOD_HIGH  ;
 		} else
-		if(entity.playerDistLastCalcLOD <= distLodMed*fLODscaleDistance) {
+		if(entity.playerDistLastCalcLOD <= distLodMed*LODctrl.fLODscaleDistance) {
 			requestLOD = LOD_MEDIUM;
 		} else
-		if(entity.playerDistLastCalcLOD <= distLodLow*fLODscaleDistance) {
+		if(entity.playerDistLastCalcLOD <= distLodLow*LODctrl.fLODscaleDistance) {
 			requestLOD = LOD_LOW   ;
 		} else
-		if(entity.playerDistLastCalcLOD <= distLodBad*fLODscaleDistance) {
+		if(entity.playerDistLastCalcLOD <= distLodBad*LODctrl.fLODscaleDistance) {
 			requestLOD = LOD_BAD   ;
 		} else
-		if(entity.playerDistLastCalcLOD <= distLodFlat*fLODscaleDistance) {
+		if(entity.playerDistLastCalcLOD <= distLodFlat*LODctrl.fLODscaleDistance) {
 			requestLOD = LOD_FLAT  ;
 		} else {
 			requestLOD = LOD_ICON  ;
@@ -1875,22 +1898,31 @@ void ArxGame::LODforEntity(Entity & entity) {
 		if(requestLOD != entity.previousLOD) {
 			if(requestLOD > entity.currentLOD) { // can always lower LOD quality
 				entity.setLOD(requestLOD);
-				entity.lodImproveWaitUntil = lodTimeBeforeLoop; // grant no wait after lowering quality
-			} else if(requestLOD < entity.currentLOD) { // try to smoothly improve LOD quality
+				entity.lodImproveWaitUntil = LODctrl.lodTimeBeforeLoop; // grant no wait after lowering quality
+			} else if(requestLOD < entity.currentLOD && LODctrl.LODimprovedForEntityAtThisFrame == nullptr) { // try to smoothly improve LOD quality
 				bool bUseNearestEntity = true; //TODOA env var (btw fix env var default value set for bool not working...)
-				bool bCalcUpLodNow = playerMoveDistAllowLODimproveNow;
+				bool allowLodUpNow = true;
+				if(!LODctrl.playerMoveDistAllowLODimproveNow) {
+					allowLodUpNow = false;
+				}
 				if(bUseNearestEntity) {
 					LODupdateNearestEntityToImprove(&entity);
-					bCalcUpLodNow = &entity == entNearestToImproveLOD;
+					if(&entity != LODctrl.entNearestToImproveLOD) {
+						allowLodUpNow = false;
+					}
 				}
-				if(bCalcUpLodNow) {
+				if(allowLodUpNow) {
 					LODFlag applyLOD = entity.currentLOD;
 					applyLOD = static_cast<LODFlag>(applyLOD >> 1); // improves just one LOD level per time to smoothly lower the FPS. setLOD() already seeks for next available if requested fails
-					entity.setLOD(applyLOD);
-					if(entity.currentLOD <= requestLOD) {
-						static int delayIgnoreLODimproveRequest = [](){return platform::getEnvironmentVariableValueInteger(delayIgnoreLODimproveRequest, "ARX_LODIgnoreImproveRequestDelay", Logger::LogLevel::Info, "", 1, 0).getInteger();}(); // TODO allow float thru PlatformDuration(1s * float) and remove all time_t
-						if(entNearestToImproveLOD) entNearestToImproveLOD->lodImproveWaitUntil = lodTimeBeforeLoop + delayIgnoreLODimproveRequest;
-						entNearestToImproveLOD = nullptr;
+					if(LODctrl.FPSforLOD > (LODctrl.lodMinFPS + entity.objLOD[applyLOD]->lod.LODfpsCost)) {
+						entity.setLOD(applyLOD);
+						LODctrl.LODimprovedForEntityAtThisFrame = &entity;
+						entity.obj->lod.calcFpsCost(LODctrl.FPSforLOD,true);
+						if(entity.currentLOD <= requestLOD) {
+							static int delayIgnoreLODimproveRequest = [](){return platform::getEnvironmentVariableValueInteger(delayIgnoreLODimproveRequest, "ARX_LODIgnoreImproveRequestDelay", Logger::LogLevel::Info, "", 1, 0).getInteger();}(); // TODO allow float thru PlatformDuration(1s * float) and remove all time_t
+							if(LODctrl.entNearestToImproveLOD) LODctrl.entNearestToImproveLOD->lodImproveWaitUntil = LODctrl.lodTimeBeforeLoop + delayIgnoreLODimproveRequest;
+							LODctrl.entNearestToImproveLOD = nullptr;
+						}
 					}
 				}
 			}
@@ -1917,7 +1949,7 @@ void ArxGame::LODforEntity(Entity & entity) {
 		//entity.lodLastCalcTime = lodTimeCheckNow;
 	//}
 	
-	////if(!entNearestToImproveLOD) {
+	////if(!LODctrl.entNearestToImproveLOD) {
 		//LODupdateNearestEntityToImprove(&entity);
 	////}
 	

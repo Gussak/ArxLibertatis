@@ -598,7 +598,7 @@ EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * na
 	return varRegex;
 }
 
-EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode, const char * strMsg, bool defaultValue) {
+EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode, const char * strMsg, bool defaultValue) { //TODOA fix defaultValue true not being set
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string ev = pc ? pc : "";
 	return getEnvVar(name)->initVar(nullptr, nullptr, nullptr, &varBool, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, defaultValue ? "true" : "false", strMsg);
@@ -619,7 +619,7 @@ EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, con
 }
 
 EnvVar & EnvVar::initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex) {
-	arx_assert_msg(!(varString || varInt || varFloat || varRegex), "already initialized: id=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr);
+	arx_assert_msg(!(varString || varInt || varFloat || varRegex), "already initialized: id=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr); // this will happen on env var name clash
 	if(_varString) {
 		varString = _varString;
 	} else
@@ -700,7 +700,7 @@ EnvVar & EnvVar::setVal(bool val, bool allowLog) {
 	return *this;
 }
 EnvVar & EnvVar::setValAuto(std::string val, bool allowLog, std::string strMsg, std::string valDefault, std::string strMin, std::string strMax) {
-	if(!val.size()) {
+	if(val.size() == 0) {
 		val = valDefault;
 	}
 	

@@ -270,7 +270,7 @@ Entity::~Entity() {
 
 void Entity::setObjMain(EERIE_3DOBJ * o) {
 	objMain = o;
-	objCurrentLOD = objMain;
+	obj = objMain;
 }
 
 res::path Entity::instancePath() const {

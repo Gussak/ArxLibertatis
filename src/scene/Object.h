@@ -72,7 +72,7 @@ void EERIE_3DOBJ_RestoreTextures(EERIE_3DOBJ * eobj);
 void EERIE_OBJECT_CenterObjectCoordinates(EERIE_3DOBJ * ret);
 void EERIE_CreateCedricData(EERIE_3DOBJ * eobj);
 
-enum LODFlag {
+enum LODFlag { //TODOA invert values order to not be confuse comparing ex.: LOD_HIGH > LOD_BAD. Must refactor all comparisons. A simple way would be to make LODFlag vars private and: bool cmp(lodA,">=",lodB); and after that use sed to replace it with lodA >= lodB. Remembe also >> and << !
 	LOD_NONE    = 0, // just means it was not initialized yet and shall not be used
 	LOD_PERFECT = 1 << 0, // perfect/original, last 3D model aimed at and nearby
 	LOD_HIGH    = 1 << 1, // perceptually High, little loss, still nearby camera

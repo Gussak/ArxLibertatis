@@ -56,6 +56,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "graphics/Color.h"
 #include "graphics/Vertex.h"
 
+#include "io/log/Logger.h"
 #include "io/resource/ResourcePath.h"
 
 #include "math/Vector.h"
@@ -183,8 +184,34 @@ struct EERIE_FASTACCESS {
 	
 };
 
+class LOD_3DOBJ { // to make it easier to split game logic from rendering
+private:
+	//EERIE_3DOBJ * owner
+	float LODfpsBeforeTest;
+	float LODfpsAfterTest;
+public:
+	//LOD_3DOBJ(EERIE_3DOBJ * _owner) : owner(_owner) {}
+	LOD_3DOBJ() {
+		LODfpsAfterTest = 0.f;
+		LODfpsBeforeTest = 0.f;
+		LODfpsCost = -999999999.f;
+	}
+
+	float LODfpsCost;
+	void calcFpsCost(float fps, bool before) {
+		if(before) {
+			LODfpsBeforeTest = fps;
+		} else {
+			LODfpsAfterTest = fps;
+			LODfpsCost = LODfpsBeforeTest - LODfpsAfterTest;
+			LogDebug("LODfpsCost=" << LODfpsCost); // << ", file=" << owner->fileUniqueRelativePathName);
+		}
+	}
+};
+
 struct EERIE_3DOBJ {
 	
+	LOD_3DOBJ lod;
 	res::path file;
 	res::path fileUniqueRelativePathName;
 	VertexId origin = VertexId(0);
