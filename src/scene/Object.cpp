@@ -378,7 +378,7 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 	return lt;
 }
 res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // tries to guess where is the valid model filename
-	//PakFile * pf = g_resources->getFile(io.usemesh);
+	//PakFile * pf = g_resources->getFile(io.usemesh); // TODO use this instead?
 	//if(pf) return io.usemesh;
 	//if(io.obj) {
 		//pf = g_resources->getFile(io.obj->fileUniqueRelativePathName);
@@ -612,6 +612,8 @@ std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
 	if(object && pbox) {
 		EERIE_PHYSICS_BOX_Create(object.get());
 	}
+	
+	LogDebugIf(object, "faces=" << object->facelist.size() << ", pbox.radius=" << (pbox ? object->pbox->radius : 0.f) << ", file=" << object->fileUniqueRelativePathName );
 	
 	return object;
 }
