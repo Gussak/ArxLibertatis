@@ -1621,7 +1621,16 @@ static PlatformInstant frameTimeNow;
 static PlatformInstant previousFrameTime;
 static int lodLagSpikeCount = 0;
 static float FPSforLOD = 0.f;
+static float fLODscaleDistance = 1.f;
+static Vec3f playerPosRecalcUpLODlast = Vec3f();
+static bool playerMoveDistAllowLODimproveNow = false;
 void ArxGame::LODbeforeEntitiesLoop() {
+	static float playerPosRecalcUpLODminDist = [](){return platform::getEnvironmentVariableValueFloat(playerPosRecalcUpLODminDist, "ARX_LODPlayerMoveDistToRecalcLOD", Logger::LogLevel::Info, "", 100.f, 10.f).getFloat();}(); // how far shall player move
+	if(fdist(player.pos, playerPosRecalcUpLODlast) > playerPosRecalcUpLODminDist) {
+		playerMoveDistAllowLODimproveNow = true;
+		playerPosRecalcUpLODlast = player.pos;
+	}
+	
 	// cfg LOD
 	static int lodMinFPS = [](){return platform::getEnvironmentVariableValueInteger(lodMinFPS, "ARX_LODMinimumFPS", Logger::LogLevel::Info, "", 10, 1).getInteger();}(); // this is the minimum FPS you think is acceptable to play the game at any time. Pay attention to the multiplier, so in combat mode the default is 20, what is not that bad
 	static int lodStepFPS = [](){return platform::getEnvironmentVariableValueInteger(lodStepFPS, "ARX_LODStepFPS", Logger::LogLevel::Info, "", 4, 1).getInteger();}(); // this range difference in FPS to determine the proper LOD
@@ -1648,19 +1657,20 @@ void ArxGame::LODbeforeEntitiesLoop() {
 	//static time_t lodCalcAt;
 	//time_t lodTimeNow = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
 	float fFPSmodLOD = (player.Interface & INTER_COMBATMODE) ? 2.f : 1.f;
-	if(FPSforLOD < lodFPSIco*fFPSmodLOD) maxLOD = LOD_ICON;
+	static float fTotalLODs = 7;
+	if(FPSforLOD < lodFPSIco*fFPSmodLOD) { maxLOD = LOD_ICON; fLODscaleDistance = 1/(fTotalLODs - 0.f); }
 	else
-	if(FPSforLOD < lodFPSFla*fFPSmodLOD) maxLOD = LOD_FLAT;
+	if(FPSforLOD < lodFPSFla*fFPSmodLOD) { maxLOD = LOD_FLAT; fLODscaleDistance = 1/(fTotalLODs - 1.f); }
 	else
-	if(FPSforLOD < lodFPSBad*fFPSmodLOD) maxLOD = LOD_BAD;
+	if(FPSforLOD < lodFPSBad*fFPSmodLOD) { maxLOD = LOD_BAD; fLODscaleDistance = 1/(fTotalLODs - 2.f); }
 	else
-	if(FPSforLOD < lodFPSLow*fFPSmodLOD) maxLOD = LOD_LOW;
+	if(FPSforLOD < lodFPSLow*fFPSmodLOD) { maxLOD = LOD_LOW; fLODscaleDistance = 1/(fTotalLODs - 3.f); }
 	else
-	if(FPSforLOD < lodFPSMed*fFPSmodLOD) maxLOD = LOD_MEDIUM;
+	if(FPSforLOD < lodFPSMed*fFPSmodLOD) { maxLOD = LOD_MEDIUM; fLODscaleDistance = 1/(fTotalLODs - 4.f); }
 	else
-	if(FPSforLOD < lodFPSHig*fFPSmodLOD) maxLOD = LOD_HIGH;
+	if(FPSforLOD < lodFPSHig*fFPSmodLOD) { maxLOD = LOD_HIGH; fLODscaleDistance = 1/(fTotalLODs - 5.f); }
 	else {
-		maxLOD = LOD_PERFECT;
+		maxLOD = LOD_PERFECT; fLODscaleDistance = 1/(fTotalLODs - 6.f);
 	}
 	
 	LogDebugIf(lodLagSpikeCount || maxLOD == LOD_ICON, "LagSpike(" << lodLagSpikeCount << "): " << ", maxLOD=" << LODtoStr(maxLOD) << ", fFrameInstantFPS=" << fFrameInstantFPS << ", 1sFPS=" << g_fpsCounter.FPS << ", fFrameDelay=" << fFrameDelay << ", lodDelayCalc2=?" ); // TODO how to log this??? << lodDelayCalc2 );
@@ -1673,6 +1683,10 @@ void ArxGame::LODbeforeEntitiesLoop() {
 	}
 	
 	LODupdateNearestEntityToImprove();
+}
+
+void ArxGame::LODafterEntitiesLoop() {
+	playerMoveDistAllowLODimproveNow = false;
 }
 
 static bool nearestEntityIsValid;
@@ -1744,7 +1758,7 @@ void ArxGame::LODplayerDist(Entity & entity) {
 	//LODupdateNearestEntityToImprove(&entity);
 }
 
-void ArxGame::LODwork(Entity & entity) {
+void ArxGame::LODworkAtEntityLoop(Entity & entity) {
 	if(player.Interface & INTER_COMBATMODE) { // always best performance if in combat mode
 		LODforEntity(entity);
 	} else {
@@ -1754,7 +1768,7 @@ void ArxGame::LODwork(Entity & entity) {
 			if(evThrowLOD.chkMod()) evThrowLOD.evarCustom = strToLOD(evThrowLOD.evar);
 			
 			entity.setLOD(evThrowLOD.evarCustom); // important to prevent slow down in case of throwing a stack of items
-		} else if(&entity == FlyingOverIO && FPSforLOD >= 15) { // best quality if it has focus todoa use LODControl.lodFPSLow instead of 15
+		} else if(&entity == FlyingOverIO && FPSforLOD >= 15) { // best quality if it has focus TODOA use LODControl.lodFPSLow instead of 15
 			entity.setLOD(LOD_PERFECT);
 			if(&entity == entNearestToImproveLOD) {
 				entNearestToImproveLOD = nullptr;
@@ -1794,8 +1808,6 @@ void ArxGame::LODforEntity(Entity & entity) {
 		}
 	}
 	
-	//static float minDistToRecalcLOD = [](){return platform::getEnvironmentVariableValueFloat(minDistToRecalcLOD, "ARX_LODMinDistToRecalcLOD", 'i', "", 100.f, 0.1f).getFloat();}(); // how far shall player move
-	
 	//time_t lodTimeCheckNow = time(0); // TODO how to make this work instead? PlatformInstant now = platform::getTime(); see CalcFPS() code, use toS() ?
 	//int lodOnePerFPSUpdate = 2;
 	
@@ -1803,18 +1815,14 @@ void ArxGame::LODforEntity(Entity & entity) {
 		//LODplayerDist(entity);
 	//}
 	
-	static int distLodHigh = [](){return platform::getEnvironmentVariableValueInteger(distLodHigh, "ARX_LODHighDist", Logger::LogLevel::Info, "", 200, 1).getInteger();}();
-	static int distLodMed = [](){return platform::getEnvironmentVariableValueInteger(distLodMed, "ARX_LODMediumDist", Logger::LogLevel::Info, "", 400, 2).getInteger();}();
-	static int distLodLow = [](){return platform::getEnvironmentVariableValueInteger(distLodLow, "ARX_LODLowDist", Logger::LogLevel::Info, "", 600, 3).getInteger();}();
-	static int distLodBad = [](){return platform::getEnvironmentVariableValueInteger(distLodBad, "ARX_LODBadDist", Logger::LogLevel::Info, "", 800, 4).getInteger();}();
-	static int distLodFlat = [](){return platform::getEnvironmentVariableValueInteger(distLodFlat, "ARX_LODFlatDist", Logger::LogLevel::Info, "", 1000, 5).getInteger();}();
+	static int distLodHigh = [](){return platform::getEnvironmentVariableValueInteger(distLodHigh, "ARX_LODHighDist", Logger::LogLevel::Info, "", 400, 1).getInteger();}();
+	static int distLodMed = [](){return platform::getEnvironmentVariableValueInteger(distLodMed, "ARX_LODMediumDist", Logger::LogLevel::Info, "", 800, 2).getInteger();}();
+	static int distLodLow = [](){return platform::getEnvironmentVariableValueInteger(distLodLow, "ARX_LODLowDist", Logger::LogLevel::Info, "", 1200, 3).getInteger();}();
+	static int distLodBad = [](){return platform::getEnvironmentVariableValueInteger(distLodBad, "ARX_LODBadDist", Logger::LogLevel::Info, "", 1600, 4).getInteger();}();
+	static int distLodFlat = [](){return platform::getEnvironmentVariableValueInteger(distLodFlat, "ARX_LODFlatDist", Logger::LogLevel::Info, "", 2000, 5).getInteger();}();
 	if(!(distLodHigh <= distLodMed && distLodMed <= distLodLow && distLodLow <= distLodBad && distLodBad <= distLodFlat)) { // to cope with SetEnv cmd
 		LogError << "invalid LOD distances calibration, should be LodHigh(" << distLodHigh << ") <= LodMed(" << distLodMed << ") <= LodLow(" << distLodLow << ") <= LodBad(" << distLodBad << ") <= LodFlat(" << distLodFlat << "), restoring defaults";
-		distLodHigh = 200;
-		distLodMed = 400;
-		distLodLow = 600;
-		distLodBad = 800;
-		distLodFlat = 1000;
+		distLodHigh = 400;		distLodMed = 800;		distLodLow = 1200;		distLodBad = 1600;		distLodFlat = 2000;
 	}
 	
 	//if(lodTimeCheckNow >= entity.lodCooldownUntil || maxLOD > entity.currentLOD || entity.playerDistLastCalcLOD > minDistToRecalcLOD) { 
@@ -1826,6 +1834,7 @@ void ArxGame::LODforEntity(Entity & entity) {
 		// by distance
 		LODFlag maxLODentity = maxLOD;
 		LODFlag requestLOD;
+		/*
 		if(entity.playerDistLastCalcLOD <= distLodHigh && LOD_HIGH   >= maxLODentity) {
 			requestLOD = LOD_HIGH  ;
 		} else
@@ -1843,20 +1852,44 @@ void ArxGame::LODforEntity(Entity & entity) {
 		} else {
 			requestLOD = LOD_ICON  ;
 		}
+		/*/
+		if(entity.playerDistLastCalcLOD <= distLodHigh*fLODscaleDistance) {
+			requestLOD = LOD_HIGH  ;
+		} else
+		if(entity.playerDistLastCalcLOD <= distLodMed*fLODscaleDistance) {
+			requestLOD = LOD_MEDIUM;
+		} else
+		if(entity.playerDistLastCalcLOD <= distLodLow*fLODscaleDistance) {
+			requestLOD = LOD_LOW   ;
+		} else
+		if(entity.playerDistLastCalcLOD <= distLodBad*fLODscaleDistance) {
+			requestLOD = LOD_BAD   ;
+		} else
+		if(entity.playerDistLastCalcLOD <= distLodFlat*fLODscaleDistance) {
+			requestLOD = LOD_FLAT  ;
+		} else {
+			requestLOD = LOD_ICON  ;
+		}
+		//*/
 		
 		if(requestLOD != entity.previousLOD) {
 			if(requestLOD > entity.currentLOD) { // can always lower LOD quality
 				entity.setLOD(requestLOD);
 				entity.lodImproveWaitUntil = lodTimeBeforeLoop; // grant no wait after lowering quality
 			} else if(requestLOD < entity.currentLOD) { // try to smoothly improve LOD quality
-				LODupdateNearestEntityToImprove(&entity);
-				if(&entity == entNearestToImproveLOD) {
+				bool bUseNearestEntity = true; //TODOA env var (btw fix env var default value set for bool not working...)
+				bool bCalcUpLodNow = playerMoveDistAllowLODimproveNow;
+				if(bUseNearestEntity) {
+					LODupdateNearestEntityToImprove(&entity);
+					bCalcUpLodNow = &entity == entNearestToImproveLOD;
+				}
+				if(bCalcUpLodNow) {
 					LODFlag applyLOD = entity.currentLOD;
 					applyLOD = static_cast<LODFlag>(applyLOD >> 1); // improves just one LOD level per time to smoothly lower the FPS. setLOD() already seeks for next available if requested fails
 					entity.setLOD(applyLOD);
 					if(entity.currentLOD <= requestLOD) {
 						static int delayIgnoreLODimproveRequest = [](){return platform::getEnvironmentVariableValueInteger(delayIgnoreLODimproveRequest, "ARX_LODIgnoreImproveRequestDelay", Logger::LogLevel::Info, "", 1, 0).getInteger();}(); // TODO allow float thru PlatformDuration(1s * float) and remove all time_t
-						entNearestToImproveLOD->lodImproveWaitUntil = lodTimeBeforeLoop + delayIgnoreLODimproveRequest;
+						if(entNearestToImproveLOD) entNearestToImproveLOD->lodImproveWaitUntil = lodTimeBeforeLoop + delayIgnoreLODimproveRequest;
 						entNearestToImproveLOD = nullptr;
 					}
 				}
@@ -1937,7 +1970,7 @@ void ArxGame::updateLevel() {
 				entity.highlightColor = Color3f::black;
 			}
 			
-			LODwork(entity);
+			LODworkAtEntityLoop(entity);
 			
 			Cedric_ApplyLightingFirstPartRefactor(entity);
 			
@@ -1957,6 +1990,7 @@ void ArxGame::updateLevel() {
 			entity.speed_modif = speedModifier;
 			
 		}
+		LODafterEntitiesLoop();
 		
 	}
 	

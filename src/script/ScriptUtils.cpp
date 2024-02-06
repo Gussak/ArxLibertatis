@@ -364,7 +364,7 @@ void Context::seekToPosition(size_t pos) {
 }
 
 /**
- * //TODO sketch studing script pre-compilation
+ * // TODOA sketch studing script pre-compilation
  * it is like a pre-compiled script
  * TODO clean all comments
  * TODO convert all \n to ' '
