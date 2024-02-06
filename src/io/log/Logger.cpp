@@ -165,10 +165,10 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 		static platform::EnvRegex erFunc = [](){return platform::getEnvironmentVariableValueRegex(erFunc, "ARX_DebugFunc", Logger::LogLevel::None, "", ".*");}();
 		static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", Logger::LogLevel::None, "", ".*");}();
 		if(level == Logger::Debug) {
-			// multi regex ex.: ":someFileRegex:someFuncRegex:someLineRegex"
-			static platform::EnvVarMulti<int> evmFileFuncLineSplitRegexStr = [](){evmFileFuncLineSplitRegexStr.setId("ARX_Debug"); return platform::getEnvironmentVariableValueString(evmFileFuncLineSplitRegexStr.str, evmFileFuncLineSplitRegexStr.id().c_str(), Logger::LogLevel::None).getString();}();
-			if(evmFileFuncLineSplitRegexStr.chkMod()) {
-				std::string strMultiRegex = evmFileFuncLineSplitRegexStr.str;
+			// multi regex ex.: ":someFileRegex:someFuncRegex:someLineRegex:someMessageRegex"
+			static platform::EnvVarHandler<std::string> evFileFuncLineSplitRegexStr = [](){evFileFuncLineSplitRegexStr.setId("ARX_Debug"); return platform::getEnvironmentVariableValueString(evFileFuncLineSplitRegexStr.evar, evFileFuncLineSplitRegexStr.id().c_str(), Logger::LogLevel::None).getString();}();
+			if(evFileFuncLineSplitRegexStr.chkMod()) {
+				std::string strMultiRegex = evFileFuncLineSplitRegexStr.evar;
 				if(strMultiRegex.size() > 1) {
 					std::string strToken = strMultiRegex.substr(0, 1); // user requested delimiter
 					std::string strMultiRegexTmp = strMultiRegex.substr(1);
@@ -180,7 +180,7 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 					if(vRegex.size() > 1) erFunc.setRegex(vRegex[1], false);
 					if(vRegex.size() > 2) erLine.setRegex(vRegex[2], false);
 				} else {
-					LogError << "invalid split regex \"" << evmFileFuncLineSplitRegexStr.str << "\" for " << evmFileFuncLineSplitRegexStr.id();
+					LogError << "invalid split regex \"" << evFileFuncLineSplitRegexStr.evar << "\" for " << evFileFuncLineSplitRegexStr.id();
 				}
 			}
 			

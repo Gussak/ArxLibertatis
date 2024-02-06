@@ -154,53 +154,26 @@ public:
 	std::string getRegex() { return str; }
 };
 
-template <typename T>
-class EnvVarMulti { // useful to take action only when the envvar is modified dinamically
+template <typename TB, typename TC = bool>
+class EnvVarHandler { // useful to take action only when the envvar is modified dinamically
 private:
 	std::string strId;
-	
-	enum EnvVarType {
-		EV_NONE,
-		EV_STR,
-		EV_INT,
-		EV_BOOL,
-		EV_FLOAT,
-	};
-	EnvVarType evt;
-	
-	std::string strOld;
-	s32 iOld;
-	f32 fOld;
-	bool bOld;
-	
+	TB evarOld;
 public:
-	void init() { evt=(EV_NONE), iOld=(0), fOld=(0.f), bOld=(false); i=(0), f=(0.f), b=(false); }
+	TB evar;
+	TC evarCustom; // this is an extra help, as a string or other TB may be converted into something TC special
 	
-	std::string str;
-	s32 i;
-	f32 f;
-	bool b;
+	void init() { evar = TB(); }
 	
 	bool chkMod() {
-		switch(evt) {
-			case EV_STR  : if(str != strOld) { strOld = str; return true; }; break;
-			case EV_INT  : if(  i !=   iOld) {   iOld =   i; return true; }; break;
-			case EV_FLOAT: if(  f !=   fOld) {   fOld =   f; return true; }; break;
-			case EV_BOOL : if(  b !=   bOld) {   bOld =   b; return true; }; break;
-			default: arx_assert_msg(false, "%s was not set to a type yet", strId.c_str()); break;
-		}
+		if(evar != evarOld) { evarOld = evar; return true; };
 		return false;
 	}
 	
-	EnvVarMulti(std::string _str) { init(); str = _str; arx_assert(evt == EV_NONE); evt = EV_STR  ; }
-	EnvVarMulti(int         _i  ) { init();   i = _i  ; arx_assert(evt == EV_NONE); evt = EV_INT  ; }
-	EnvVarMulti(float       _f  ) { init();   f = _f  ; arx_assert(evt == EV_NONE); evt = EV_FLOAT; }
-	EnvVarMulti(bool        _b  ) { init();   b = _b  ; arx_assert(evt == EV_NONE); evt = EV_BOOL ; }
+	EnvVarHandler(TB _evar) { init(); evar = _evar; }
 	
 	std::string id() { return strId; }
-	EnvVarMulti & setId(std::string _id) { arx_assert(strId == "" && _id != ""); strId = _id; return *this; }
-
-	T custom; // this is an extra help, as a string may be converted into something special
+	EnvVarHandler & setId(std::string _id) { arx_assert(strId == "" && _id != ""); strId = _id; return *this; }
 };
 
 class EnvVar {

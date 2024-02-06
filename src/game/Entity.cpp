@@ -449,29 +449,19 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	
 	LODFlag lodChk = lodRequest;
 	
-	static std::string strLODMax = [](){return platform::getEnvironmentVariableValueString(strLODMax, "ARX_LODMax", Logger::LogLevel::Info, "", "PERFECT").getString();}(); // export ARX_LODMax="PERFECT"
-	static std::string strLODMaxPrevious;
-	static LODFlag ltMax;
-	if(strLODMax != strLODMaxPrevious) { // to cope with SetEnv script/console cmd
-		ltMax = strToLOD(strLODMax);
-		strLODMaxPrevious = strLODMax;
-	}
+	static platform::EnvVarHandler<std::string,LODFlag> evLODMax = [](){evLODMax.setId("ARX_LODMax"); return platform::getEnvironmentVariableValueString(evLODMax.evar, evLODMax.id().c_str(), Logger::LogLevel::Info, "", "PERFECT").getString();}();
+	if(evLODMax.chkMod()) evLODMax.evarCustom = strToLOD(evLODMax.evar);
 	
-	static std::string strLODMin = [](){return platform::getEnvironmentVariableValueString(strLODMin, "ARX_LODMin", Logger::LogLevel::Info, "", "ICON").getString();}();
-	static std::string strLODMinPrevious;
-	static LODFlag ltMin;
-	if(strLODMin != strLODMinPrevious) { // to cope with SetEnv script/console cmd
-		ltMin = strToLOD(strLODMin);
-		strLODMinPrevious = strLODMin;
-	}
+	static platform::EnvVarHandler<std::string,LODFlag> evLODMin = [](){evLODMin.setId("ARX_LODMin"); return platform::getEnvironmentVariableValueString(evLODMin.evar, evLODMin.id().c_str(), Logger::LogLevel::Info, "", "ICON").getString();}();
+	if(evLODMin.chkMod()) evLODMin.evarCustom = strToLOD(evLODMin.evar);
 	
-	if(ltMin < ltMax) {
-		ltMin = ltMax;
-		LogWarning << "fixed LOD min to '" << LODtoStr(ltMin) << "'";
+	if(evLODMin.evarCustom < evLODMax.evarCustom) {
+		evLODMin.evar = LODtoStr(evLODMin.evarCustom = evLODMax.evarCustom);
+		LogWarning << "fixed LOD min to '" << LODtoStr(evLODMin.evarCustom) << "'";
 	}
-	if(ltMax > ltMin) {
-		ltMax = ltMin;
-		LogWarning << "fixed LOD max to '" << LODtoStr(ltMax) << "'";
+	if(evLODMax.evarCustom > evLODMin.evarCustom) {
+		evLODMax.evar = LODtoStr(evLODMax.evarCustom = evLODMin.evarCustom);
+		LogWarning << "fixed LOD max to '" << evLODMax.evar << "'";
 	}
 	
 	if(!obj) {
@@ -485,8 +475,8 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	}
 	
 	// because max quality is lowest flag value
-	if(lodChk < ltMax) lodChk = ltMax;
-	if(lodChk > ltMin) lodChk = ltMin;
+	if(lodChk < evLODMax.evarCustom) lodChk = evLODMax.evarCustom;
+	if(lodChk > evLODMin.evarCustom) lodChk = evLODMin.evarCustom;
 	
 	// seek available LOD if requested not found
 	if(!(availableLODFlags & lodChk)) {

@@ -1751,21 +1751,10 @@ void ArxGame::LODwork(Entity & entity) {
 	} else {
 		static Entity * entityWasFlyingOverIO = nullptr;
 		if(&entity == g_draggedEntity && entity._itemdata->count > 1 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())) {
-			static platform::EnvVarMulti<LODFlag> evmThrowLOD = [](){
-				evmThrowLOD.setId("ARX_LODThrownItems"); 
-				evmThrowLOD.custom = LOD_LOW; 
-				std::string strLOD = LODtoStr(evmThrowLOD.custom);
-				return platform::getEnvironmentVariableValueString(
-					evmThrowLOD.str, 
-					evmThrowLOD.id().c_str(), 
-					Logger::LogLevel::None,
-					"",
-					strLOD
-				).getString();
-			}();
-			if(evmThrowLOD.chkMod()) evmThrowLOD.custom = strToLOD(evmThrowLOD.str);
+			static platform::EnvVarHandler<std::string,LODFlag> evThrowLOD = [](){ evThrowLOD.setId("ARX_LODThrownItems").evarCustom = LOD_LOW; return platform::getEnvironmentVariableValueString(evThrowLOD.evar, evThrowLOD.id().c_str(), Logger::LogLevel::None, "", LODtoStr(evThrowLOD.evarCustom) ).getString(); }();
+			if(evThrowLOD.chkMod()) evThrowLOD.evarCustom = strToLOD(evThrowLOD.evar);
 			
-			entity.setLOD(evmThrowLOD.custom); // important to prevent slow down in case of throwing a stack of items
+			entity.setLOD(evThrowLOD.evarCustom); // important to prevent slow down in case of throwing a stack of items
 		} else if(&entity == FlyingOverIO && FPSforLOD >= 15) { // best quality if it has focus todoa use LODControl.lodFPSLow instead of 15
 			entity.setLOD(LOD_PERFECT);
 			if(&entity == entNearestToImproveLOD) {

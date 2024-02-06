@@ -160,15 +160,13 @@ public:
 		DebugScript(' ' << label);
 		
 		if(warnUglyCoding && context.isCheckTimerIdVsGoToLabelOnce()) {
-			static std::string strWarnTimerCallingGoSubScriptName = [](){return platform::getEnvironmentVariableValueString(strWarnTimerCallingGoSubScriptName, "ARX_WarnTimerCallingGoSub").getString();}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
-			static std::regex * reWarnTimerCallingGoSubScriptName = [](){if(strWarnTimerCallingGoSubScriptName.size()){return new std::regex(strWarnTimerCallingGoSubScriptName.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);} return static_cast<std::regex*>(nullptr);}();
-			if(reWarnTimerCallingGoSubScriptName && sub && std::regex_search(context.getScript()->file, *reWarnTimerCallingGoSubScriptName)) {
+			static platform::EnvRegex erWarnTimerCallingGoSubScriptName = [](){return platform::getEnvironmentVariableValueRegex(erWarnTimerCallingGoSubScriptName, "ARX_WarnTimerCallingGoSub");}();
+			if(erWarnTimerCallingGoSubScriptName.isSet() && sub && erWarnTimerCallingGoSubScriptName.matchRegex(context.getScript()->file)) {
 				ScriptWarning << "Timers should only call GoTo. ExtraInfo: timer '" << context.getTimerName() << "', first target label '" << label << "'";
 			}
 			
-			static std::string strWarnTimerIdMismatchCallLabel = [](){return platform::getEnvironmentVariableValueString(strWarnTimerIdMismatchCallLabel, "ARX_WarnTimerIdMismatchCallLabel").getString();}(); // export ARX_WarnTimerCallingGoSub=".*" # but this may generate too much log. Put only the name of the scripts you are working with
-			static std::regex * reWarnTimerIdMismatchCallLabel = [](){if(strWarnTimerIdMismatchCallLabel.size()){return new std::regex(strWarnTimerIdMismatchCallLabel.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);} return static_cast<std::regex*>(nullptr);}();
-			if(reWarnTimerIdMismatchCallLabel && std::regex_search(context.getScript()->file, *reWarnTimerIdMismatchCallLabel)) {
+			static platform::EnvRegex erWarnTimerIdMismatchCallLabel = [](){return platform::getEnvironmentVariableValueRegex(erWarnTimerIdMismatchCallLabel, "ARX_WarnTimerIdMismatchCallLabel");}();
+			if(erWarnTimerIdMismatchCallLabel.isSet() && erWarnTimerIdMismatchCallLabel.matchRegex(context.getScript()->file)) {
 				std::string labelChk = label;
 				labelChk.resize(std::remove(labelChk.begin(), labelChk.end(), '_') - labelChk.begin());
 				if(!boost::starts_with(context.getTimerName(), labelChk)) { // there can have many timers to the same target
