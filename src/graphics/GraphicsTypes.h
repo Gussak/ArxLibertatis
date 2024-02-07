@@ -194,18 +194,23 @@ public:
 	LOD_3DOBJ() {
 		LODfpsAfterTest = 0.f;
 		LODfpsBeforeTest = 0.f;
-		LODfpsCost = -999999999.f;
+		LODfpsCost = -999999999.f; // an alternative could be to consider the number of visible faces
+		LODfpsCostSkip = 0;
 	}
 
+	int LODfpsCostSkip;
 	float LODfpsCost;
-	void calcFpsCost(float fps, bool before) {
+	
+	bool calcFpsCost(float fps, bool before, std::string_view strInfo = "") { // this may be very imprecise and it not working well TODO remove this.
 		if(before) {
 			LODfpsBeforeTest = fps;
 		} else {
 			LODfpsAfterTest = fps;
 			LODfpsCost = LODfpsBeforeTest - LODfpsAfterTest;
-			LogDebug("LODfpsCost=" << LODfpsCost); // << ", file=" << owner->fileUniqueRelativePathName);
+			LogDebug("LODfpsCost=" << LODfpsCost << ", LODfpsCostSkip=" << LODfpsCostSkip << ", info=" << strInfo);
+			return LODfpsCost > 0;
 		}
+		return false;
 	}
 };
 
