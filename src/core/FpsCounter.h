@@ -39,6 +39,7 @@ public:
 	
 	bool CalcFPS(bool reset = false);
 	void setDelay(float _fDelay) { fDelay = _fDelay; CalcFPS(true); }
+	float getDelay() { return fDelay; }
 };
 
 extern FpsCounter g_fpsCounter;
