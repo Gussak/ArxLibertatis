@@ -445,7 +445,7 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 		if(!obj) return false; // wait it be initialized elsewhere
 		if(lodRequest != LOD_PERFECT) return false; // wait first proper request happen
 	}
-	if(previousPosForLOD != pos) return false; // wait physics rest. wont work with: if(lastpos != pos) if(obj->pbox->active)
+	if(currentLOD != LOD_NONE) if(previousPosForLOD != pos) return false; // wait physics rest. wont work with: if(lastpos != pos) if(obj->pbox->active)
 	
 	LODFlag lodChk = lodRequest;
 	

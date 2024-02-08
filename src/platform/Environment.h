@@ -170,6 +170,7 @@ public:
 		return false;
 	}
 	
+	EnvVarHandler() { }
 	EnvVarHandler(TB _evar) { init(); evar = _evar; }
 	
 	std::string id() { return strId; }
@@ -183,17 +184,21 @@ private:
 	std::string id;
 	
 	// TODO TB* evarPointer;
-	std::string * varString = nullptr;
-	EnvRegex * varRegex = nullptr;
-	s32 * varInt = nullptr;
-	f32 * varFloat = nullptr;
-	bool * varBool = nullptr;
+	std::string * varString;
+	EnvRegex * varRegex;
+	s32 * varInt;
+	s32 iMin;
+	s32 iMax;
+	f32 * varFloat;
+	f32 fMin;
+	f32 fMax;
+	bool * varBool;
 	
 	bool modified;
 	
 public:
 	
-	EnvVar(std::string _id) : id(_id), varString(nullptr), varRegex(nullptr), varInt(nullptr), varFloat(nullptr), varBool(nullptr), modified(false) {}
+	EnvVar(std::string _id) : id(_id), varString(nullptr), varRegex(nullptr), varInt(nullptr), iMin(0), iMax(0), varFloat(nullptr), fMin(0.f), fMax(0.f), varBool(nullptr), modified(false) {}
 	
 	EnvVar & initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex);
 	

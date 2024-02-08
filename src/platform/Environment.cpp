@@ -584,24 +584,16 @@ const char * getEnvironmentVariableValueBase(const char * name, const Logger::Lo
 	#endif
 }
 
-//EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const char * defaultValue, const Logger::LogLevel logMode, const char * strMsg) {
-	//return getEnvironmentVariableValueString(varString, name, logMode, strMsg, defaultValue);
-//}
 EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) {
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
-	//std::string ev = (pc ? std::string(pc) : (defaultValue ? std::string(defaultValue) : std::string("")));
 	std::string ev = pc ? pc : defaultValue;
 	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr).setVal(ev);
-//	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr).setValAuto(pc ? pc : "", logMode != Logger::LogLevel::None, strMsg, defaultValue ? defaultValue : ""); //.setVal(ev); .setVal((pc ? std::string(pc) : (defaultValue ? std::string(defaultValue) : std::string(""))));
 }
 
 EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) { // tip: use arx param: --debug="src"
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
-	//std::string strRegex = (pc ? std::string(pc) : (defaultValue ? std::string(defaultValue) : std::string("")));
 	std::string strRegex = pc ? pc : defaultValue;
 	getEnvVar(name)->initVar(nullptr, nullptr, nullptr, nullptr, &varRegex).setVal(strRegex);
-//	getEnvVar(name)->initVar(nullptr, nullptr, nullptr, nullptr, &varRegex).setValAuto(pc ? pc : "", logMode != Logger::LogLevel::None, strMsg, defaultValue ? defaultValue : ""); //.setVal(strRegex);
-	//arx_assert(strRegex == varRegex.getRegex());
 	return varRegex;
 }
 
@@ -737,15 +729,15 @@ EnvVar & EnvVar::setValAuto(std::string val, bool allowLog, std::string strMsg, 
 		if(val.find_first_not_of("0123456789-") != std::string::npos) {
 			if(allowLog) LogError << "Wrong value should be integer, but is \"" << val << "\" ! " << strMsg;
 		} else {
-			int min = util::parseInt(strMin);
-			int max = util::parseInt(strMax);
-			if(value < min) {
-				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << min << "; " << strMsg;
-				value = min;
+			if(strMin.size() > 0) iMin = util::parseInt(strMin);
+			if(strMax.size() > 0) iMax = util::parseInt(strMax);
+			if(value < iMin) {
+				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << iMin << "; " << strMsg;
+				value = iMin;
 			}
-			if(value > max) {
-				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << max << "; " << strMsg;
-				value = max;
+			if(value > iMax) {
+				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << iMax << "; " << strMsg;
+				value = iMax;
 			}
 		}
 		
@@ -756,15 +748,15 @@ EnvVar & EnvVar::setValAuto(std::string val, bool allowLog, std::string strMsg, 
 		if(val.find_first_not_of("0123456789-.") != std::string::npos) {
 			if(allowLog) LogError << "Wrong value should be Float, but is \"" << val << "\" ! " << strMsg;
 		} else {
-			f32 min = util::parseFloat(strMin);
-			f32 max = util::parseFloat(strMax);
-			if(value < min) {
-				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << min << "; " << strMsg;
-				value = min;
+			if(strMin.size() > 0) fMin = util::parseFloat(strMin);
+			if(strMax.size() > 0) fMax = util::parseFloat(strMax);
+			if(value < fMin) {
+				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << fMin << "; " << strMsg;
+				value = fMin;
 			}
-			if(value > max) {
-				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << max << "; " << strMsg;
-				value = max;
+			if(value > fMax) {
+				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << fMax << "; " << strMsg;
+				value = fMax;
 			}
 		}
 		

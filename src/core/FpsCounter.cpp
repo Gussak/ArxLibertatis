@@ -23,12 +23,12 @@
 
 FpsCounter g_fpsCounter;
 
-void FpsCounter::CalcFPS(bool reset) {
+bool FpsCounter::CalcFPS(bool reset) {
 	
 	if(reset) {
 		dwFrames = 0;
 		fLastTime = 0;
-		FPS = 7.f * FPS;
+		FPS = 7.f * FPS; // TODO explain why 7.f ? the engine will suddenly think a boost happened in performance anywhere it reads the FPS value ?
 	} else {
 		// Keep track of the time lapse and frame count
 		PlatformInstant fTime = g_platformTime.frameStart();
@@ -36,11 +36,14 @@ void FpsCounter::CalcFPS(bool reset) {
 
 		float tmp = toS(fTime - fLastTime);
 
-		// Update the frame rate once per second
-		if(tmp > 1.f) {
+		// Update the frame rate once per specified delay
+		if(tmp > fDelay) {
 			FPS = float(dwFrames) / tmp;
 			fLastTime = fTime;
 			dwFrames  = 0;
+			return true;
 		}
 	}
+	
+	return false;
 }

@@ -1604,6 +1604,7 @@ void ArxGame::updateInput() {
 
 extern int iHighLight;
 
+/*
 class LODControl { // TODOA put all LOD control vars here and: static LODControl LODctrl;
 private:
 	bool binitEnvVars = false;
@@ -1865,25 +1866,6 @@ void ArxGame::LODforEntity(Entity & entity) {
 		// by distance
 		//LODFlag maxLODentity = LODctrl.maxLOD;
 		LODFlag requestLOD;
-		/*
-		if(entity.playerDistLastCalcLOD <= distLodHigh && LOD_HIGH   >= maxLODentity) {
-			requestLOD = LOD_HIGH  ;
-		} else
-		if(entity.playerDistLastCalcLOD <= distLodMed  && LOD_MEDIUM >= maxLODentity) {
-			requestLOD = LOD_MEDIUM;
-		} else
-		if(entity.playerDistLastCalcLOD <= distLodLow  && LOD_LOW    >= maxLODentity) {
-			requestLOD = LOD_LOW   ;
-		} else
-		if(entity.playerDistLastCalcLOD <= distLodBad  && LOD_BAD    >= maxLODentity) {
-			requestLOD = LOD_BAD   ;
-		} else
-		if(entity.playerDistLastCalcLOD <= distLodFlat && LOD_FLAT   >= maxLODentity) {
-			requestLOD = LOD_FLAT  ;
-		} else {
-			requestLOD = LOD_ICON  ;
-		}
-		/*/
 		if(entity.playerDistLastCalcLOD <= distLodHigh*LODctrl.fLODscaleDistance) {
 			requestLOD = LOD_HIGH  ;
 		} else
@@ -1901,7 +1883,6 @@ void ArxGame::LODforEntity(Entity & entity) {
 		} else {
 			requestLOD = LOD_ICON  ;
 		}
-		//*/
 		
 		if(requestLOD != entity.previousLOD) {
 			if(requestLOD > entity.currentLOD) { // can always lower LOD quality
@@ -1980,6 +1961,163 @@ void ArxGame::LODforEntity(Entity & entity) {
 	}
 	
 }
+	// above was reworked and simplified after many tests. Now it is just about distance and FPS
+*/
+
+class LODarxGame {
+	// helper vars
+	LODFlag useWorstFromLOD;
+	Vec3f playerMovedRecalcLODposPrevious;
+	bool playerMovedRecalcLODnow;
+	Entity * entityChangedLODthisTime;
+	
+	// env vars cfg
+	int distBetweenLODs;
+	int minFPS;
+	platform::EnvVarHandler<float,FpsCounter> evFPS;
+	float playerMovedRecalcLODmoveMinDist;
+	
+public:
+	
+	LODarxGame() {
+		useWorstFromLOD = LOD_ICON;
+		playerMovedRecalcLODposPrevious = Vec3f();
+		playerMovedRecalcLODnow = true; // when the game starts
+		entityChangedLODthisTime = nullptr;
+		
+		distBetweenLODs = 0;
+		minFPS = 0;
+		playerMovedRecalcLODmoveMinDist = 0.f;
+		
+		// init env vars
+		distBetweenLODs = [this](){return platform::getEnvironmentVariableValueInteger(distBetweenLODs, "ARX_LODDistStep", Logger::LogLevel::Info, "this is the distance between each LOD activation", 400, 1).getInteger();}();
+		
+		minFPS = [this](){return platform::getEnvironmentVariableValueInteger(minFPS, "ARX_LODMinimumFPS", Logger::LogLevel::Info, "this is the minimum FPS you think is acceptable to play the game at any time", 15, 1).getInteger();}();
+		
+		evFPS = [this](){ evFPS.setId("ARX_LODFPSdelay").evarCustom = FpsCounter(0.33f); return platform::getEnvironmentVariableValueFloat(evFPS.evar, evFPS.id().c_str(), Logger::LogLevel::None, "a more responsive FPS check, so LOD can change faster", evFPS.evarCustom.FPS, 0.1f, 1.f ).getFloat(); }();
+		evFPS.evarCustom.CalcFPS(true);
+		
+		playerMovedRecalcLODmoveMinDist = [this](){return platform::getEnvironmentVariableValueFloat(playerMovedRecalcLODmoveMinDist, "ARX_LODPlayerMoveDistToRecalcLOD", Logger::LogLevel::Info, "waits player move this distance before recalculating LOD", distBetweenLODs*0.25f, distBetweenLODs*0.025f).getFloat();}(); // how far shall player move
+	}
+	
+	void BeforeAllEntitiesLoop() {
+		if(evFPS.chkMod()) {
+			evFPS.evarCustom.setDelay(evFPS.evar);
+		}
+		
+		if(evFPS.evarCustom.CalcFPS(false)) {
+			if(evFPS.evarCustom.FPS < minFPS) {
+				if(useWorstFromLOD > LOD_HIGH) {
+					useWorstFromLOD = static_cast<LODFlag>(useWorstFromLOD >> 1);
+					LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD));
+				}
+			} else {
+				if(useWorstFromLOD < LOD_ICON) {
+					useWorstFromLOD = static_cast<LODFlag>(useWorstFromLOD << 1);
+					LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD));
+				}
+			}
+			
+			entityChangedLODthisTime = nullptr;
+		}
+		
+		if(fdist(player.pos, playerMovedRecalcLODposPrevious) > playerMovedRecalcLODmoveMinDist) {
+			playerMovedRecalcLODnow = true;
+			playerMovedRecalcLODposPrevious = player.pos;
+		}
+	}
+	
+	void ForEntity(Entity & entity) {
+		// only items for now
+		if(!(entity.ioflags & IO_ITEM)) {
+			return;
+		}
+		
+		// simple ICON looks at player
+		if(entity.iconLODFlags & entity.currentLOD) { // TODO should also look upwards downwards
+			float yawNew = MAKEANGLE(Camera::getLookAtAngle(entity.pos, player.pos).getYaw());
+			if(entity.lodYawBeforeLookAtCam == 999999999.f) {
+				entity.lodYawBeforeLookAtCam = entity.angle.getYaw(); // backup rotation before becoming icon
+				LogDebug(entity.idString() << ", lodYawBeforeLookAtCam=" << entity.lodYawBeforeLookAtCam << ", yawNew=" << yawNew);
+			}
+			entity.angle.setYaw(yawNew);
+		} else {
+			if(entity.lodYawBeforeLookAtCam != 999999999.f) {
+				entity.angle.setYaw(entity.lodYawBeforeLookAtCam); // restore rotation of before it became icon
+				entity.lodYawBeforeLookAtCam = 999999999.f;
+			}
+		}
+		
+		// prevent change obj if it is being used for something
+		if(entity.ignition > 0.f || (entity.ioflags & IO_FIERY)) {
+			return;
+		}
+		
+		///////////////// mandatory LODs
+		
+		if(entity.currentLOD == LOD_NONE) { // TODO remove if never happens. this should be unnecessary
+			if(entity.obj) {
+				entity.setLOD(LOD_PERFECT);
+				LogDebug("ERROR: fixing entity LOD " << entity.idString() << " review LOD loading/preparing code.");
+			}
+			return;
+		}
+		
+		// dragging many (to throw and avoid lag)
+		if(&entity == g_draggedEntity && entity._itemdata->count > 1 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())) {
+			entity.setLOD(LOD_ICON);
+			return;
+		}
+		
+		// by focus
+		if(&entity == FlyingOverIO) {
+			entity.setLOD(LOD_PERFECT);
+			return;
+		}
+		
+		// by combat mode
+		if(player.Interface & INTER_COMBATMODE) {
+			entity.setLOD(LOD_ICON); // maximum performance
+			return;
+		}
+		
+		///////////////////////// dynamic LODs
+		
+		LODFlag requestLOD = entity.currentLOD;
+		
+		// by distance
+		if(playerMovedRecalcLODnow) {
+			entity.playerDistLastCalcLOD = fdist(player.pos, entity.pos);
+		}
+		
+		// this is the specific LOD based on distance
+		int iModLOD = static_cast<int>(entity.playerDistLastCalcLOD / distBetweenLODs) + 1; // begins at LOD_HIGH
+		requestLOD = static_cast<LODFlag>(1 << iModLOD);
+		
+		// by FPS performance, tweaks the request
+		if(requestLOD >= useWorstFromLOD) { // ex.: useWorstFromLOD=LOD_LOW will set all requests for LOD_LOW, LOD_BAD, LOD_FLAT to LOD_ICON
+			LogDebugIf(entity.currentLOD != LOD_ICON, "changing LOD " << LODtoStr(requestLOD) << " to LOD_ICON for " << entity.idString() << " (useWorstFromLOD=" << LODtoStr(useWorstFromLOD) << ")");
+			requestLOD = LOD_ICON;
+		}
+		
+		if(requestLOD == LOD_ICON) {
+			entity.setLOD(LOD_ICON); // can always lower quality 
+		} else {
+			if(!entityChangedLODthisTime && entity.currentLOD != requestLOD) {
+				entity.setLOD(requestLOD);
+				entityChangedLODthisTime = &entity;
+			}
+		}
+	}
+	
+	void AfterEntity(Entity & entity) {
+		entity.previousPosForLOD = entity.pos;
+	}
+	
+	void AfterAllEntitiesLoop() {
+		playerMovedRecalcLODnow = false;
+	}
+};
 
 void ArxGame::updateLevel() {
 
@@ -2000,8 +2138,10 @@ void ArxGame::updateLevel() {
 	{
 		ARX_PROFILE("Entity preprocessing");
 		
-		LODbeforeEntitiesLoop();
+		static LODarxGame LOD;
+		LOD.BeforeAllEntitiesLoop();
 		for(Entity & entity : entities) {
+			LOD.ForEntity(entity);
 			
 			if(entity.ignition > 0.f || (entity.ioflags & IO_FIERY)) {
 				ManageIgnition(entity);
@@ -2013,8 +2153,6 @@ void ArxGame::updateLevel() {
 			} else {
 				entity.highlightColor = Color3f::black;
 			}
-			
-			LODworkAtEntityLoop(entity);
 			
 			Cedric_ApplyLightingFirstPartRefactor(entity);
 			
@@ -2033,8 +2171,9 @@ void ArxGame::updateLevel() {
 			speedModifier -= spells.getTotalSpellCasterLevelOnTarget(entity.index(), SPELL_SLOW_DOWN) * 0.05f;
 			entity.speed_modif = speedModifier;
 			
+			LOD.AfterEntity(entity);
 		}
-		LODafterEntitiesLoop();
+		LOD.AfterAllEntitiesLoop();
 		
 	}
 	
