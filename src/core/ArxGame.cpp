@@ -1611,8 +1611,9 @@ class LODarxGame {
 	LODFlag useWorstFromLOD;
 	Vec3f playerMovedRecalcLODposPrevious;
 	Entity * entityChangedLODthisTime;
-	PlatformInstant lodDelayCalc;
 	PlatformInstant frameTimeNow;
+	PlatformInstant lodDelayCalc;
+	PlatformInstant lodUpdateCalc;
 	
 	// env vars cfg
 	int nearHighQualityAmount;
@@ -1622,6 +1623,7 @@ class LODarxGame {
 	platform::EnvVarHandler<float,FpsCounter> evFPS;
 	float playerMovedRecalcLODmoveMinDist;
 	float lodRecalcDelay;
+	float lodUpdateDelay;
 	
 public:
 	
@@ -1639,20 +1641,21 @@ public:
 		
 		deltaFPS = [this](){return platform::getEnvironmentVariableValueInteger(deltaFPS, "ARX_LODDeltaFPS", Logger::LogLevel::Info, "this is how much FPS above the minimum that will allow LOD to be improved for one item per iteration and for the distant LOD levels thru ARX_LODDistStep", 10, 1).getInteger();}();
 		
-		evFPS = [this](){ evFPS.setId("ARX_LODFPSdelay"); evFPS.ev = 0.33f; platform::getEnvironmentVariableValueFloat(evFPS.ev, evFPS.id().c_str(), Logger::LogLevel::None, "a more responsive FPS check (than 1s), so LOD can change faster", evFPS.ev, 0.1f, 1.f ); return evFPS.ev; }();
+		evFPS = [this](){ evFPS.setId("ARX_LODFPSdelay"); evFPS.ev = 0.33f; platform::getEnvironmentVariableValueFloat(evFPS.ev, evFPS.id().c_str(), Logger::LogLevel::None, "a more responsive FPS check (less than 1s), so LOD can change faster", evFPS.ev, 0.1f, 1.f ); return evFPS.ev; }();
 		evFPS.evc.CalcFPS(true);
 		
 		playerMovedRecalcLODmoveMinDist = [this](){return platform::getEnvironmentVariableValueFloat(playerMovedRecalcLODmoveMinDist, "ARX_LODPlayerMoveDistToRecalcLOD", Logger::LogLevel::Info, "recalculate LOD after player moves this distance", 25.f, 10.f).getFloat();}(); // how far shall player move
 		
-		lodRecalcDelay = [this](){return platform::getEnvironmentVariableValueFloat(lodRecalcDelay, "ARX_LODRecalcDelay", Logger::LogLevel::Info, "after this delay, LOD will be recalculated", 0.5f, 0.1f).getFloat();}();
+		lodRecalcDelay = [this](){return platform::getEnvironmentVariableValueFloat(lodRecalcDelay, "ARX_LODRecalcDelay", Logger::LogLevel::Info, "after this delay in seconds, LOD distance will be recalculated", 0.5f, 0.1f).getFloat();}();
+		
+		lodUpdateDelay = [this](){return platform::getEnvironmentVariableValueFloat(lodUpdateDelay, "ARX_LODFullUpdateDelay", Logger::LogLevel::Info, "instead of every frame, LOD will be computed after this delay in seconds", 0.25f, 0.f).getFloat();}();
 	}
 	
-	void BeforeAllEntitiesLoop() {
-		if(evFPS.chkMod()) {
-			evFPS.evc.setDelay(evFPS.ev);
-		}
+	bool BeforeAllEntitiesLoop() {
+		frameTimeNow = g_platformTime.frameStart();
 		
 		// tweak worst LOD dist based on performance
+		if(evFPS.chkMod()) evFPS.evc.setDelay(evFPS.ev);
 		if(evFPS.evc.CalcFPS(false)) {
 			if(evFPS.evc.FPS < minFPS) {
 				if(useWorstFromLOD > LOD_HIGH) {
@@ -1673,7 +1676,6 @@ public:
 		}
 		
 		// recalc LOD by delay or dist
-		frameTimeNow = g_platformTime.frameStart();
 		bool lodCalcNow = frameTimeNow > lodDelayCalc;
 		if(lodCalcNow) lodDelayCalc += PlatformDuration(1s * lodRecalcDelay); // TODO cast lodRecalcDelay to duration or DurationType?
 		if(lodCalcNow || fdist(player.pos, playerMovedRecalcLODposPrevious) > playerMovedRecalcLODmoveMinDist) {
@@ -1687,6 +1689,10 @@ public:
 			
 			playerMovedRecalcLODposPrevious = player.pos;
 		}
+		
+		bool lodUpdateNow = frameTimeNow > lodUpdateCalc;
+		if(lodUpdateNow) lodUpdateCalc += PlatformDuration(1s * lodUpdateDelay); // TODO cast lodUpdateDelay to duration or DurationType?
+		return lodUpdateNow;
 	}
 	
 	void ForEntity(Entity & entity, size_t nearIndex) {
@@ -1743,11 +1749,11 @@ public:
 		if(&entity == FlyingOverIO) {
 			entity.setLOD(LOD_PERFECT);
 			return;
-		} else {
-			if(entity.currentLOD == LOD_PERFECT) {
-				entity.setLOD(LOD_HIGH);
-				return;
-			}
+		//} else { // this flickers with "only the nearest"
+			//if(entity.currentLOD == LOD_PERFECT) {
+				//entity.setLOD(LOD_HIGH);
+				//return;
+			//}
 		}
 		
 		// dragging many (to throw and avoid lag)
@@ -1795,13 +1801,14 @@ public:
 	}
 	
 	void Work() {
-		BeforeAllEntitiesLoop();
-		for(size_t i = 0; i < sortedEntitiesByPlayerProximity.size(); i++) {
-			Entity * entity = sortedEntitiesByPlayerProximity[i];
-			ForEntity(*entity, i);
-			AfterEntity(*entity);
+		if(BeforeAllEntitiesLoop()) {
+			for(size_t i = 0; i < sortedEntitiesByPlayerProximity.size(); i++) {
+				Entity * entity = sortedEntitiesByPlayerProximity[i];
+				ForEntity(*entity, i);
+				AfterEntity(*entity);
+			}
+			AfterAllEntitiesLoop();
 		}
-		AfterAllEntitiesLoop();
 	}
 	
 };

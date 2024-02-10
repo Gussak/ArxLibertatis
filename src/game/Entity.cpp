@@ -192,10 +192,27 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 
 void Entity::resetLOD(bool bDelete) {
 	if(bDelete) {
-		for(LODFlag lodChk : LODList) {
-			if(objLOD[lodChk] && lodChk != LOD_PERFECT && objLOD[lodChk] != objLOD[LOD_PERFECT]) { // LOD_PERFECT is the main model and shall not be touched here
-				// TODOA fix memory "leak" as this is crashing: delete objLOD[lodChk];
+		//for(auto it1 : objLOD) {
+			//if(!it1.second) continue;
+			//if(it1.second == objLOD[LOD_PERFECT]) continue; // LOD_PERFECT is the main model and shall not be touched here
+			//EERIE_3DOBJ * objChk = it1.second;
+			//for(auto it2 : objLOD) {
+				//if(it2.second == objChk) it2.second = nullptr; // it1.second will end up as nullptr too and be skipped
+			//}
+			//delete objChk;
+		//}
+		for(LODFlag lodChk1 : LODList) {
+			if(!objLOD[lodChk1]) continue;
+			if(objLOD[lodChk1] == objLOD[LOD_PERFECT]) continue; // LOD_PERFECT is the main model and shall not be touched here
+			
+			// can delete
+			EERIE_3DOBJ * objChk1 = objLOD[lodChk1];
+			for(LODFlag lodChk2 : LODList) {
+				if(objLOD[lodChk2] == objChk1) {
+					objLOD[lodChk2] = nullptr;
+				}
 			}
+			delete objChk1;
 		}
 	}
 	currentLOD = LOD_NONE;

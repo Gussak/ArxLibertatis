@@ -20,9 +20,10 @@
 #include "gui/Console.h"
 
 #include <algorithm>
-#include <sstream>
 #include <cctype>
 #include <fstream>
+#include <regex>
+#include <sstream>
 
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -148,13 +149,19 @@ bool ScriptConsole::keyPressed(Keyboard::Key key, KeyModifiers mod) {
 			break;
 		}
 		
-		case Keyboard::Key_PageUp:
+		case Keyboard::Key_PageUp: {
+			select(-10);
+			return true;
+		}
 		case Keyboard::Key_UpArrow: {
 			select(-1);
 			return true;
 		}
 		
-		case Keyboard::Key_PageDown:
+		case Keyboard::Key_PageDown: {
+			select(10);
+			return true;
+		}
 		case Keyboard::Key_DownArrow: {
 			select(1);
 			return true;
@@ -409,6 +416,30 @@ Entity * ScriptConsole::contextEntity() {
 	}
 	
 	return entity;
+}
+
+int ScriptConsole::list(std::string filter, bool execOnSingleMatch) {
+	std::regex re(filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
+	int iCount = 0;
+	std::string strCmd;
+	for(std::string cmd: m_history) {
+		if (std::regex_search(cmd, re)) {
+			if(strCmd != cmd) {
+				iCount++; // ignoring dups
+				strCmd = cmd;
+				LogInfo << cmd;
+			}
+		}
+	}
+	
+	LogDebug("count=" << iCount << ", cmd=" << strCmd);
+	
+	if(strCmd.size() > 0 && iCount == 1 && execOnSingleMatch) {
+		setText(strCmd);
+		execute();
+	}
+	
+	return iCount;
 }
 
 void ScriptConsole::execute() {

@@ -34,7 +34,7 @@
 //! Log a Debug message. Arguments are only evaluated if their results will be used.
 #define LogDebug(...)    \
 	if(arx_unlikely(ARX_LOG_ENABLED(::Logger::Debug))) \
-		ARX_LOG_FORCED(::Logger::Debug) << __VA_ARGS__
+		ARX_LOG_FORCED(::Logger::Debug) << __VA_ARGS__ << " @" << __PRETTY_FUNCTION__
 #define LogDebugIf(condition, ...)    \
 	if(condition) { LogDebug(__VA_ARGS__); }
 #else
