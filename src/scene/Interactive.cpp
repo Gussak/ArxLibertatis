@@ -625,9 +625,14 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 	EERIE_3DOBJ * obj = loadObject(usemesh, pbox).release();
 	if(obj) {
 		delete io->obj, io->obj = nullptr;
+		io->resetLOD(true);
+		
 		io->usemesh = usemesh;
 		io->obj = obj;
 		EERIE_COLLISION_Cylinder_Create(io);
+		
+		load3DModelAndLOD(*io, usemesh, pbox);
+		
 		return true;
 	}
 	

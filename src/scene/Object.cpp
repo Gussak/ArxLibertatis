@@ -539,7 +539,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 	return true;
 }
 
-std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
+std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) { // TODO meshes should be loaded just one time ? unless they accept unique dynamic tweaks that could be saved. But still, if this doesnt happen it could re-use a default mesh.
 	
 	std::unique_ptr<EERIE_3DOBJ> object = ARX_FTL_Load(file);
 	if(object && pbox) {

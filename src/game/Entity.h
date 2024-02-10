@@ -273,16 +273,18 @@ public:
 	EERIE_3DOBJ * getObjMain() { return objMain; }
 	void setObjMain(EERIE_3DOBJ * o);
 	
-	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs TODO: remove in favor of mainModelVsLODs
 	Vec3f previousPosForLOD;
-	LODFlag currentLOD;
-	LODFlag previousLOD;
 	time_t lodImproveWaitUntil;
 	time_t lodCooldownUntil;
 	time_t lodLastCalcTime;
 	float lodYawBeforeLookAtCam;
 	float playerDistLastCalcLOD;
 	PlatformInstant LODpreventDegradeDelayUntil;
+	
+	// LOD data that shall be reset on changing the main mesh
+	LODFlag currentLOD;
+	LODFlag previousLOD;
+	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs TODO: remove in favor of mainModelVsLODs
 	LODFlags availableLODFlags;
 	LODFlags iconLODFlags;
 	
@@ -484,6 +486,7 @@ public:
 		return &other != this;
 	}
 	
+	void resetLOD(bool bDelete);
 	bool setLOD(const LODFlag lodRequest);
 	
 private:

@@ -162,19 +162,9 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	lodLastCalcTime = time(0);
 	lodCooldownUntil = time(0);
 	lodImproveWaitUntil = time(0);
-	
-	currentLOD = LOD_NONE;
-	previousLOD = currentLOD;
-	// TODO something like std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr); ?
-	objLOD.emplace(LOD_PERFECT, nullptr);
-	objLOD.emplace(LOD_HIGH, nullptr);
-	objLOD.emplace(LOD_MEDIUM, nullptr);
-	objLOD.emplace(LOD_LOW, nullptr);
-	objLOD.emplace(LOD_BAD, nullptr);
-	objLOD.emplace(LOD_FLAT, nullptr);
-	objLOD.emplace(LOD_ICON, nullptr);
-	availableLODFlags = 0;
 	previousPosForLOD = Vec3f(0.f);
+	
+	resetLOD(false);
 	
 	for(size_t l = 0; l < MAX_ANIM_LAYERS; l++) {
 		animlayer[l] = AnimLayer();
@@ -198,6 +188,29 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	halo_native.flags = 0;
 	ARX_HALO_SetToNative(this);
 	
+}
+
+void Entity::resetLOD(bool bDelete) {
+	if(bDelete) {
+		for(LODFlag lod : LODList) {
+			if(objLOD[lod] && lod != LOD_PERFECT && objLOD[lod] != objLOD[LOD_PERFECT]) { // LOD_PERFECT is the main model and shall not be touched here
+				// TODOA fix memory "leak" as this is crashing: delete objLOD[lod];
+			}
+		}
+	}
+	currentLOD = LOD_NONE;
+	previousLOD = currentLOD;
+	// TODO something like std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr); ?
+	objLOD.clear();
+	objLOD.emplace(LOD_PERFECT, nullptr);
+	objLOD.emplace(LOD_HIGH, nullptr);
+	objLOD.emplace(LOD_MEDIUM, nullptr);
+	objLOD.emplace(LOD_LOW, nullptr);
+	objLOD.emplace(LOD_BAD, nullptr);
+	objLOD.emplace(LOD_FLAT, nullptr);
+	objLOD.emplace(LOD_ICON, nullptr);
+	availableLODFlags = 0;
+	iconLODFlags = 0;
 }
 
 Entity::~Entity() {
