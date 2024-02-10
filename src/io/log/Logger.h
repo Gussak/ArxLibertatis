@@ -28,7 +28,7 @@
 
 #define ARX_LOG(Level)         ::Logger(ARX_FILE, __LINE__, Level, __func__)
 #define ARX_LOG_FORCED(Level)  ::Logger(ARX_FILE, __LINE__, Level, true)
-#define ARX_LOG_ENABLED(Level) ::Logger::isEnabled(ARX_FILE, Level, __func__, __LINE__)
+#define ARX_LOG_ENABLED(Level) ::Logger::isEnabled(ARX_FILE, Level, __PRETTY_FUNCTION__, __LINE__)
 
 #ifdef ARX_DEBUG
 //! Log a Debug message. Arguments are only evaluated if their results will be used.

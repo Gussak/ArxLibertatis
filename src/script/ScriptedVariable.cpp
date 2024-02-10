@@ -499,13 +499,17 @@ private:
 		size_t positionBeforeWord;
 		
 		if(strWord != "[") {
-			ScriptWarning << "Malformed calculation: calc must start with '[' " << strCalcMsg;
+			ScriptError << "Malformed calculation: calc must start with '[' " << strCalcMsg;
 			return 99999999999.f;
+		} else {
+			strCalcMsg = "[ ";
 		}
 		
 		int iWordCount = 0;
 		char cMode = 'v';
 		while(true) {
+			DebugScript(", cMode=" << cMode << ", cOperator=" << cOperator << ", iWordCount=" << iWordCount << ", fCalc=" << fCalc << ", fWorkWithValue=" << fWorkWithValue);
+			
 			context.skipWhitespaceAndComment();
 			positionBeforeWord = context.getPosition(); //Put after skip new lines.
 			strWord = context.getWord();
@@ -550,6 +554,7 @@ private:
 				
 				case 'o': // operation
 					if(strWord == "]") {
+						DebugScript( ": " << strCalcMsg << " = " << fCalc);
 						return fCalc;
 					}
 					
@@ -570,7 +575,8 @@ private:
 			iWordCount++;
 		}
 		
-		return fCalc;
+		ScriptError << "Malformed calculation: calc must end with ']' " << strCalcMsg;
+		return 99999999999.f;
 	}
 	
 	float calculate(float left, float right, Operator opOverride, Context & context, Entity * entReadFrom) {
@@ -622,14 +628,14 @@ public:
 			
 			case '#':      // global long
 			case '\xA7': { // local long
-				long old = GETVarValueLong(variables, var);
+				long old = op == ArithmeticCommand::Calc ? 0 : GETVarValueLong(variables, var);
 				sv = SETVarValueLong(variables, var, long(calculate(float(old), val, op, context, context.getEntity())));
 				break;
 			}
 			
 			case '&':   // global float
 			case '@': { // local float
-				float old = GETVarValueFloat(variables, var);
+				float old = op == ArithmeticCommand::Calc ? 0.f : GETVarValueFloat(variables, var);
 				sv = SETVarValueFloat(variables, var, calculate(old, val, op, context, context.getEntity()));
 				break;
 			}
