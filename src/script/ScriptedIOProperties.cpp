@@ -49,6 +49,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "game/Entity.h"
 #include "game/EntityManager.h"
+#include "game/Player.h"
 #include "graphics/Math.h"
 #include "graphics/data/Mesh.h"
 #include "io/resource/ResourcePath.h"
@@ -494,6 +495,50 @@ public:
 	
 };
 
+class RebirthCommand : public Command {
+	
+public:
+	
+	RebirthCommand() : Command("rebirth", AnyEntity) { }
+	
+	Result execute(Context & context) override {
+		std::string strEntId;
+		
+		bool bRandomize = false;
+		HandleFlags("er") {
+			if(flg & flag('e')) {
+				strEntId = context.getStringVar(context.getWord());
+			}
+			if(flg & flag('r')) {
+				bRandomize = true;
+			}
+			//if(flg & flag('n')) {
+				//iMin = context.getInteger(context.getWord());
+			//}
+			//if(flg & flag('x')) {
+				//iMax = context.getInteger(context.getWord());
+			//}
+		}
+		
+		Entity * ent = nullptr;
+		if(strEntId.size() == 0) {
+			ent = context.getEntity();
+		} else {
+			ent = entities.getById(strEntId);
+		}
+		
+		if(ent == entities.player()) {
+			ARX_PLAYER_ResetAttributes();
+			if(bRandomize) ARX_PLAYER_Randomize();
+		} else {
+			ScriptError << "rebirth can only be used at player entity";
+			return Failed;
+		}
+		
+		return Success;
+	}
+};
+
 class TweakCommand : public Command {
 	
 public:
@@ -662,6 +707,7 @@ void setupScriptedIOProperties() {
 	ScriptEvent::registerCommand(std::make_unique<HaloCommand>());
 	ScriptEvent::registerCommand(std::make_unique<TweakCommand>());
 	ScriptEvent::registerCommand(std::make_unique<UseMeshCommand>());
+	ScriptEvent::registerCommand(std::make_unique<RebirthCommand>());
 	
 }
 

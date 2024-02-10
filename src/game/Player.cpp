@@ -797,7 +797,51 @@ void ARX_PLAYER_QuickGeneration() {
 	ARX_PLAYER_MakeFreshHero();
 	player.skin = old_skin;
 
-	while(player.Attribute_Redistribute) {
+	ARX_PLAYER_Randomize();
+
+	player.level = 0;
+	player.xp = 0;
+	player.hunger = 100.f;
+
+	ARX_PLAYER_ComputePlayerStats();
+}
+
+void ARX_PLAYER_ResetAttributes() {
+	player.Attribute_Redistribute +=
+		player.m_attribute.strength +
+		player.m_attribute.mind +
+		player.m_attribute.dexterity +
+		player.m_attribute.constitution - 4;
+		
+	player.m_attribute.strength =
+		player.m_attribute.mind =
+		player.m_attribute.dexterity =
+		player.m_attribute.constitution = 1;
+	
+	player.Skill_Redistribute +=
+		player.m_skill.stealth +
+		player.m_skill.mecanism +
+		player.m_skill.intuition +
+		player.m_skill.etheralLink +
+		player.m_skill.objectKnowledge +
+		player.m_skill.casting +
+		player.m_skill.projectile +
+		player.m_skill.closeCombat +
+		player.m_skill.defense - 9;
+		
+	player.m_skill.stealth =
+		player.m_skill.mecanism =
+		player.m_skill.intuition =
+		player.m_skill.etheralLink =
+		player.m_skill.objectKnowledge =
+		player.m_skill.casting =
+		player.m_skill.projectile =
+		player.m_skill.closeCombat =
+		player.m_skill.defense = 1;
+}
+
+bool ARX_PLAYER_Randomize(float minStrength, float maxStrength,  float minMind, float maxMind,  float minDexterity, float maxDexterity,  float minConstitution, float maxConstitution,  float minStealth, float maxStealth,  float minMecanism, float maxMecanism,  float minIntuition, float maxIntuition,  float minEtheralLink, float maxEtheralLink,  float minObjectKnowledge, float maxObjectKnowledge,  float minCasting, float maxCasting,  float minProjectile, float maxProjectile,  float minCloseCombat, float maxCloseCombat,  float minDefense, float maxDefense) {
+	while(player.Attribute_Redistribute) { // TODO implement min (set and compare with available, return false if more than available) / max (substitute the 18)
 		float rn = Random::getf();
 
 		if(rn < 0.25f && player.m_attribute.strength < 18) {
@@ -847,12 +891,8 @@ void ARX_PLAYER_QuickGeneration() {
 			player.Skill_Redistribute--;
 		}
 	}
-
-	player.level = 0;
-	player.xp = 0;
-	player.hunger = 100.f;
-
-	ARX_PLAYER_ComputePlayerStats();
+	
+	return true;
 }
 
 /*!

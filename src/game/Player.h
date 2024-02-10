@@ -441,6 +441,8 @@ Vec3f ARX_PLAYER_FrontPos();
 void ARX_PLAYER_ComputePlayerFullStats();
 void ARX_PLAYER_MakeFreshHero();
 void ARX_PLAYER_QuickGeneration();
+void ARX_PLAYER_ResetAttributes();
+bool ARX_PLAYER_Randomize(float minStrength = 10.f, float maxStrength = 255.f,  float minMind = 10.f, float maxMind = 255.f,  float minDexterity = 10.f, float maxDexterity = 255.f,  float minConstitution = 10.f, float maxConstitution = 255.f,  float minStealth = 10.f, float maxStealth = 255.f,  float minMecanism = 10.f, float maxMecanism = 255.f,  float minIntuition = 10.f, float maxIntuition = 255.f,  float minEtheralLink = 10.f, float maxEtheralLink = 255.f,  float minObjectKnowledge = 10.f, float maxObjectKnowledge = 255.f,  float minCasting = 10.f, float maxCasting = 255.f,  float minProjectile = 10.f, float maxProjectile = 255.f,  float minCloseCombat = 10.f, float maxCloseCombat = 255.f,  float minDefense = 10.f, float maxDefense = 255.f);
 void ARX_PLAYER_MakeAverageHero();
 void ARX_PLAYER_Modify_XP(long val);
 void ARX_PLAYER_FrameCheck(PlatformDuration delta);

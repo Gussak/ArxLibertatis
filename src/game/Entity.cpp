@@ -209,9 +209,11 @@ void Entity::resetLOD(bool bDelete) {
 			EERIE_3DOBJ * objChk1 = objLOD[lodChk1];
 			for(LODFlag lodChk2 : LODList) {
 				if(objLOD[lodChk2] == objChk1) {
+					LogDebug("nullptr to LOD " << LODtoStr(lodChk2) << ", file=" << objLOD[lodChk2]->fileUniqueRelativePathName);
 					objLOD[lodChk2] = nullptr;
 				}
 			}
+			LogDebug("deleting " << LODtoStr(lodChk1) << ", file=" << objChk1->fileUniqueRelativePathName);
 			delete objChk1;
 		}
 	}
