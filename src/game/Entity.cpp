@@ -192,9 +192,9 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 
 void Entity::resetLOD(bool bDelete) {
 	if(bDelete) {
-		for(LODFlag lod : LODList) {
-			if(objLOD[lod] && lod != LOD_PERFECT && objLOD[lod] != objLOD[LOD_PERFECT]) { // LOD_PERFECT is the main model and shall not be touched here
-				// TODOA fix memory "leak" as this is crashing: delete objLOD[lod];
+		for(LODFlag lodChk : LODList) {
+			if(objLOD[lodChk] && lodChk != LOD_PERFECT && objLOD[lodChk] != objLOD[LOD_PERFECT]) { // LOD_PERFECT is the main model and shall not be touched here
+				// TODOA fix memory "leak" as this is crashing: delete objLOD[lodChk];
 			}
 		}
 	}
