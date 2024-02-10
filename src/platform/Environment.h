@@ -154,24 +154,28 @@ public:
 	std::string getRegex() { return str; }
 };
 
-template <typename TB, typename TC = bool>
+template <typename TB, typename TC = bool> // TC default is anything dummy
 class EnvVarHandler { // useful to take action only when the envvar is modified dinamically
 private:
 	std::string strId;
 	TB evarOld;
-public:
-	TB evar;
-	TC evarCustom; // this is an extra help, as a string or other TB may be converted into something TC special
+	TB evarMin;
+	TB evarMax;
 	
-	void init() { evar = TB(); }
+public:
+	TB ev;
+	
+	TC evc; // this is an extra custom type help, as a string at ev or other type may be converted into something evc special outside here after detecting a change in ev thru chkMod()
+	
+	void init() { ev = evarMin = evarMax = TB(); }
 	
 	bool chkMod() {
-		if(evar != evarOld) { evarOld = evar; return true; };
+		if(ev != evarOld) { evarOld = ev; return true; };
 		return false;
 	}
 	
 	EnvVarHandler() { }
-	EnvVarHandler(TB _evar) { init(); evar = _evar; }
+	EnvVarHandler(TB _evar) { init(); ev = _evar; }
 	
 	std::string id() { return strId; }
 	EnvVarHandler & setId(std::string _id) { arx_assert(strId == "" && _id != ""); strId = _id; return *this; }
@@ -225,11 +229,15 @@ EnvVar * getEnvVar(std::string id);
 std::string getEnvVarList();
 
 const char * getEnvironmentVariableValueBase(const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
+//EnvVar & initEnvVarStr(std::string & varString, const char * name, char & val, const char * strMsg = "", const Logger::LogLevel logMode = Logger::LogLevel::Info);
 EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = "");
 EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = ".*");
 EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", bool defaultValue = false);
 EnvVar & getEnvironmentVariableValueFloat(f32 & varFloat, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", f32 defaultValue = 0.f, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
 EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", s32 defaultValue = 0, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());
+
+template <typename T>
+EnvVar & getEnvironmentVariableValueCustom(const T & var, const char * name, T & val, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const T min = std::numeric_limits<T>::min(), const T max = std::numeric_limits<T>::max());
 
 struct EnvironmentOverride {
 	

@@ -584,6 +584,13 @@ const char * getEnvironmentVariableValueBase(const char * name, const Logger::Lo
 	#endif
 }
 
+/* // TODO the static var being initialized should not be used inside lambda, should only receive a final return value from it. May be easier to just rework it all into EnvVarHandler (*FixNonSenseCode)
+EnvVarHandler & initEnvVarStr(std::string & varString, const char * name, std::string & val, const char * strMsg, const Logger::LogLevel logMode) {
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
+	if(pc) val = pc;
+	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr);
+}
+*/
 EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) {
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string ev = pc ? pc : defaultValue;
@@ -673,7 +680,7 @@ EnvVar & EnvVar::setVal(std::string val, bool allowLog) {
 	} else
 	if(varString) {
 		if(val.size() == 0) {
-			(*varString) = "DUMMY"; // Keep here!!! why this is important? probably because the std::string variable pointed by varString was not initialized (not constructed yet) when setVal() is called from getEnvironmentVariableValueString(). So, without this line, it will crash! These all failed (without "DUMMY" first): varString->assign(val); (*varString) = ""; (*varString).clear();
+			(*varString) = "DUMMY"; // Keep here!!! why this is important? probably because the std::string variable pointed by varString was not initialized (not constructed yet) when setVal() is called from getEnvironmentVariableValueString(). So, without this line, it will crash! These all failed (without "DUMMY" first): varString->assign(val); (*varString) = ""; (*varString).clear(); TODO remove this after (*FixNonSenseCode)
 			(*varString) = "";
 		} else {
 			(*varString) = val;
