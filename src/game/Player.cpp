@@ -878,7 +878,10 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 	return true;
 }
 
-bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill) { // vanilla code, less random, more balanced towards random mixed class with not too discrepant values
+/*
+ * vanilla code, less random, more balanced towards mixed class with not too high nor too low values
+ */
+bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill) {
 	while(player.Attribute_Redistribute) {
 		float rn = Random::getf();
 
@@ -1046,7 +1049,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			}
 		}
 		
-		/*
+		/* TODO RM
 		while(iSR > 0) {
 			//Thread::sleep(PlatformDuration((1s * Random::getf())/10.f));
 			//float rn = (Random::getf() + Random::getf() + Random::getf() + Random::getf() + Random::getf()) / 5;
@@ -1151,7 +1154,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			}
 		}
 		*/
-		/*
+		/* TODO RM
 		arx_assert(
 			player.m_skill.stealth +
 			player.m_skill.mecanism +
@@ -1171,6 +1174,43 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 	int iAR = static_cast<int>(player.Attribute_Redistribute);
 	if(maxAttribute > 0) {
 		while(iAR > 0) {
+			float fPref = 1.f;
+			bool bAssigned = false;
+			float rn = urd(rng); // for time based seed could add: Thread::sleep(PlatformDuration((1s * Random::getf())/10.f));
+			for(int iMinToMax = 2; iMinToMax >= 0; iMinToMax--) {
+				switch(roleplayClassPreferedOrder[iMinToMax]) { // this works like if/else as is from lower to higher chance, therefore probability ranges apply. ex.: wmt -> 0.75 0.50 0.25 -> 1st t 0.25 (from 0 to <0.25) else m 0.50 (from >0.25 to <0.50) else w 0.75 (from >0.50 to <0.75) (like in vanilla)
+					case 'w':
+						if(rn < (fPref * 0.25f) && player.m_attribute.strength < maxAttribute) {
+							player.m_attribute.strength++;
+							bAssigned = true;
+						}
+						break;
+					case 'm':
+						if(rn < (fPref * 0.25f) && player.m_attribute.mind < maxAttribute) {
+							player.m_attribute.mind++;
+							bAssigned = true;
+						}
+						break;
+					case 't':
+						if(rn < (fPref * 0.25f) && player.m_attribute.dexterity < maxAttribute) {
+							player.m_attribute.dexterity++;
+							bAssigned = true;
+						}
+						break;
+				}
+				fPref += 1.f;
+			}
+			
+			if(bAssigned) {
+				iAR--;
+			} else {
+				if(player.m_attribute.constitution < maxAttribute) {
+					player.m_attribute.constitution++;
+					iAR--;
+				}
+			}
+			
+			/* TODO RM
 			std::vector<float> StrMndDex = {0.f, 0.f, 0.f};
 			float fPref = 1.f;
 			for(int iMinToMax = 2; iMinToMax >= 0; iMinToMax--) {
@@ -1182,7 +1222,6 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 				fPref += 1.f;
 			}
 			
-			float rn = urd(rng); // for time based seed could add: Thread::sleep(PlatformDuration((1s * Random::getf())/10.f));
 			if(rn < StrMndDex[0] && player.m_attribute.strength < maxAttribute) {
 				player.m_attribute.strength++;
 				iAR--;
@@ -1196,6 +1235,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 				player.m_attribute.constitution++;
 				iAR--;
 			}
+			*/
 			
 			if(
 				player.m_attribute.strength >= maxAttribute &&
@@ -1218,6 +1258,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 				break;
 			}
 		}
+		
 		arx_assert(iAR >= 0);
 		player.Attribute_Redistribute = static_cast<unsigned char>(iAR);
 	}
