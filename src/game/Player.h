@@ -443,7 +443,7 @@ void ARX_PLAYER_MakeFreshHero();
 void ARX_PLAYER_QuickGeneration();
 bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills);
 bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill);
-bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill, char cClass);
+bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::string roleplayClassPreferedOrder);
 void ARX_PLAYER_MakeAverageHero();
 void ARX_PLAYER_Modify_XP(long val);
 void ARX_PLAYER_FrameCheck(PlatformDuration delta);

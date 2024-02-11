@@ -591,6 +591,7 @@ EnvVarHandler & initEnvVarStr(std::string & varString, const char * name, std::s
 	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr);
 }
 */
+// TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
 EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) {
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string ev = pc ? pc : defaultValue;

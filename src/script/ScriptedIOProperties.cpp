@@ -514,7 +514,7 @@ public:
 		float minS =  0.f;
 		float maxA = 18.f;
 		float maxS = 18.f;
-		char cClass = '.';
+		std::string rpg = "vanilla";
 		HandleFlags("er") {
 			if(flg & flag('e')) {
 				strEntId = context.getStringVar(context.getWord());
@@ -525,7 +525,7 @@ public:
 				minS = context.getFloatVar(context.getWord());
 				maxA = context.getFloatVar(context.getWord());
 				maxS = context.getFloatVar(context.getWord());
-				cClass = context.getStringVar(context.getWord())[0];
+				rpg = context.getStringVar(context.getWord());
 			}
 		}
 		
@@ -538,7 +538,7 @@ public:
 		
 		if(ent == entities.player()) {
 			ARX_PLAYER_ResetAttributesAndSkills(minA, minS);
-			if(bRandomize) ARX_PLAYER_Randomize(maxA, maxS, cClass);
+			if(bRandomize) ARX_PLAYER_RandomizeRoleplayClass(maxA, maxS, rpg);
 		} else {
 			ScriptError << "rebirth can only be used at player entity";
 			return Failed;

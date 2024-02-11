@@ -123,6 +123,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "physics/Attractors.h"
 #include "physics/Projectile.h"
 
+#include "platform/Environment.h"
 #include "platform/Platform.h"
 #include "platform/profiler/Profiler.h"
 #include "platform/Thread.h"
@@ -794,26 +795,27 @@ void ARX_PLAYER_MakeAverageHero() {
 }
 
 /*!
- * \brief Quickgenerate a random hero
+ * \brief Quickgenerate a random hero for a new play thru
  */
 void ARX_PLAYER_QuickGeneration() {
 	
 	unsigned char old_skin = player.skin;
 	ARX_PLAYER_MakeFreshHero();
 	player.skin = old_skin;
-
-	ARX_PLAYER_Randomize(18.f, 18.f, '.');
-
+	
+	static std::string strPreferedRoleplayClassOrder = [](){return platform::getEnvironmentVariableValueString(strPreferedRoleplayClassOrder, "ARX_ScriptCodeEditorCommand", Logger::LogLevel::Info, "use 3 letters: w t m. warrior, thief and mage. ex.: \"mtw\" means mage will receive the best values, then thief and finally warrior.", "vanilla").getString();}();
+	ARX_PLAYER_RandomizeRoleplayClass(18.f, 18.f, strPreferedRoleplayClassOrder);
+	
 	player.level = 0;
 	player.xp = 0;
 	player.hunger = 100.f;
-
+	
 	ARX_PLAYER_ComputePlayerStats();
 }
 
 bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { // fMinAttrs < 1 will not reset, fMinSkills < 0 wont reset
-	float fSum;
-	float fMinSum;
+	float fSum = 0.f;
+	float fMinSum = 0.f;
 	
 	// attributes
 	if(fMinAttrs >= 1) {
@@ -855,16 +857,21 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 			player.m_skill.defense;
 			
 		fMinSum = (fMinSkills*9);
-		if(fSum < 0) {
+		if(fSum < fMinSum) {
 			LogError << "skills sum " << fSum << " is less than requested " << fMinSum;
 			return false;
 		}
-		fSum -= fMinSum;
+		float fRemaining = fSum - fMinSum;
 		
-		arx_assert(fSum <= 255);
-		arx_assert((fSum - static_cast<int>(fSum)) == 0.f);
+		arx_assert(fRemaining <= 255);
+		//arx_assert((fRemaining - static_cast<int>(fRemaining)) == 0.f);
+		float fAdjust = 0.f;
+		//if((fRemaining - static_cast<int>(fRemaining)) != 0.f) {
+			fAdjust = fRemaining - static_cast<int>(fRemaining);
+			fAdjust /= 9.f; // div by tot skills
+		//}
 		
-		player.Skill_Redistribute += static_cast<unsigned char>(fSum);
+		player.Skill_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
 			
 		player.m_skill.stealth =
 			player.m_skill.mecanism =
@@ -874,7 +881,7 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 			player.m_skill.casting =
 			player.m_skill.projectile =
 			player.m_skill.closeCombat =
-			player.m_skill.defense = fMinSkills;
+			player.m_skill.defense = (fMinSkills + fAdjust);
 	}
 	
 	return true;
@@ -939,29 +946,13 @@ bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill) { // vanilla code,
 	return player.Skill_Redistribute > 0 || player.Attribute_Redistribute > 0;
 }
 
-bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill, char cClass) { // if <= 0, wont randomize
-	std::vector<float> fWarrior, fMage, fThief;
-	float fLow = 0.05f, fMed = 0.20f, fHig = 0.50f; // 50% retry chance
-	switch(cClass) { // higher changes to desired class where attributes and skills also have higher changes towards that class
-		// [0] max must be 0.75f as constitution will win beyond that
-		case 'm': fMage = {fHig, 0.33f, 0.66f, 1.00f}; fThief = {fMed, 0.33f, 0.66f, 1.00f}; fWarrior = {fLow, 0.33f, 0.66f, 1.00f}; break;
-		case 'w': fMage = {fLow, 0.33f, 0.66f, 1.00f}; fThief = {fMed, 0.33f, 0.66f, 1.00f}; fWarrior = {fHig, 0.33f, 0.66f, 1.00f}; break;
-		case 't': fMage = {fLow, 0.33f, 0.66f, 1.00f}; fThief = {fHig, 0.33f, 0.66f, 1.00f}; fWarrior = {fMed, 0.33f, 0.66f, 1.00f}; break;
-		case '.': // this should match . Higher chances are like: attributes: thief, warrior, mage; skills: warrior mage thief
-		default:  //fMage = {fLow, 0.33f, 0.66f, 1.00f}; fThief = {fHig, 0.33f, 0.66f, 1.00f}; fWarrior = {fMed, 0.33f, 0.66f, 1.00f}; break;
-			return ARX_PLAYER_Randomize(maxAttribute, maxSkill);
+bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::string roleplayClassPreferedOrder) { // if <= 0, wont randomize
+	if(roleplayClassPreferedOrder == "vanilla") {
+		return ARX_PLAYER_Randomize(maxAttribute, maxSkill);
 	}
 	
 	int iSR = static_cast<int>(player.Skill_Redistribute);
 	if(maxSkill > 0) {
-		std::string cOrder;
-		if(fThief[0]   < fMage[0]    && fMage[0]    < fWarrior[0]) cOrder = "tmw";
-		if(fThief[0]   < fWarrior[0] && fWarrior[0] < fMage[0])    cOrder = "twm";
-		if(fMage[0]    < fThief[0]   && fThief[0]   < fWarrior[0]) cOrder = "mtw";
-		if(fMage[0]    < fWarrior[0] && fWarrior[0] < fThief[0])   cOrder = "mwt";
-		if(fWarrior[0] < fThief[0]   && fThief[0]   < fMage[0])    cOrder = "wtm";
-		if(fWarrior[0] < fMage[0]    && fMage[0]    < fThief[0])   cOrder = "wmt";
-		
 		while(true) {
 			std::deque<float> rndSkills;
 			for(int iTotSkills = 0; iTotSkills < 9; iTotSkills++) {
@@ -986,7 +977,7 @@ bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill, char cClass) { // 
 					rndSkills.pop_front();
 				}
 				int iIndex;
-				switch(cOrder[iMinToMax]) {
+				switch(roleplayClassPreferedOrder[iMinToMax]) {
 					case 't':
 						sum += player.m_skill.stealth = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
