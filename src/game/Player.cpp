@@ -937,20 +937,31 @@ bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill) { // vanilla code,
 	return player.Skill_Redistribute > 0 || player.Attribute_Redistribute > 0;
 }
 
-bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::string roleplayClassPreferedOrder) { // if <= 0, wont randomize
+bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::string roleplayClassPreferedOrder) {
 	if(roleplayClassPreferedOrder == "vanilla") {
 		return ARX_PLAYER_Randomize(maxAttribute, maxSkill);
 	}
+	
+	if(roleplayClassPreferedOrder.size() < 3 || roleplayClassPreferedOrder.find("m") == std::string::npos || roleplayClassPreferedOrder.find("w") == std::string::npos || roleplayClassPreferedOrder.find("t") == std::string::npos) {
+		LogError << "invalid roleplayClassPreferedOrder = " << roleplayClassPreferedOrder << ". it must contain [m]age [w]arrior [t]hief in any order you prefer your roleplay classes to be set as Maximum Medium Minimum preference ex.: mwt means mage is perfered over warrior that is prefered over thief.";
+		return false;
+	}
+	
+	if(maxAttribute <= 0) LogWarning << "attributes won't be randomized if max <= 0.";
+	if(maxSkill     <= 0) LogWarning <<     "skills won't be randomized if max <= 0.";
+	
+	static std::random_device rndDev;
+	static std::mt19937 rng{rndDev()}; 
+	static std::uniform_real_distribution<float> urd(0.0, 1.0);
 	
 	float sr = static_cast<int>(player.Skill_Redistribute);
 	float sum = 0;
 	if(maxSkill > 0) {
 		while(true) {
+			sum = 0;
+			
 			std::deque<float> rndSkills;
 			for(int iTotSkills = 0; iTotSkills < 9; iTotSkills++) {
-				static std::random_device rndDev;
-				static std::mt19937 rng{rndDev()}; 
-				static std::uniform_real_distribution<float> urd(0.0, 1.0);
 				float rnf = 0.f;
 				int iTotRnd = Random::get(1, 10);
 				for(int iR2 = 0; iR2 < iTotRnd; iR2++) rnf += urd(rng);
@@ -961,7 +972,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			std::ranges::sort(rndSkills); //, std::ranges::greater());
 			
 			//PlayerSkill psBefore = player.m_skill;
-			for(int iMinToMax = 0; iMinToMax < 3; iMinToMax++) {
+			for(int iMinToMax = 2; iMinToMax >= 0; iMinToMax--) {
 				std::vector<float> ps3;
 				for(int i3 = 0; i3 < 3; i3++) {
 					ps3.push_back(rndSkills[0]); // removes the 3 from the beggining
@@ -1030,7 +1041,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			}
 			player.Skill_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
 			if(player.Skill_Redistribute > 0) {
-				LogInfo << "Distribute remaining skill points " << static_cast<int>(player.Skill_Redistribute) << " with vanilla algorithm." // this is good to escape the requested class and add some unpredictness
+				LogInfo << "Distribute remaining skill points " << static_cast<int>(player.Skill_Redistribute) << " with vanilla algorithm."; // this is good to escape the requested class and add some unpredictness
 				ARX_PLAYER_Randomize(maxAttribute, maxSkill);
 			}
 		}
@@ -1160,16 +1171,25 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 	int iAR = static_cast<int>(player.Attribute_Redistribute);
 	if(maxAttribute > 0) {
 		while(iAR > 0) {
-			Thread::sleep(PlatformDuration((1s * Random::getf())/10.f));
-			float rn = (Random::getf() + Random::getf() + Random::getf() + Random::getf() + Random::getf()) / 5;
+			std::vector<float> StrMndDex = {0.f, 0.f, 0.f};
+			float fPref = 1.f;
+			for(int iMinToMax = 2; iMinToMax >= 0; iMinToMax--) {
+				switch(roleplayClassPreferedOrder[iMinToMax]) {
+					case 'w': StrMndDex[0] = (fPref * 0.25f); break;
+					case 'm': StrMndDex[1] = (fPref * 0.25f); break;
+					case 't': StrMndDex[2] = (fPref * 0.25f); break;
+				}
+				fPref += 1.f;
+			}
 			
-			if(rn < fWarrior[0] && player.m_attribute.strength < maxAttribute) {
+			float rn = urd(rng); // for time based seed could add: Thread::sleep(PlatformDuration((1s * Random::getf())/10.f));
+			if(rn < StrMndDex[0] && player.m_attribute.strength < maxAttribute) {
 				player.m_attribute.strength++;
 				iAR--;
-			} else if(rn < fMage[0] && player.m_attribute.mind < maxAttribute) {
+			} else if(rn < StrMndDex[1] && player.m_attribute.mind < maxAttribute) {
 				player.m_attribute.mind++;
 				iAR--;
-			} else if(rn < fThief[0] && player.m_attribute.dexterity < maxAttribute) {
+			} else if(rn < StrMndDex[2] && player.m_attribute.dexterity < maxAttribute) {
 				player.m_attribute.dexterity++;
 				iAR--;
 			} else if(player.m_attribute.constitution < maxAttribute) {
@@ -1202,7 +1222,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 		player.Attribute_Redistribute = static_cast<unsigned char>(iAR);
 	}
 	
-	return iSR > 0 || iAR > 0;
+	return sr > 0 || iAR > 0;
 }
 
 /*!
