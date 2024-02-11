@@ -797,7 +797,7 @@ void ARX_PLAYER_QuickGeneration() {
 	ARX_PLAYER_MakeFreshHero();
 	player.skin = old_skin;
 
-	ARX_PLAYER_Randomize();
+	ARX_PLAYER_Randomize(18.f, 18.f);
 
 	player.level = 0;
 	player.xp = 0;
@@ -807,18 +807,25 @@ void ARX_PLAYER_QuickGeneration() {
 }
 
 void ARX_PLAYER_ResetAttributes() {
-	player.Attribute_Redistribute +=
+	float fSum;
+	
+	// attributes
+	fSum =
 		player.m_attribute.strength +
 		player.m_attribute.mind +
 		player.m_attribute.dexterity +
 		player.m_attribute.constitution - 4;
+	arx_assert(fSum <= 255);
+	arx_assert((fSum - static_cast<int>(fSum)) == 0.f);
+	player.Attribute_Redistribute += static_cast<unsigned char>(fSum);
 		
 	player.m_attribute.strength =
 		player.m_attribute.mind =
 		player.m_attribute.dexterity =
 		player.m_attribute.constitution = 1;
 	
-	player.Skill_Redistribute +=
+	// skills
+	fSum =
 		player.m_skill.stealth +
 		player.m_skill.mecanism +
 		player.m_skill.intuition +
@@ -828,6 +835,9 @@ void ARX_PLAYER_ResetAttributes() {
 		player.m_skill.projectile +
 		player.m_skill.closeCombat +
 		player.m_skill.defense - 9;
+	arx_assert(fSum <= 255);
+	arx_assert((fSum - static_cast<int>(fSum)) == 0.f);
+	player.Skill_Redistribute += static_cast<unsigned char>(fSum);
 		
 	player.m_skill.stealth =
 		player.m_skill.mecanism =
@@ -840,59 +850,63 @@ void ARX_PLAYER_ResetAttributes() {
 		player.m_skill.defense = 1;
 }
 
-bool ARX_PLAYER_Randomize(float minStrength, float maxStrength,  float minMind, float maxMind,  float minDexterity, float maxDexterity,  float minConstitution, float maxConstitution,  float minStealth, float maxStealth,  float minMecanism, float maxMecanism,  float minIntuition, float maxIntuition,  float minEtheralLink, float maxEtheralLink,  float minObjectKnowledge, float maxObjectKnowledge,  float minCasting, float maxCasting,  float minProjectile, float maxProjectile,  float minCloseCombat, float maxCloseCombat,  float minDefense, float maxDefense) {
-	while(player.Attribute_Redistribute) { // TODO implement min (set and compare with available, return false if more than available) / max (substitute the 18)
+bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill) {
+	while(player.Attribute_Redistribute) {
 		float rn = Random::getf();
 
-		if(rn < 0.25f && player.m_attribute.strength < 18) {
+		if(rn < 0.25f && player.m_attribute.strength < maxAttribute) {
 			player.m_attribute.strength++;
 			player.Attribute_Redistribute--;
-		} else if(rn < 0.5f && player.m_attribute.mind < 18) {
+		} else if(rn < 0.5f && player.m_attribute.mind < maxAttribute) {
 			player.m_attribute.mind++;
 			player.Attribute_Redistribute--;
-		} else if(rn < 0.75f && player.m_attribute.dexterity < 18) {
+		} else if(rn < 0.75f && player.m_attribute.dexterity < maxAttribute) {
 			player.m_attribute.dexterity++;
 			player.Attribute_Redistribute--;
-		} else if(player.m_attribute.constitution < 18) {
+		} else if(player.m_attribute.constitution < maxAttribute) {
 			player.m_attribute.constitution++;
 			player.Attribute_Redistribute--;
+		} else {
+			break; // some points will remain available
 		}
 	}
 
 	while(player.Skill_Redistribute) {
 		float rn = Random::getf();
 
-		if(rn < 0.1f && player.m_skill.stealth < 18) {
+		if(rn < 0.11f && player.m_skill.stealth < maxSkill) {
 			player.m_skill.stealth++;
 			player.Skill_Redistribute--;
-		} else if(rn < 0.2f && player.m_skill.mecanism < 18) {
+		} else if(rn < 0.22f && player.m_skill.mecanism < maxSkill) {
 			player.m_skill.mecanism++;
 			player.Skill_Redistribute--;
-		} else if(rn < 0.3f && player.m_skill.intuition < 18) {
+		} else if(rn < 0.33f && player.m_skill.intuition < maxSkill) {
 			player.m_skill.intuition++;
 			player.Skill_Redistribute--;
-		} else if(rn < 0.4f && player.m_skill.etheralLink < 18) {
+		} else if(rn < 0.44f && player.m_skill.etheralLink < maxSkill) {
 			player.m_skill.etheralLink++;
 			player.Skill_Redistribute--;
-		} else if(rn < 0.5f && player.m_skill.objectKnowledge < 18) {
+		} else if(rn < 0.55f && player.m_skill.objectKnowledge < maxSkill) {
 			player.m_skill.objectKnowledge++;
 			player.Skill_Redistribute--;
-		} else if(rn < 0.6f && player.m_skill.casting < 18) {
+		} else if(rn < 0.66f && player.m_skill.casting < maxSkill) {
 			player.m_skill.casting++;
 			player.Skill_Redistribute--;
-		} else if(rn < 0.7f && player.m_skill.projectile < 18) {
+		} else if(rn < 0.77f && player.m_skill.projectile < maxSkill) {
 			player.m_skill.projectile++;
 			player.Skill_Redistribute--;
-		} else if(rn < 0.8f && player.m_skill.closeCombat < 18) {
+		} else if(rn < 0.88f && player.m_skill.closeCombat < maxSkill) {
 			player.m_skill.closeCombat++;
 			player.Skill_Redistribute--;
-		} else if(rn < 0.9f && player.m_skill.defense < 18) {
+		} else if(player.m_skill.defense < maxSkill) {
 			player.m_skill.defense++;
 			player.Skill_Redistribute--;
+		} else {
+			break; // some points will remain available
 		}
 	}
 	
-	return true;
+	return player.Skill_Redistribute > 0 || player.Attribute_Redistribute > 0;
 }
 
 /*!

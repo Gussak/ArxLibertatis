@@ -501,23 +501,22 @@ public:
 	
 	RebirthCommand() : Command("rebirth", AnyEntity) { }
 	
+	// rebirth [-er] <e?player> <r?limitAttributeValue limitSkillValue>
 	Result execute(Context & context) override {
 		std::string strEntId;
 		
 		bool bRandomize = false;
+		float maxA = 18.f;
+		float maxS = 18.f;
 		HandleFlags("er") {
 			if(flg & flag('e')) {
 				strEntId = context.getStringVar(context.getWord());
 			}
 			if(flg & flag('r')) {
 				bRandomize = true;
+				maxA = context.getFloat();
+				maxS = context.getFloat();
 			}
-			//if(flg & flag('n')) {
-				//iMin = context.getInteger(context.getWord());
-			//}
-			//if(flg & flag('x')) {
-				//iMax = context.getInteger(context.getWord());
-			//}
 		}
 		
 		Entity * ent = nullptr;
@@ -529,7 +528,7 @@ public:
 		
 		if(ent == entities.player()) {
 			ARX_PLAYER_ResetAttributes();
-			if(bRandomize) ARX_PLAYER_Randomize();
+			if(bRandomize) ARX_PLAYER_Randomize(maxA, maxS);
 		} else {
 			ScriptError << "rebirth can only be used at player entity";
 			return Failed;
