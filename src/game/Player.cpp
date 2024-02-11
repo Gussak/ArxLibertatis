@@ -831,7 +831,7 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 			return false;
 		}
 		float fRemaining = fSum - fMinSum;
-		arx_assert(fRemaining <= 255);
+		arx_assert(fRemaining <= std::numeric_limits<unsigned char>::max());
 		
 		float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / 9.f; // div by tot skills
 		player.Attribute_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
@@ -860,7 +860,7 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 			return false;
 		}
 		float fRemaining = fSum - fMinSum;
-		arx_assert(fRemaining <= 255);
+		arx_assert(fRemaining <= std::numeric_limits<unsigned char>::max());
 		
 		float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / 9.f; // div by tot skills
 		player.Skill_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
@@ -960,6 +960,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 	float sr = static_cast<int>(player.Skill_Redistribute);
 	float sum = 0;
 	if(maxSkill > 0) {
+		int iRetryCount = 0;
 		while(true) {
 			sum = 0;
 			
@@ -1029,7 +1030,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 		
 		if(sum < sr) {
 			float fRemaining = sr - sum;
-			arx_assert(fRemaining <= 255);
+			arx_assert(fRemaining <= std::numeric_limits<unsigned char>::max());
 			float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / 9.f; // div by tot skills
 			if(fAdjust > 0.f) {
 				player.m_skill.stealth += fAdjust;
@@ -1042,7 +1043,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 				player.m_skill.closeCombat += fAdjust;
 				player.m_skill.defense += fAdjust;
 			}
-			player.Skill_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
+			player.Skill_Redistribute = static_cast<unsigned char>(fRemaining); // trunc
 			if(player.Skill_Redistribute > 0) {
 				LogInfo << "Distribute remaining skill points " << static_cast<int>(player.Skill_Redistribute) << " with vanilla algorithm."; // this is good to escape the requested class and add some unpredictness
 				ARX_PLAYER_Randomize(maxAttribute, maxSkill);
@@ -1149,7 +1150,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 					player.m_skill.projectile +
 					player.m_skill.closeCombat +
 					player.m_skill.defense
-					<= 255 );
+					<= std::numeric_limits<unsigned char>::max() );
 				break;
 			}
 		}
@@ -1165,7 +1166,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			player.m_skill.projectile +
 			player.m_skill.closeCombat +
 			player.m_skill.defense
-			<= 255 );
+			<= std::numeric_limits<unsigned char>::max() );
 		arx_assert(iSR >= 0);
 		player.Skill_Redistribute = static_cast<unsigned char>(iSR);
 		*/
@@ -1254,7 +1255,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 					player.m_attribute.mind +
 					player.m_attribute.dexterity +
 					player.m_attribute.constitution
-					<= 255 );
+					<= std::numeric_limits<unsigned char>::max() );
 				break;
 			}
 		}
