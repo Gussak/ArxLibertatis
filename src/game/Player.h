@@ -442,6 +442,7 @@ void ARX_PLAYER_ComputePlayerFullStats();
 void ARX_PLAYER_MakeFreshHero();
 void ARX_PLAYER_QuickGeneration();
 bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills);
+bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill);
 bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill, char cClass);
 void ARX_PLAYER_MakeAverageHero();
 void ARX_PLAYER_Modify_XP(long val);

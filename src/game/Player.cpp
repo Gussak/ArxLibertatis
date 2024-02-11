@@ -46,12 +46,13 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "game/Player.h"
 
-#include <stddef.h>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#include <algorithm>
+#include <deque>
 #include <limits>
 #include <random>
+#include <stddef.h>
 
 #include <boost/random/uniform_int_distribution.hpp>
 
@@ -879,6 +880,65 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 	return true;
 }
 
+bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill) { // vanilla code, less random, more balanced towards random mixed class with not too discrepant values
+	while(player.Attribute_Redistribute) {
+		float rn = Random::getf();
+
+		if(rn < 0.25f && player.m_attribute.strength < maxAttribute) {
+			player.m_attribute.strength++;
+			player.Attribute_Redistribute--;
+		} else if(rn < 0.5f && player.m_attribute.mind < maxAttribute) {
+			player.m_attribute.mind++;
+			player.Attribute_Redistribute--;
+		} else if(rn < 0.75f && player.m_attribute.dexterity < maxAttribute) {
+			player.m_attribute.dexterity++;
+			player.Attribute_Redistribute--;
+		} else if(player.m_attribute.constitution < maxAttribute) {
+			player.m_attribute.constitution++;
+			player.Attribute_Redistribute--;
+		} else {
+			break; // if reaches here, some points will remain available
+		}
+	}
+
+	while(player.Skill_Redistribute) {
+		float rn = Random::getf();
+
+		if(rn < 0.11f && player.m_skill.stealth < maxSkill) {
+			player.m_skill.stealth++;
+			player.Skill_Redistribute--;
+		} else if(rn < 0.22f && player.m_skill.mecanism < maxSkill) {
+			player.m_skill.mecanism++;
+			player.Skill_Redistribute--;
+		} else if(rn < 0.33f && player.m_skill.intuition < maxSkill) {
+			player.m_skill.intuition++;
+			player.Skill_Redistribute--;
+		} else if(rn < 0.44f && player.m_skill.etheralLink < maxSkill) {
+			player.m_skill.etheralLink++;
+			player.Skill_Redistribute--;
+		} else if(rn < 0.55f && player.m_skill.objectKnowledge < maxSkill) {
+			player.m_skill.objectKnowledge++;
+			player.Skill_Redistribute--;
+		} else if(rn < 0.66f && player.m_skill.casting < maxSkill) {
+			player.m_skill.casting++;
+			player.Skill_Redistribute--;
+		} else if(rn < 0.77f && player.m_skill.projectile < maxSkill) {
+			player.m_skill.projectile++;
+			player.Skill_Redistribute--;
+		} else if(rn < 0.88f && player.m_skill.closeCombat < maxSkill) {
+			player.m_skill.closeCombat++;
+			player.Skill_Redistribute--;
+		} else if(player.m_skill.defense < maxSkill) {
+			player.m_skill.defense++;
+			player.Skill_Redistribute--;
+		} else {
+			break; // if reaches here, some points will remain available
+		}
+	}
+	
+	return player.Skill_Redistribute > 0 || player.Attribute_Redistribute > 0;
+}
+
 bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill, char cClass) { // if <= 0, wont randomize
 	std::vector<float> fWarrior, fMage, fThief;
 	float fLow = 0.05f, fMed = 0.20f, fHig = 0.50f; // 50% retry chance
@@ -887,13 +947,10 @@ bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill, char cClass) { // 
 		case 'm': fMage = {fHig, 0.33f, 0.66f, 1.00f}; fThief = {fMed, 0.33f, 0.66f, 1.00f}; fWarrior = {fLow, 0.33f, 0.66f, 1.00f}; break;
 		case 'w': fMage = {fLow, 0.33f, 0.66f, 1.00f}; fThief = {fMed, 0.33f, 0.66f, 1.00f}; fWarrior = {fHig, 0.33f, 0.66f, 1.00f}; break;
 		case 't': fMage = {fLow, 0.33f, 0.66f, 1.00f}; fThief = {fHig, 0.33f, 0.66f, 1.00f}; fWarrior = {fMed, 0.33f, 0.66f, 1.00f}; break;
-		case '.': // this should match vanilla code, more balanced towards random mixed class. Higher chances are like: attributes: thief, warrior, mage; skills: warrior mage thief
-		default:  fMage = {fLow, 0.33f, 0.66f, 1.00f}; fThief = {fHig, 0.33f, 0.66f, 1.00f}; fWarrior = {fMed, 0.33f, 0.66f, 1.00f}; break;
+		case '.': // this should match . Higher chances are like: attributes: thief, warrior, mage; skills: warrior mage thief
+		default:  //fMage = {fLow, 0.33f, 0.66f, 1.00f}; fThief = {fHig, 0.33f, 0.66f, 1.00f}; fWarrior = {fMed, 0.33f, 0.66f, 1.00f}; break;
+			return ARX_PLAYER_Randomize(maxAttribute, maxSkill);
 	}
-	
-	//static std::random_device rndDev;
-	//static std::mt19937 rng{rndDev()}; 
-	//static std::uniform_real_distribution<float> urd(0.0,1.0);
 	
 	int iSR = static_cast<int>(player.Skill_Redistribute);
 	if(maxSkill > 0) {
@@ -906,47 +963,58 @@ bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill, char cClass) { // 
 		if(fWarrior[0] < fMage[0]    && fMage[0]    < fThief[0])   cOrder = "wmt";
 		
 		while(true) {
-			std::vector<int> rndSkills;
-			for(int i = 0; i < 9; i++) rndSkills.emplace(Random::getf() * maxSkill);
+			std::deque<float> rndSkills;
+			for(int iTotSkills = 0; iTotSkills < 9; iTotSkills++) {
+				static std::random_device rndDev;
+				static std::mt19937 rng{rndDev()}; 
+				static std::uniform_real_distribution<float> urd(0.0, 1.0);
+				float rnf = 0.f;
+				int iTotRnd = Random::get(1, 10);
+				for(int iR2 = 0; iR2 < iTotRnd; iR2++) rnf += urd(rng);
+				rnf = static_cast<float>(std::fmod(rnf, 1.0));
+				rndSkills.push_back(rnf * maxSkill);
+				LogDebug("iTotRnd=" << iTotRnd << " rndSkill=" << rndSkills[rndSkills.size()-1]);
+			}
 			std::ranges::sort(rndSkills); //, std::ranges::greater());
+			
 			//PlayerSkill psBefore = player.m_skill;
-			int iSum = 0;
+			float sum = 0;
 			for(int iMinToMax = 0; iMinToMax < 3; iMinToMax++) {
-				std::vector<int> ps3;
+				std::vector<float> ps3;
 				for(int i3 = 0; i3 < 3; i3++) {
-					ps3.emplace(rndSkills[i3]);
-					rndSkills.erase(rndSkills.begin() + i3);
+					ps3.push_back(rndSkills[0]); // removes the 3 from the beggining
+					rndSkills.pop_front();
 				}
 				int iIndex;
 				switch(cOrder[iMinToMax]) {
 					case 't':
-						iSum += player.m_skill.stealth = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						sum += player.m_skill.stealth = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
-						iSum += player.m_skill.mecanism = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						sum += player.m_skill.mecanism = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
-						iSum += player.m_skill.intuition = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						sum += player.m_skill.intuition = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
 						break;
 					case 'm':
-						iSum += player.m_skill.etheralLink = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						sum += player.m_skill.etheralLink = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
-						iSum += player.m_skill.objectKnowledge = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						sum += player.m_skill.objectKnowledge = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
-						iSum += player.m_skill.casting = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						sum += player.m_skill.casting = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
 						break;
 					case 'w':
-						iSum += player.m_skill.projectile = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						sum += player.m_skill.projectile = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
-						iSum += player.m_skill.closeCombat = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						sum += player.m_skill.closeCombat = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
-						iSum += player.m_skill.defense = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						sum += player.m_skill.defense = ps3[iIndex = Random::get(0, ps3.size()-1)];
 						ps3.erase(ps3.begin() + iIndex);
 						break;
 				}
 			}
 			
-			LogDebug( iSum << "/" << iSR
+			LogDebug( sum << "/" << iSR << ", order=" << cOrder
 				<< ", Ts=" << player.m_skill.stealth
 				<< ", Tm=" << player.m_skill.mecanism
 				<< ", Ti=" << player.m_skill.intuition
@@ -958,9 +1026,9 @@ bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill, char cClass) { // 
 				<< ", Wd=" << player.m_skill.defense
 			);
 			
-			if(iSum <= iSR) break;
+			if(sum <= iSR) break;
 			
-			LogInfo << "retrying random rolls (overflowed " << iSum << " > " << iSR << ")";
+			LogInfo << "retrying random rolls (overflowed " << sum << " > " << iSR << ")";
 		}
 		
 		/*
