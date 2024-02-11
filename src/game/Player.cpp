@@ -825,22 +825,20 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 			player.m_attribute.dexterity +
 			player.m_attribute.constitution;
 			
-		fMinSum = (fMinAttrs*4);
+		fMinSum = (fMinAttrs * 4);
 		if(fSum < 0) {
 			LogError << "attributes sum " << fSum << " is less than requested " << fMinSum;
 			return false;
 		}
-		fSum -= fMinSum;
+		float fRemaining = fSum - fMinSum;
+		arx_assert(fRemaining <= 255);
 		
-		arx_assert(fSum <= 255);
-		arx_assert((fSum - static_cast<int>(fSum)) == 0.f);
-		
-		player.Attribute_Redistribute += static_cast<unsigned char>(fSum);
-			
+		float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / 9.f; // div by tot skills
+		player.Attribute_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
 		player.m_attribute.strength =
 			player.m_attribute.mind =
 			player.m_attribute.dexterity =
-			player.m_attribute.constitution = fMinAttrs;
+			player.m_attribute.constitution = (fMinAttrs + fAdjust);
 	}
 	
 	// skills
@@ -856,23 +854,16 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 			player.m_skill.closeCombat +
 			player.m_skill.defense;
 			
-		fMinSum = (fMinSkills*9);
+		fMinSum = (fMinSkills * 9);
 		if(fSum < fMinSum) {
 			LogError << "skills sum " << fSum << " is less than requested " << fMinSum;
 			return false;
 		}
 		float fRemaining = fSum - fMinSum;
-		
 		arx_assert(fRemaining <= 255);
-		//arx_assert((fRemaining - static_cast<int>(fRemaining)) == 0.f);
-		float fAdjust = 0.f;
-		//if((fRemaining - static_cast<int>(fRemaining)) != 0.f) {
-			fAdjust = fRemaining - static_cast<int>(fRemaining);
-			fAdjust /= 9.f; // div by tot skills
-		//}
 		
+		float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / 9.f; // div by tot skills
 		player.Skill_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
-			
 		player.m_skill.stealth =
 			player.m_skill.mecanism =
 			player.m_skill.intuition =
@@ -951,7 +942,8 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 		return ARX_PLAYER_Randomize(maxAttribute, maxSkill);
 	}
 	
-	int iSR = static_cast<int>(player.Skill_Redistribute);
+	float sr = static_cast<int>(player.Skill_Redistribute);
+	float sum = 0;
 	if(maxSkill > 0) {
 		while(true) {
 			std::deque<float> rndSkills;
@@ -969,7 +961,6 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			std::ranges::sort(rndSkills); //, std::ranges::greater());
 			
 			//PlayerSkill psBefore = player.m_skill;
-			float sum = 0;
 			for(int iMinToMax = 0; iMinToMax < 3; iMinToMax++) {
 				std::vector<float> ps3;
 				for(int i3 = 0; i3 < 3; i3++) {
@@ -1005,7 +996,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 				}
 			}
 			
-			LogDebug( sum << "/" << iSR << ", order=" << cOrder
+			LogDebug( sum << "/" << sr << ", rpgOrder=" << roleplayClassPreferedOrder
 				<< ", Ts=" << player.m_skill.stealth
 				<< ", Tm=" << player.m_skill.mecanism
 				<< ", Ti=" << player.m_skill.intuition
@@ -1017,9 +1008,31 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 				<< ", Wd=" << player.m_skill.defense
 			);
 			
-			if(sum <= iSR) break;
+			if(sum <= sr) break;
 			
-			LogInfo << "retrying random rolls (overflowed " << sum << " > " << iSR << ")";
+			LogInfo << "retrying random rolls (overflowed " << sum << " > " << sr << ")";
+		}
+		
+		if(sum < sr) {
+			float fRemaining = sr - sum;
+			arx_assert(fRemaining <= 255);
+			float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / 9.f; // div by tot skills
+			if(fAdjust > 0.f) {
+				player.m_skill.stealth += fAdjust;
+				player.m_skill.mecanism += fAdjust;
+				player.m_skill.intuition += fAdjust;
+				player.m_skill.etheralLink += fAdjust;
+				player.m_skill.objectKnowledge += fAdjust;
+				player.m_skill.casting += fAdjust;
+				player.m_skill.projectile += fAdjust;
+				player.m_skill.closeCombat += fAdjust;
+				player.m_skill.defense += fAdjust;
+			}
+			player.Skill_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
+			if(player.Skill_Redistribute > 0) {
+				LogInfo << "Distribute remaining skill points " << static_cast<int>(player.Skill_Redistribute) << " with vanilla algorithm." // this is good to escape the requested class and add some unpredictness
+				ARX_PLAYER_Randomize(maxAttribute, maxSkill);
+			}
 		}
 		
 		/*
@@ -1127,6 +1140,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			}
 		}
 		*/
+		/*
 		arx_assert(
 			player.m_skill.stealth +
 			player.m_skill.mecanism +
@@ -1140,6 +1154,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			<= 255 );
 		arx_assert(iSR >= 0);
 		player.Skill_Redistribute = static_cast<unsigned char>(iSR);
+		*/
 	}
 	
 	int iAR = static_cast<int>(player.Attribute_Redistribute);
