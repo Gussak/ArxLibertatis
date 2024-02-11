@@ -797,7 +797,7 @@ void ARX_PLAYER_QuickGeneration() {
 	ARX_PLAYER_MakeFreshHero();
 	player.skin = old_skin;
 
-	ARX_PLAYER_Randomize(18.f, 18.f);
+	ARX_PLAYER_Randomize(18.f, 18.f, '.');
 
 	player.level = 0;
 	player.xp = 0;
@@ -806,103 +806,193 @@ void ARX_PLAYER_QuickGeneration() {
 	ARX_PLAYER_ComputePlayerStats();
 }
 
-void ARX_PLAYER_ResetAttributes() {
+bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { // fMinAttrs < 1 will not reset, fMinSkills < 0 wont reset
 	float fSum;
+	float fMinSum;
 	
 	// attributes
-	fSum =
-		player.m_attribute.strength +
-		player.m_attribute.mind +
-		player.m_attribute.dexterity +
-		player.m_attribute.constitution - 4;
-	arx_assert(fSum <= 255);
-	arx_assert((fSum - static_cast<int>(fSum)) == 0.f);
-	player.Attribute_Redistribute += static_cast<unsigned char>(fSum);
+	if(fMinAttrs >= 1) {
+		fSum =
+			player.m_attribute.strength +
+			player.m_attribute.mind +
+			player.m_attribute.dexterity +
+			player.m_attribute.constitution;
+			
+		fMinSum = (fMinAttrs*4);
+		if(fSum < 0) {
+			LogError << "attributes sum " << fSum << " is less than requested " << fMinSum;
+			return false;
+		}
+		fSum -= fMinSum;
 		
-	player.m_attribute.strength =
-		player.m_attribute.mind =
-		player.m_attribute.dexterity =
-		player.m_attribute.constitution = 1;
+		arx_assert(fSum <= 255);
+		arx_assert((fSum - static_cast<int>(fSum)) == 0.f);
+		
+		player.Attribute_Redistribute += static_cast<unsigned char>(fSum);
+			
+		player.m_attribute.strength =
+			player.m_attribute.mind =
+			player.m_attribute.dexterity =
+			player.m_attribute.constitution = fMinAttrs;
+	}
 	
 	// skills
-	fSum =
-		player.m_skill.stealth +
-		player.m_skill.mecanism +
-		player.m_skill.intuition +
-		player.m_skill.etheralLink +
-		player.m_skill.objectKnowledge +
-		player.m_skill.casting +
-		player.m_skill.projectile +
-		player.m_skill.closeCombat +
-		player.m_skill.defense - 9;
-	arx_assert(fSum <= 255);
-	arx_assert((fSum - static_cast<int>(fSum)) == 0.f);
-	player.Skill_Redistribute += static_cast<unsigned char>(fSum);
+	if(fMinSkills >= 0) {
+		fSum =
+			player.m_skill.stealth +
+			player.m_skill.mecanism +
+			player.m_skill.intuition +
+			player.m_skill.etheralLink +
+			player.m_skill.objectKnowledge +
+			player.m_skill.casting +
+			player.m_skill.projectile +
+			player.m_skill.closeCombat +
+			player.m_skill.defense;
+			
+		fMinSum = (fMinSkills*9);
+		if(fSum < 0) {
+			LogError << "skills sum " << fSum << " is less than requested " << fMinSum;
+			return false;
+		}
+		fSum -= fMinSum;
 		
-	player.m_skill.stealth =
-		player.m_skill.mecanism =
-		player.m_skill.intuition =
-		player.m_skill.etheralLink =
-		player.m_skill.objectKnowledge =
-		player.m_skill.casting =
-		player.m_skill.projectile =
-		player.m_skill.closeCombat =
-		player.m_skill.defense = 1;
+		arx_assert(fSum <= 255);
+		arx_assert((fSum - static_cast<int>(fSum)) == 0.f);
+		
+		player.Skill_Redistribute += static_cast<unsigned char>(fSum);
+			
+		player.m_skill.stealth =
+			player.m_skill.mecanism =
+			player.m_skill.intuition =
+			player.m_skill.etheralLink =
+			player.m_skill.objectKnowledge =
+			player.m_skill.casting =
+			player.m_skill.projectile =
+			player.m_skill.closeCombat =
+			player.m_skill.defense = fMinSkills;
+	}
+	
+	return true;
 }
 
-bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill) {
-	while(player.Attribute_Redistribute) {
-		float rn = Random::getf();
-
-		if(rn < 0.25f && player.m_attribute.strength < maxAttribute) {
-			player.m_attribute.strength++;
-			player.Attribute_Redistribute--;
-		} else if(rn < 0.5f && player.m_attribute.mind < maxAttribute) {
-			player.m_attribute.mind++;
-			player.Attribute_Redistribute--;
-		} else if(rn < 0.75f && player.m_attribute.dexterity < maxAttribute) {
-			player.m_attribute.dexterity++;
-			player.Attribute_Redistribute--;
-		} else if(player.m_attribute.constitution < maxAttribute) {
-			player.m_attribute.constitution++;
-			player.Attribute_Redistribute--;
-		} else {
-			break; // some points will remain available
+bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill, char cClass) { // if <= 0, wont randomize
+	std::vector<float> fWarrior, fMage, fThief;
+	switch(cClass) { // higher changes to desired class where attributes and skills have higher changes towards desired class
+		// [0] max must be 0.75f as constitution will win beyond that
+		case 'm': fMage = {0.75f, 0.77f, 0.88f, 1.00f}; fThief = {0.50f, 0.44f, 0.55f, 0.66f}; fWarrior = {0.25f, 0.11f, 0.22f, 0.33f}; break;
+		case 'w': fMage = {0.25f, 0.11f, 0.22f, 0.33f}; fThief = {0.50f, 0.44f, 0.55f, 0.66f}; fWarrior = {0.75f, 0.77f, 0.88f, 1.00f}; break;
+		case 't': fMage = {0.25f, 0.11f, 0.22f, 0.33f}; fThief = {0.75f, 0.77f, 0.88f, 1.00f}; fWarrior = {0.50f, 0.44f, 0.55f, 0.66f}; break;
+		case '.': // this matches vanilla code, more balanced random mixed class. Higher chances are like: attributes: thief, warrior, mage; skills: warrior mage thief
+		default:  fMage = {0.25f, 0.44f, 0.55f, 0.66f}; fThief = {0.75f, 0.11f, 0.22f, 0.33f}; fWarrior = {0.50f, 0.77f, 0.88f, 1.00f}; break;
+	}
+	
+	if(maxSkill > 0) {
+		while(player.Skill_Redistribute) {
+			float rnClass = Random::getf();
+			float rn = Random::getf();
+			
+			if(rnClass < fThief[0]) {
+				if(rn < fThief[1] && player.m_skill.stealth < maxSkill) {
+					player.m_skill.stealth++;
+					player.Skill_Redistribute--;
+				} else if(rn < fThief[2] && player.m_skill.mecanism < maxSkill) {
+					player.m_skill.mecanism++;
+					player.Skill_Redistribute--;
+				} else if(rn < fThief[3] && player.m_skill.intuition < maxSkill) {
+					player.m_skill.intuition++;
+					player.Skill_Redistribute--;
+				}
+			} else
+			if(rnClass < fMage[0]) {
+				if(rn < fMage[1] && player.m_skill.etheralLink < maxSkill) {
+					player.m_skill.etheralLink++;
+					player.Skill_Redistribute--;
+				} else if(rn < fMage[2] && player.m_skill.objectKnowledge < maxSkill) {
+					player.m_skill.objectKnowledge++;
+					player.Skill_Redistribute--;
+				} else if(rn < fMage[3] && player.m_skill.casting < maxSkill) {
+					player.m_skill.casting++;
+					player.Skill_Redistribute--;
+				}
+			} else
+			if(rnClass < fWarrior[0]) {
+				if(rn < fWarrior[1] && player.m_skill.projectile < maxSkill) {
+					player.m_skill.projectile++;
+					player.Skill_Redistribute--;
+				} else if(rn < fWarrior[2] && player.m_skill.closeCombat < maxSkill) {
+					player.m_skill.closeCombat++;
+					player.Skill_Redistribute--;
+				} else if(rn < fWarrior[3] && player.m_skill.defense < maxSkill) {
+					player.m_skill.defense++;
+					player.Skill_Redistribute--;
+				}
+			}
+			
+			LogDebug( static_cast<int>(player.Skill_Redistribute) << " rnd:"
+				<< ", Ts=" << player.m_skill.stealth
+				<< ", Tm=" << player.m_skill.mecanism
+				<< ", Ti=" << player.m_skill.intuition
+				<< ", Mel=" << player.m_skill.etheralLink
+				<< ", Mok=" << player.m_skill.objectKnowledge
+				<< ", Mcs=" << player.m_skill.casting
+				<< ", Wp=" << player.m_skill.projectile
+				<< ", Wcc=" << player.m_skill.closeCombat
+				<< ", Wd=" << player.m_skill.defense
+			);
+			
+			if(
+				player.m_skill.stealth >= maxSkill &&
+				player.m_skill.mecanism >= maxSkill &&
+				player.m_skill.intuition >= maxSkill &&
+				player.m_skill.etheralLink >= maxSkill &&
+				player.m_skill.objectKnowledge >= maxSkill &&
+				player.m_skill.casting >= maxSkill &&
+				player.m_skill.projectile >= maxSkill &&
+				player.m_skill.closeCombat >= maxSkill &&
+				player.m_skill.defense >= maxSkill
+			) {
+				arx_assert(player.m_skill.stealth == maxSkill &&
+					player.m_skill.mecanism == maxSkill &&
+					player.m_skill.intuition == maxSkill &&
+					player.m_skill.etheralLink == maxSkill &&
+					player.m_skill.objectKnowledge == maxSkill &&
+					player.m_skill.casting == maxSkill &&
+					player.m_skill.projectile == maxSkill &&
+					player.m_skill.closeCombat == maxSkill &&
+					player.m_skill.defense == maxSkill);
+				arx_assert(player.m_skill.stealth +
+					player.m_skill.mecanism +
+					player.m_skill.intuition +
+					player.m_skill.etheralLink +
+					player.m_skill.objectKnowledge +
+					player.m_skill.casting +
+					player.m_skill.projectile +
+					player.m_skill.closeCombat +
+					player.m_skill.defense <= 255);
+				break;
+			}
 		}
 	}
-
-	while(player.Skill_Redistribute) {
-		float rn = Random::getf();
-
-		if(rn < 0.11f && player.m_skill.stealth < maxSkill) {
-			player.m_skill.stealth++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.22f && player.m_skill.mecanism < maxSkill) {
-			player.m_skill.mecanism++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.33f && player.m_skill.intuition < maxSkill) {
-			player.m_skill.intuition++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.44f && player.m_skill.etheralLink < maxSkill) {
-			player.m_skill.etheralLink++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.55f && player.m_skill.objectKnowledge < maxSkill) {
-			player.m_skill.objectKnowledge++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.66f && player.m_skill.casting < maxSkill) {
-			player.m_skill.casting++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.77f && player.m_skill.projectile < maxSkill) {
-			player.m_skill.projectile++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.88f && player.m_skill.closeCombat < maxSkill) {
-			player.m_skill.closeCombat++;
-			player.Skill_Redistribute--;
-		} else if(player.m_skill.defense < maxSkill) {
-			player.m_skill.defense++;
-			player.Skill_Redistribute--;
-		} else {
-			break; // some points will remain available
+	
+	if(maxAttribute > 0) {
+		while(player.Attribute_Redistribute) {
+			float rn = Random::getf();
+			
+			if(rn < fWarrior[0] && player.m_attribute.strength < maxAttribute) {
+				player.m_attribute.strength++;
+				player.Attribute_Redistribute--;
+			} else if(rn < fMage[0] && player.m_attribute.mind < maxAttribute) {
+				player.m_attribute.mind++;
+				player.Attribute_Redistribute--;
+			} else if(rn < fThief[0] && player.m_attribute.dexterity < maxAttribute) {
+				player.m_attribute.dexterity++;
+				player.Attribute_Redistribute--;
+			} else if(player.m_attribute.constitution < maxAttribute) {
+				player.m_attribute.constitution++;
+				player.Attribute_Redistribute--;
+			} else {
+				break; // some points will remain available
+			}
 		}
 	}
 	

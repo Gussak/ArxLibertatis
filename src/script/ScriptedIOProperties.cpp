@@ -501,21 +501,31 @@ public:
 	
 	RebirthCommand() : Command("rebirth", AnyEntity) { }
 	
-	// rebirth [-er] <e?player> <r?limitAttributeValue limitSkillValue>
+	// rebirth [-er] <e?player> <r?minAttr minSkill maxAttributeValue maxSkillValue charRoleplayClass>
+	// r=randomRoll
+	// if fMinAttrs < 1 will not reset, fMinSkills < 0 wont reset
+	// if maxAttributeValue maxSkillValue <= 0, wont randomize
+	// charRoleplayClass m=mage t=thief w=warrior, use only one letter
 	Result execute(Context & context) override {
 		std::string strEntId;
 		
 		bool bRandomize = false;
+		float minA =  0.f;
+		float minS =  0.f;
 		float maxA = 18.f;
 		float maxS = 18.f;
+		char cClass = '.';
 		HandleFlags("er") {
 			if(flg & flag('e')) {
 				strEntId = context.getStringVar(context.getWord());
 			}
 			if(flg & flag('r')) {
 				bRandomize = true;
-				maxA = context.getFloat();
-				maxS = context.getFloat();
+				minA = context.getFloatVar(context.getWord());
+				minS = context.getFloatVar(context.getWord());
+				maxA = context.getFloatVar(context.getWord());
+				maxS = context.getFloatVar(context.getWord());
+				cClass = context.getStringVar(context.getWord())[0];
 			}
 		}
 		
@@ -527,8 +537,8 @@ public:
 		}
 		
 		if(ent == entities.player()) {
-			ARX_PLAYER_ResetAttributes();
-			if(bRandomize) ARX_PLAYER_Randomize(maxA, maxS);
+			ARX_PLAYER_ResetAttributesAndSkills(minA, minS);
+			if(bRandomize) ARX_PLAYER_Randomize(maxA, maxS, cClass);
 		} else {
 			ScriptError << "rebirth can only be used at player entity";
 			return Failed;
