@@ -839,6 +839,8 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 			player.m_attribute.mind =
 			player.m_attribute.dexterity =
 			player.m_attribute.constitution = (fMinAttrs + fAdjust);
+	} else {
+		LogWarning << "attributes won't be reset if min < 1.";
 	}
 	
 	// skills
@@ -873,6 +875,8 @@ bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { //
 			player.m_skill.projectile =
 			player.m_skill.closeCombat =
 			player.m_skill.defense = (fMinSkills + fAdjust);
+	} else {
+		LogWarning << "skills won't be reset if min < 0.";
 	}
 	
 	return true;
@@ -959,17 +963,33 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 	static std::uniform_real_distribution<float> urd(0.0, 1.0);
 	
 	float sr = static_cast<int>(player.Skill_Redistribute);
+	static f32 fPercSkillVanillaRandom = [](){return platform::getEnvironmentVariableValueFloat(fPercSkillVanillaRandom, "ARX_VanillaRandomSkillCalcMaxPercentAllowed", Logger::LogLevel::Info, "The less you set, it will probably get slower to calc, but less remaining points will be allowed to use the vanilla randomizer. And instead of too high, just use \"vanilla\" rebirth option (instead of class choice like \"wmt\"). ", 0.35f, 0.10f, 0.75f).getFloat();}(); 
+	float fMaxRemaining = sr * fPercSkillVanillaRandom;
+	float fMaxDistToMaxRemain = sr - fMaxRemaining;
+	float fMaxRandomDistribSum = iTotSkills * maxSkill;
+	std::string strMsgErrHelp = "Please retry with easier to compute minimum and maximum values. The maximum*totalSkills has a maximum random sum of " + std::to_string(fMaxRandomDistribSum) + "; The max remaining points allowed is " + std::to_string(fMaxRemaining) + "; Total skill points to distribute is " + std::to_string(sr) + "; Max distributed that provide the max remaining is " + std::to_string(fMaxDistToMaxRemain) + ";"; // TODO add constraints based on this?
 	float sum = 0;
 	if(maxSkill > 0) {
+		fMaxRandomDistribSum = iTotSkills * maxSkill;
 		int iRetryCount = 0;
 		while(true) {
-			if(iRetryCount > 1000) {
-				LogError << "Too many skill randomizer retries count. This should expectedly never happen, but if it does... 4, 8, 15, 16, 23, 42 ;)";
+			if(iRetryCount > 200000) {
+				LogError << "Too many skill randomizer retries count. " << strMsgErrHelp; // this is better than endless loop.
 				return false;
 			}
-			if(maxSkill > 1 && iRetryCount > 0 && iRetryCount%100 == 0) {
-				maxSkill--;
-				LogWarning << "Lowering maxSkill allowed to " << maxSkill << " to \"speed up\" randomizer.";
+			if(iRetryCount > 0 && iRetryCount%1000 == 0) {
+				if(maxSkill > 1) {
+					if(fMaxDistToMaxRemain < fMaxRandomDistribSum) {
+						maxSkill--;
+						LogWarning << "Lowering maxSkill allowed to " << maxSkill << " to \"speed up\" randomizer.";
+					} else {
+						maxSkill++;
+						LogWarning << "Increasing maxSkill allowed to " << maxSkill << " to allow the randomizer to work at all.";
+					}
+				} else {
+					LogError << "Unable to change maxSkill allowed. " << strMsgErrHelp;
+					return false;
+				}
 			}
 			
 			sum = 0;
@@ -978,28 +998,26 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			for(int iSk = 0; iSk < iTotSkills; iSk++) {
 				float rnf = 0.f;
 				int iTotRnd = Random::get(1, 10);
-				for(int iR2 = 0; iR2 < iTotRnd; iR2++) rnf += urd(rng);
+				for(int iR2 = 0; iR2 < iTotRnd; iR2++) rnf += urd(rng); // trying to increase unpredictability
 				rnf = static_cast<float>(std::fmod(rnf, 1.0));
 				rndSkills.push_back(rnf * maxSkill);
 				sum += rndSkills[rndSkills.size()-1];
-				strMsgRnd += std::string() + "tot=" + std::to_string(iTotRnd) + ", rnd=" + std::to_string(rndSkills[rndSkills.size()-1]) + "; ";
+				strMsgRnd += std::string() + ", rnd=" + std::to_string(rndSkills[rndSkills.size()-1]) + "t" + std::to_string(iTotRnd) +"; ";
 			}
-			LogInfo << "sum=" << sum << ", skrd=" << sr << " -> " << strMsgRnd;
+			LogInfo << "max=" << maxSkill << ", sum=" << sum << ", skrd=" << sr << " -> " << strMsgRnd;
 			
 			float fRemaining = 0.f;
 			if(sum > sr) {
 				iRetryCount++;
-				LogWarning << "Retrying (" << iRetryCount << ") random rolls (overflowed)";
+				LogWarning << "Retrying (" << iRetryCount << ") random rolls (skills sum " << sum << " > " << sr << ", overflowed)";
 				continue;
 			} else {
 				fRemaining = sr - sum;
 			}
 			
-			static f32 fPercSkillVanillaRandom = [](){return platform::getEnvironmentVariableValueFloat(fPercSkillVanillaRandom, "ARX_VanillaRandomSkillCalcMaxPercentAllowed", Logger::LogLevel::Info, "The less you set, it will probably get slower to calc, but less remaining points will be allowed to use the vanilla randomizer. And instead of too high, just use \"vanilla\" rebirth option (instead of class choice like \"wmt\"). ", 0.35f, 0.10f, 0.75f).getFloat();}(); 
-			float fMaxRemaining = sr * fPercSkillVanillaRandom;
 			if(fRemaining > fMaxRemaining) { // (sr >= iTotSkills/fPercSkillVanillaRandom) && 
 				iRetryCount++;
-				LogWarning << "Retrying (" << iRetryCount << ") random rolls (underflowed the limit of " << fMaxRemaining << ")";
+				LogWarning << "Retrying (" << iRetryCount << ") random rolls (skills sum remaining " << fRemaining << " is above the limit of " << fMaxRemaining << ")";
 				continue;
 			}
 			
@@ -1046,17 +1064,18 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			}
 			arx_assert(static_cast<int>(sumChk * 100) == static_cast<int>(sum * 100));
 			
-			LogDebug( sum << "/" << sr << ", rpgOrder=" << roleplayClassPreferedOrder << ", retry=" << iRetryCount
-				<< ", Ts=" << player.m_skill.stealth
-				<< ", Tm=" << player.m_skill.mecanism
-				<< ", Ti=" << player.m_skill.intuition
-				<< ", Mel=" << player.m_skill.etheralLink
-				<< ", Mok=" << player.m_skill.objectKnowledge
-				<< ", Mcs=" << player.m_skill.casting
-				<< ", Wp=" << player.m_skill.projectile
-				<< ", Wcc=" << player.m_skill.closeCombat
+			#define LOG_SKILLS "" \
+				<< ", Ts=" << player.m_skill.stealth \
+				<< ", Tm=" << player.m_skill.mecanism \
+				<< ", Ti=" << player.m_skill.intuition \
+				<< ", Mel=" << player.m_skill.etheralLink \
+				<< ", Mok=" << player.m_skill.objectKnowledge \
+				<< ", Mcs=" << player.m_skill.casting \
+				<< ", Wp=" << player.m_skill.projectile \
+				<< ", Wcc=" << player.m_skill.closeCombat \
 				<< ", Wd=" << player.m_skill.defense
-			);
+			
+			LogDebug(sum << "/" << sr << ", rpgOrder=" << roleplayClassPreferedOrder << ", retry=" << iRetryCount << LOG_SKILLS);
 			
 			break;
 		}
@@ -1080,6 +1099,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 			if(player.Skill_Redistribute > 0) {
 				LogInfo << "Distribute remaining skill points " << static_cast<int>(player.Skill_Redistribute) << " with vanilla algorithm."; // this is good to escape the requested class and add some unpredictness
 				ARX_PLAYER_Randomize(maxAttribute, maxSkill);
+				LogInfo << "Final skills distribution: " << LOG_SKILLS;
 			}
 		}
 		
