@@ -1253,6 +1253,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 						break;
 				}
 				fPref += 1.f;
+				if(bAssigned) break;
 			}
 			
 			if(bAssigned) {
