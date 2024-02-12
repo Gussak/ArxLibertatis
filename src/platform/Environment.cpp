@@ -596,10 +596,10 @@ EnvVarHandler & initEnvVarStr(std::string & varString, const char * name, std::s
 /**
  * the var not being captured is a hint you forgot to use static, unless it is a class member.
  */
-EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) {
+EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, std::string & strValue, const Logger::LogLevel logMode, const char * strMsg) {
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
-	std::string ev = pc ? pc : defaultValue;
-	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr).setVal(ev);
+	if(pc) strValue = pc;
+	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr);
 }
 
 EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) { // tip: use arx param: --debug="src"
@@ -630,7 +630,7 @@ EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, con
 }
 
 EnvVar & EnvVar::initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex) {
-	arx_assert_msg(!(varString || varInt || varFloat || varRegex), "this ID was already initialized: id=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr); // this will happen on env var name clash
+	arx_assert_msg(!varString && !varInt && !varFloat && !varRegex, "this ID was already initialized: id=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr); // this will happen on env var name clash
 	
 	if(_varString) {
 		varString = _varString;

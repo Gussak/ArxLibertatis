@@ -481,10 +481,10 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	
 	LODFlag lodChk = lodRequest;
 	
-	static platform::EnvVarHandler<std::string,LODFlag> evLODMax = [](){evLODMax.setId("ARX_LODMax"); return platform::getEnvironmentVariableValueString(evLODMax.ev, evLODMax.id().c_str(), Logger::LogLevel::Info, "", "PERFECT").getString();}();
+	static platform::EnvVarHandler<std::string,LODFlag> evLODMax = [](){platform::EnvVarHandler<std::string,LODFlag> evTmp("ARX_LODMax",true); std::string strValue = "PERFECT"; platform::getEnvironmentVariableValueString(evLODMax.ev, evTmp.id().c_str(), strValue, Logger::LogLevel::Info, ""); evTmp.ev = strValue; return evTmp;}();
 	if(evLODMax.chkMod()) evLODMax.evc = strToLOD(evLODMax.ev);
 	
-	static platform::EnvVarHandler<std::string,LODFlag> evLODMin = [](){evLODMin.setId("ARX_LODMin"); return platform::getEnvironmentVariableValueString(evLODMin.ev, evLODMin.id().c_str(), Logger::LogLevel::Info, "", "ICON").getString();}();
+	static platform::EnvVarHandler<std::string,LODFlag> evLODMin = [](){platform::EnvVarHandler<std::string,LODFlag> evTmp("ARX_LODMin",true); std::string strValue = "ICON"; platform::getEnvironmentVariableValueString(evLODMin.ev, evTmp.id().c_str(), strValue, Logger::LogLevel::Info, ""); evTmp.ev = strValue; return evTmp;}();
 	if(evLODMin.chkMod()) evLODMin.evc = strToLOD(evLODMin.ev);
 	
 	if(evLODMin.evc < evLODMax.evc) {

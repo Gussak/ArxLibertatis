@@ -361,15 +361,6 @@ public:
 		static bool bTst2 = [](){return platform::getEnvironmentVariableValueBoolean(bTst2, "ARX_bTst2", Logger::LogLevel::Info, "", true).getBoolean();}();arx_assert(bTst2 == true);
 		static bool bTst3 = [](){return platform::getEnvironmentVariableValueBoolean(bTst3, "ARX_bTst3", Logger::LogLevel::Info, "").getBoolean();}();
 		static bool bTst4 = [](){return platform::getEnvironmentVariableValueBoolean(bTst4, "ARX_bTst4", Logger::LogLevel::Info).getBoolean();}();
-		
-		static std::string strTst5 = [](){return platform::getEnvironmentVariableValueString(strTst5, "ARX_strTst5", Logger::LogLevel::Info, "", "tSt5").getString();}();arx_assert(strTst5 == "tSt5");
-		static std::string strTst3 = [](){return platform::getEnvironmentVariableValueString(strTst3, "ARX_strTst3", Logger::LogLevel::Info, "").getString();}();
-		static std::string strTst4 = [](){return platform::getEnvironmentVariableValueString(strTst4, "ARX_strTst4", Logger::LogLevel::Info, "msg", "").getString();}();
-		static std::string strTst2 = [](){return platform::getEnvironmentVariableValueString(strTst2, "ARX_strTst2", Logger::LogLevel::Info).getString();}();
-		static std::string strTst1 = [](){return platform::getEnvironmentVariableValueString(strTst1, "ARX_strTst1", Logger::LogLevel::Info, "msg").getString();}();
-		
-		//static platform::EnvVarHandler<std::string,FpsCounter> & evTst6 = [this](){ std::string = "some val"; platform::initEnvVarStr(strTst6, "ARX_strTst6", strDefaultValue); return evTst6.ev; }();
-		//static std::string strTst6 = [](){std::string strDefaultValue = "tSt6"; platform::initEnvVarStr(strTst6, "ARX_strTst6", strDefaultValue); return strDefaultValue;}();arx_assert(strTst6 == "tSt6b"); // export ARX_strTst6="tSt6b"
 	}
 	#endif
 	

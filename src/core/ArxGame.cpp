@@ -1620,7 +1620,7 @@ class LODarxGame {
 	int distBetweenLODs;
 	int minFPS;
 	int deltaFPS;
-	platform::EnvVarHandler<float,FpsCounter> evFPS;
+	platform::EnvVarHandler<float, FpsCounter> evFPS; //(std::string("DUMMY"), false);
 	float playerMovedRecalcLODmoveMinDist;
 	float lodRecalcDelay;
 	float lodUpdateDelay;
@@ -1641,7 +1641,7 @@ public:
 		
 		deltaFPS = [this](){return platform::getEnvironmentVariableValueInteger(deltaFPS, "ARX_LODDeltaFPS", Logger::LogLevel::Info, "this is how much FPS above the minimum that will allow LOD to be improved for one item per iteration and for the distant LOD levels thru ARX_LODDistStep", 10, 1).getInteger();}();
 		
-		evFPS = [this](){ evFPS.setId("ARX_LODFPSdelay"); evFPS.ev = 0.33f; platform::getEnvironmentVariableValueFloat(evFPS.ev, evFPS.id().c_str(), Logger::LogLevel::None, "a more responsive FPS check (less than 1s), so LOD can change faster", evFPS.ev, 0.1f, 1.f ); return evFPS.ev; }();
+		evFPS = [this](){ platform::EnvVarHandler<float,FpsCounter> evTmp("ARX_LODFPSdelay", true); evTmp.ev = 0.33f; evTmp.ev = platform::getEnvironmentVariableValueFloat(evFPS.ev, evTmp.id().c_str(), Logger::LogLevel::None, "a more responsive FPS check (less than 1s), so LOD can change faster", evTmp.ev, 0.1f, 1.f ).getFloat(); return evTmp; }();
 		evFPS.evc.CalcFPS(true);
 		
 		playerMovedRecalcLODmoveMinDist = [this](){return platform::getEnvironmentVariableValueFloat(playerMovedRecalcLODmoveMinDist, "ARX_LODPlayerMoveDistToRecalcLOD", Logger::LogLevel::Info, "recalculate LOD after player moves this distance", 25.f, 10.f).getFloat();}(); // how far shall player move

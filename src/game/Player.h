@@ -310,7 +310,9 @@ struct ARXCHARACTER {
 	PlayerSkill m_skillOld;
 	
 	unsigned char Attribute_Redistribute;
+	unsigned char Attribute_Redistribute_TotalEarn;
 	unsigned char Skill_Redistribute;
+	unsigned char Skill_Redistribute_TotalEarn;
 	
 	short level;
 	
@@ -362,7 +364,9 @@ struct ARXCHARACTER {
 		, m_lifeMaxWithoutMods(0.f)
 		, m_manaMaxWithoutMods(0.f)
 		, Attribute_Redistribute(0)
+		, Attribute_Redistribute_TotalEarn(0)
 		, Skill_Redistribute(0)
+		, Skill_Redistribute_TotalEarn(0)
 		, level(0)
 		, xp(0)
 		, skin(0)
