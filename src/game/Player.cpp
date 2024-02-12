@@ -941,6 +941,7 @@ bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill) {
 }
 
 bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::string roleplayClassPreferedOrder) {
+	static int iTotSkills = 9;
 	if(roleplayClassPreferedOrder == "vanilla") {
 		return ARX_PLAYER_Randomize(maxAttribute, maxSkill);
 	}
@@ -962,20 +963,53 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 	if(maxSkill > 0) {
 		int iRetryCount = 0;
 		while(true) {
-			sum = 0;
+			if(iRetryCount > 1000) {
+				LogError << "Too many skill randomizer retries count. This should expectedly never happen, but if it does... 4, 8, 15, 16, 23, 42 ;)";
+				return false;
+			}
+			if(maxSkill > 1 && iRetryCount > 0 && iRetryCount%100 == 0) {
+				maxSkill--;
+				LogWarning << "Lowering maxSkill allowed to " << maxSkill << " to \"speed up\" randomizer.";
+			}
 			
+			sum = 0;
 			std::deque<float> rndSkills;
-			for(int iTotSkills = 0; iTotSkills < 9; iTotSkills++) {
+			std::string strMsgRnd;
+			for(int iSk = 0; iSk < iTotSkills; iSk++) {
 				float rnf = 0.f;
 				int iTotRnd = Random::get(1, 10);
 				for(int iR2 = 0; iR2 < iTotRnd; iR2++) rnf += urd(rng);
 				rnf = static_cast<float>(std::fmod(rnf, 1.0));
 				rndSkills.push_back(rnf * maxSkill);
-				LogDebug("iTotRnd=" << iTotRnd << " rndSkill=" << rndSkills[rndSkills.size()-1]);
+				sum += rndSkills[rndSkills.size()-1];
+				strMsgRnd += std::string() + "tot=" + std::to_string(iTotRnd) + ", rnd=" + std::to_string(rndSkills[rndSkills.size()-1]) + "; ";
 			}
+			LogInfo << "sum=" << sum << ", skrd=" << sr << " -> " << strMsgRnd;
+			
+			float fRemaining = 0.f;
+			if(sum > sr) {
+				iRetryCount++;
+				LogWarning << "Retrying (" << iRetryCount << ") random rolls (overflowed)";
+				continue;
+			} else {
+				fRemaining = sr - sum;
+			}
+			
+			static f32 fPercSkillVanillaRandom = [](){return platform::getEnvironmentVariableValueFloat(fPercSkillVanillaRandom, "ARX_VanillaRandomSkillCalcMaxPercentAllowed", Logger::LogLevel::Info, "The less you set, it will probably get slower to calc, but less remaining points will be allowed to use the vanilla randomizer. And instead of too high, just use \"vanilla\" rebirth option (instead of class choice like \"wmt\"). ", 0.35f, 0.10f, 0.75f).getFloat();}(); 
+			float fMaxRemaining = sr * fPercSkillVanillaRandom;
+			if(fRemaining > fMaxRemaining) { // (sr >= iTotSkills/fPercSkillVanillaRandom) && 
+				iRetryCount++;
+				LogWarning << "Retrying (" << iRetryCount << ") random rolls (underflowed the limit of " << fMaxRemaining << ")";
+				continue;
+			}
+			
 			std::ranges::sort(rndSkills); //, std::ranges::greater());
 			
+			//////////////////////////////////////// distribute 
+			
 			//PlayerSkill psBefore = player.m_skill;
+			float sumChk = sum;
+			sum = 0;
 			for(int iMinToMax = 2; iMinToMax >= 0; iMinToMax--) {
 				std::vector<float> ps3;
 				for(int i3 = 0; i3 < 3; i3++) {
@@ -1010,8 +1044,9 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 						break;
 				}
 			}
+			arx_assert(static_cast<int>(sumChk * 100) == static_cast<int>(sum * 100));
 			
-			LogDebug( sum << "/" << sr << ", rpgOrder=" << roleplayClassPreferedOrder
+			LogDebug( sum << "/" << sr << ", rpgOrder=" << roleplayClassPreferedOrder << ", retry=" << iRetryCount
 				<< ", Ts=" << player.m_skill.stealth
 				<< ", Tm=" << player.m_skill.mecanism
 				<< ", Ti=" << player.m_skill.intuition
@@ -1023,15 +1058,13 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 				<< ", Wd=" << player.m_skill.defense
 			);
 			
-			if(sum <= sr) break;
-			
-			LogInfo << "retrying random rolls (overflowed " << sum << " > " << sr << ")";
+			break;
 		}
 		
 		if(sum < sr) {
 			float fRemaining = sr - sum;
 			arx_assert(fRemaining <= std::numeric_limits<unsigned char>::max());
-			float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / 9.f; // div by tot skills
+			float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / static_cast<float>(iTotSkills);
 			if(fAdjust > 0.f) {
 				player.m_skill.stealth += fAdjust;
 				player.m_skill.mecanism += fAdjust;
