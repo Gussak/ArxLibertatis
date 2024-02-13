@@ -625,9 +625,14 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 	EERIE_3DOBJ * obj = loadObject(usemesh, pbox).release();
 	if(obj) {
 		delete io->obj, io->obj = nullptr;
+		io->resetLOD(true);
+		
 		io->usemesh = usemesh;
 		io->obj = obj;
 		EERIE_COLLISION_Cylinder_Create(io);
+		
+		load3DModelAndLOD(*io, usemesh, pbox);
+		
 		return true;
 	}
 	
@@ -1982,7 +1987,7 @@ void UpdateInter() {
 	
 	for(Entity & entity : entities.inScene()) {
 		
-		static f32 detectMoveDist = [](){return platform::getEnvironmentVariableValueFloat("ARX_MovementDetectedDistance", 'i', "", 3.0f, false);}();  // warns only once. set ARX_MovementDetectedDistance=3.0; // TODO this could be configurable per entity, thru a script command: DetectMove -e <entityID> <floatDist>
+		static f32 detectMoveDist = [](){return platform::getEnvironmentVariableValueFloat(detectMoveDist, "ARX_MovementDetectedDistance", Logger::LogLevel::Info, "", 3.0f, 0.5f).getFloat();}();  // warns only once. set ARX_MovementDetectedDistance=3.0; // TODO this could be configurable per entity, thru a script command: DetectMove -e <entityID> <floatDist>
 		if((entity.pos != entity.detectMovePos) && (fdist(entity.pos, entity.detectMovePos) >= detectMoveDist)) {
 			SendIOScriptEvent(&entity == g_draggedEntity ? entities.player() : nullptr, &entity, SM_MOVEMENTDETECTED);
 			entity.detectMovePos = entity.pos;
@@ -2103,9 +2108,7 @@ void ARX_INTERACTIVE_DestroyIOdelayedRemove(Entity * entity) {
 
 void ARX_INTERACTIVE_DestroyIOdelayedExecute() {
 	
-	if(!toDestroy.empty()) {
-		LogDebug("executing delayed entity destruction");
-	}
+	LogDebugIf(!toDestroy.empty(), "executing delayed entity destruction");
 	
 	for(Entity * entity : toDestroy) {
 		if(entity) {

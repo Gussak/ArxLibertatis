@@ -56,6 +56,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "graphics/Color.h"
 #include "graphics/Vertex.h"
 
+#include "io/log/Logger.h"
 #include "io/resource/ResourcePath.h"
 
 #include "math/Vector.h"
@@ -183,8 +184,39 @@ struct EERIE_FASTACCESS {
 	
 };
 
+class LOD_3DOBJ { // to make it easier to split game logic from rendering
+private:
+	//EERIE_3DOBJ * owner
+	float LODfpsBeforeTest;
+	float LODfpsAfterTest;
+public:
+	//LOD_3DOBJ(EERIE_3DOBJ * _owner) : owner(_owner) {}
+	LOD_3DOBJ() {
+		LODfpsAfterTest = 0.f;
+		LODfpsBeforeTest = 0.f;
+		LODfpsCost = -999999999.f; // an alternative could be to consider the number of visible faces
+		LODfpsCostSkip = 0;
+	}
+
+	int LODfpsCostSkip;
+	float LODfpsCost;
+	
+	bool calcFpsCost(float fps, bool before, std::string_view strInfo = "") { // this may be very imprecise and it not working well TODO remove this.
+		if(before) {
+			LODfpsBeforeTest = fps;
+		} else {
+			LODfpsAfterTest = fps;
+			LODfpsCost = LODfpsBeforeTest - LODfpsAfterTest;
+			LogDebug("LODfpsCost=" << LODfpsCost << ", LODfpsCostSkip=" << LODfpsCostSkip << ", info=" << strInfo);
+			return LODfpsCost > 0;
+		}
+		return false;
+	}
+};
+
 struct EERIE_3DOBJ {
 	
+	LOD_3DOBJ lod;
 	res::path file;
 	res::path fileUniqueRelativePathName;
 	VertexId origin = VertexId(0);
@@ -208,7 +240,6 @@ struct EERIE_3DOBJ {
 	
 	std::unique_ptr<Skeleton> m_skeleton;
 	util::HandleVector<VertexGroupId, std::vector<VertexId>> m_boneVertices;
-	
 };
 
 struct Plane {

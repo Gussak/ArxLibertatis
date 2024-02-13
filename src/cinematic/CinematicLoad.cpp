@@ -334,9 +334,7 @@ bool parseCinematic(Cinematic * c, const char * data, size_t size) {
 		AddKeyLoad(k);
 		
 		LogDebug(" - " << i << ": frame " << k.frame << " image: " << k.numbitmap);
-		if(k.idsound >= 0) {
-			LogDebug("   + sound: " << k.idsound);
-		}
+		LogDebugIf(k.idsound >= 0, "   + sound: " << k.idsound);
 		
 		if(i == 0) {
 			c->m_pos = k.pos;

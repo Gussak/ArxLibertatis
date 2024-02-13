@@ -421,8 +421,8 @@ public:
 	std::string getCmdStr() { return strCmd; }
 };
 
-//this below is a swap toggle comment block trick. Commenting this line begin with // will auto-uncomment the 1st part below, and will auto-comment the 2nd block part just after. look for '/*/' for the 2nd part after it
-/* //this is still broken concerning PreCompiledScripts
+#ifdef ARX_PRECOMPILED_SCRIPT
+//this is still broken concerning PreCompiledScripts
 ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
                                ScriptEventName event, ScriptParameters parameters,
                                size_t position) {
@@ -597,7 +597,7 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	
 	return ret;
 }
-/*/
+#else
 ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
                                ScriptEventName event, ScriptParameters parameters,
                                size_t position, const SCR_TIMER * timer) {
@@ -756,7 +756,7 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	
 	return ret;
 }
-//*/
+#endif
 
 void ScriptEvent::registerCommand(std::unique_ptr<script::Command> command) {
 	std::string_view name = command->getName();

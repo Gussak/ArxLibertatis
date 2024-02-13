@@ -25,16 +25,21 @@
 class FpsCounter {
 	PlatformInstant fLastTime;
 	u32 dwFrames;
+	float fDelay;
 	
 public:
-	FpsCounter()
+	FpsCounter(float _fDelay = 1.f)
 		: fLastTime(0)
 		, dwFrames(0)
+		, fDelay(_fDelay)
 		, FPS(0.f)
 	{ }
 	
 	float FPS;
-	void CalcFPS(bool reset = false);
+	
+	bool CalcFPS(bool reset = false);
+	void setDelay(float _fDelay) { fDelay = _fDelay; CalcFPS(true); }
+	float getDelay() { return fDelay; }
 };
 
 extern FpsCounter g_fpsCounter;

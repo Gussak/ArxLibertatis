@@ -368,7 +368,9 @@ struct ARX_CHANGELEVEL_PLAYER {
 	f32 maxmana;
 	s32 level;
 	s16 Attribute_Redistribute;
+	s16 Attribute_Redistribute_TotalEarn;
 	s16 Skill_Redistribute;
+	s16 Skill_Redistribute_TotalEarn;
 	
 	f32 armor_class; // TODO remove
 	f32 resist_magic; // TODO remove

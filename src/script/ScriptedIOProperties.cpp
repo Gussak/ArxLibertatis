@@ -49,6 +49,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "game/Entity.h"
 #include "game/EntityManager.h"
+#include "game/Player.h"
 #include "graphics/Math.h"
 #include "graphics/data/Mesh.h"
 #include "io/resource/ResourcePath.h"
@@ -494,6 +495,59 @@ public:
 	
 };
 
+class RebirthCommand : public Command {
+	
+public:
+	
+	RebirthCommand() : Command("rebirth", AnyEntity) { }
+	
+	// rebirth [-er] <e?player> <r?minAttr minSkill maxAttributeValue maxSkillValue charRoleplayClass>
+	// r=randomRoll
+	// if fMinAttrs < 1 will not reset, fMinSkills < 0 wont reset
+	// if maxAttributeValue maxSkillValue <= 0, wont randomize
+	// charRoleplayClass m=mage t=thief w=warrior, use only one letter
+	Result execute(Context & context) override {
+		std::string strEntId;
+		
+		bool bRandomize = false;
+		float minA =  0.f;
+		float minS =  0.f;
+		float maxA = 18.f;
+		float maxS = 18.f;
+		std::string rpg = "vanilla";
+		HandleFlags("er") {
+			if(flg & flag('e')) {
+				strEntId = context.getStringVar(context.getWord());
+			}
+			if(flg & flag('r')) {
+				bRandomize = true;
+				minA = context.getFloatVar(context.getWord());
+				minS = context.getFloatVar(context.getWord());
+				maxA = context.getFloatVar(context.getWord());
+				maxS = context.getFloatVar(context.getWord());
+				rpg = context.getStringVar(context.getWord());
+			}
+		}
+		
+		Entity * ent = nullptr;
+		if(strEntId.size() == 0) {
+			ent = context.getEntity();
+		} else {
+			ent = entities.getById(strEntId);
+		}
+		
+		if(ent == entities.player()) {
+			ARX_PLAYER_ResetAttributesAndSkills(minA, minS);
+			if(bRandomize) ARX_PLAYER_RandomizeRoleplayClass(maxA, maxS, rpg);
+		} else {
+			ScriptError << "rebirth can only be used at player entity";
+			return Failed;
+		}
+		
+		return Success;
+	}
+};
+
 class TweakCommand : public Command {
 	
 public:
@@ -662,6 +716,7 @@ void setupScriptedIOProperties() {
 	ScriptEvent::registerCommand(std::make_unique<HaloCommand>());
 	ScriptEvent::registerCommand(std::make_unique<TweakCommand>());
 	ScriptEvent::registerCommand(std::make_unique<UseMeshCommand>());
+	ScriptEvent::registerCommand(std::make_unique<RebirthCommand>());
 	
 }
 

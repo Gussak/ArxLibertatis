@@ -74,6 +74,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "physics/CollisionShapes.h"
 #include "physics/Physics.h"
 
+#include "platform/Environment.h"
+
 #include "scene/LinkedObject.h"
 #include "scene/GameSound.h"
 #include "scene/Interactive.h"
@@ -183,6 +185,7 @@ EERIE_3DOBJ * Eerie_Copy(const EERIE_3DOBJ * obj) {
 	nouvo->vertexColors.resize(nouvo->vertexlist.size());
 	
 	nouvo->file = obj->file;
+	nouvo->fileUniqueRelativePathName = obj->fileUniqueRelativePathName;
 	
 	nouvo->origin = obj->origin;
 	
@@ -329,6 +332,19 @@ void EERIE_CreateCedricData(EERIE_3DOBJ * eobj) {
 	
 }
 
+std::string LODtoStr(LODFlag lt) {
+	switch(lt) {
+		case LOD_NONE: LogWarning << "LOD 'none' should not be used."; return "none";
+		case LOD_PERFECT: return "perfect";
+		case LOD_HIGH: return "high";
+		case LOD_MEDIUM: return "medium";
+		case LOD_LOW: return "low";
+		case LOD_BAD: return "bad";
+		case LOD_FLAT: return "flat";
+		case LOD_ICON: return "icon";
+	}
+	return std::string("ERROR: Unrecognized LOD = ") + std::to_string(static_cast<int>(lt));
+}
 LODFlag strToLOD(std::string str, std::string strDefault) {
 	strDefault = util::toLowercase(strDefault);
 	str = util::toLowercase(str);
@@ -345,57 +361,68 @@ LODFlag strToLOD(std::string str, std::string strDefault) {
 		if(str == "bad"    ) lt = LOD_BAD;
 		else
 		if(str == "flat"   ) lt = LOD_FLAT;
+		else
+		if(str == "icon"   ) lt = LOD_ICON;
+		else
+		if(str == "none"   ) { lt = LOD_NONE; LogWarning << "LOD 'none' should not be used."; }
 		else {
-			arx_assert_msg(strDefault != "invalid", "Invalid default LOD '%s'", str.c_str());
-			
-			LogWarning << "fixing invalid LOD '" << str << "' to '" << strDefault << "'";
-			str = strDefault;
-			strDefault = "invalid";
-			continue;
+			if(i == 0) {
+				LogWarning << "fixing invalid LOD '" << str << "' to '" << strDefault << "'";
+				str = strDefault;
+				continue;
+			} else {
+				LogError << "Invalid default LOD " << strDefault;
+			}
 		}
 		
 		break;
 	}
 	return lt;
 }
-res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
-	//PakFile * pf = g_resources->getFile(io.usemesh);
+res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // tries to guess where is the valid model filename
+	//PakFile * pf = g_resources->getFile(io.usemesh); // TODO use this instead?
 	//if(pf) return io.usemesh;
 	//if(io.obj) {
 		//pf = g_resources->getFile(io.obj->fileUniqueRelativePathName);
 		//if(pf) return io.obj->fileUniqueRelativePathName;
 	//}
 	
-	// TODO all below may be unnecessary...
+	// TODO all below may be unnecessary?
 	res::path fileOk;
 	std::string strErrMsg;
 	std::ifstream fileValidate;
 	char cCheck;
-	std::vector<std::string> vFiles; // priority is by probable request
+	
+	std::vector<std::string> vFiles; // priority is by most probable request
 	vFiles.push_back(fileRequest.string());
 	vFiles.push_back(io.usemesh.string());
 	if(io.obj) {
 		vFiles.push_back(io.obj->fileUniqueRelativePathName.string());
 		vFiles.push_back(io.obj->file.string());
+		vFiles.push_back(io.classPath().string()); //overkill as 3D model may have changed
 	}
+	
 	bool bCanMsg = false;
-	for(std::string strFl : vFiles) {
-		if(strFl.size() == 0) continue;
+	res::path fileChk;
+	for(std::string strFlChk : vFiles) {
+		if(strFlChk.size() == 0) continue;
 		bCanMsg = true;
-		//LogWarning << "trying: " << strFl; // comment
-		LogDebug(strFl);
-		if(boost::starts_with(strFl, "graph/")) {
-			fileValidate.open((std::string() + "game/" + strFl).c_str(), std::ifstream::in);
-		} else {
-			fileValidate.open(strFl.c_str(), std::ifstream::in);
+		if(boost::starts_with(strFlChk, "graph/")) {
+			fileChk = std::string() + "game/" + strFlChk;
 		}
+		// fileChk.set_ext(".ftl"); // a file with a dot, other than for the extension, would break with this.
+		if(!boost::ends_with(fileChk.string(), ".ftl")) {
+			fileChk.append(".ftl");
+		}
+		LogDebug("Trying: " << fileChk);
+		fileValidate.open(fileChk.string().c_str(), std::ifstream::in);
 		cCheck = fileValidate.get();
 		if(fileValidate.good()) {
-			fileOk = strFl;
+			fileOk = strFlChk;
 			fileValidate.close();
 			break;
 		} else {
-			strErrMsg += " '" + strFl + "'" + (cCheck = '.');
+			strErrMsg += " '" + strFlChk + "'" + (cCheck = '.');
 		}
 	}
 	
@@ -409,77 +436,117 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) {
 	
 	return fileOk;
 }
-bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) { // TODO if this works, try to substitute everywhere using loadObject() for items at least, but only where the returned unique_ptr is release() !
-	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_HIGH, LOD_MEDIUM, LOD_LOW, LOD_BAD, LOD_FLAT}; // best to worst
+
+void LODIconAsSkin(EERIE_3DOBJ * obj, TextureContainer * tex) {
+	res::path skintochange = "graph/obj3d/textures/arx_icon_lod";
 	
+	//if(!tex) LogError << "icon not set";
+	arx_assert(tex);
+	
+	ReplaceTexture(obj, tex, skintochange);
+	
+	LogDebug("icon skin " << tex->m_texName);
+}
+
+bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
+	// TODO substitute everywhere using loadObject() for items at least ? but only where the returned unique_ptr is release() ! but... this is lazy load and will work anytime anyway.
+	arx_assert_msg(io.obj, "This lazy LOD initializer shall only be called after the entity 3D model is initialized elsewhere.");
+	arx_assert_msg(!io.objLOD[LOD_PERFECT] && !io.objLOD[LOD_HIGH] && !io.objLOD[LOD_MEDIUM] && !io.objLOD[LOD_LOW] && !io.objLOD[LOD_BAD] && !io.objLOD[LOD_FLAT] && !io.objLOD[LOD_ICON], "Some LOD was incorrectly initialized elsewhere.");
+	if(!(io.ioflags & IO_ITEM)) return false; // only items for now
+	
+	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_ICON, LOD_FLAT, LOD_BAD, LOD_LOW, LOD_MEDIUM, LOD_HIGH}; // from worst to best: this is intended to prioritize performance, so missing LODs will be a copy of nearest lower quality. LOD_PERFECT and LOD_ICON will always exist. Also, LOD_PERFECT must be the first to be setup as it is the io.obj already.
+	
+	//previousLOD = currentLOD;
+	//objLOD[LOD_PERFECT] = obj; // grants main/original/vanilla/correct model is the LOD_PERFECT
+	//currentLOD = LOD_PERFECT;
+
 	res::path fileOk = fix3DModelFilename(io, fileRequest);
-	if(fileOk.string().size() == 0) return false;
+	if(fileRequest.string().size() == 0) return false;
 	
 	res::path fileChkLOD;
 	std::string strLOD;
-	for(LODFlag ltChkLOD : ltOrderedList) {
-		//if(ltChkLOD < ltMax) continue; // TODO limit LOD loading?
-		//if(ltChkLOD > ltMin) continue;
+	size_t facesChk = 0;
+	for(LODFlag ltCfgLOD : ltOrderedList) {
+		// TODO limit LOD loading? least worst and best: if(ltCfgLOD != LOD_PERFECT && ltCfgLOD != LOD_ICON && ((ltCfgLOD < ltMaxLoadQuality) || (ltCfgLOD > ltMinLoadQuality)) continue; // this would improve RAM usage and game load time
 		
-		fileChkLOD = fileOk;
 		strLOD = "";
 		
-		switch(ltChkLOD) {
+		switch(ltCfgLOD) {
 			case LOD_PERFECT: break;
-			case LOD_HIGH:    strLOD = "[LODH]"; break;
-			case LOD_MEDIUM:  strLOD = "[LODM]"; break;
-			case LOD_LOW:     strLOD = "[LODL]"; break;
-			case LOD_BAD:     strLOD = "[LODB]"; break;
-			case LOD_FLAT:    strLOD = "[LODF]"; break;
-			default: arx_assert_msg(false, "not implemented LOD %d", ltChkLOD); break;
+			case LOD_HIGH:    strLOD = "[LODH]"; facesChk = 1000; break;
+			case LOD_MEDIUM:  strLOD = "[LODM]"; facesChk =  500; break;
+			case LOD_LOW:     strLOD = "[LODL]"; facesChk =  250; break;
+			case LOD_BAD:     strLOD = "[LODB]"; facesChk =  150; break;
+			case LOD_FLAT:    strLOD = "[LODF]"; facesChk =   13; break;
+			case LOD_ICON:    strLOD = "[LODI]"; facesChk =    3; break;
+			default: arx_assert_msg(false, "not implemented LOD %d", ltCfgLOD); break;
 		}
 		
-		if(strLOD.size() > 0) {
-			fileChkLOD.remove_ext().append( util::toLowercase(strLOD) ).append( fileOk.ext() );
-		}
+		//if(strLOD.size() > 0) {
+			// TODO ? create a func that grants sync with FTL.cpp:ARX_FTL_Load:fileUniqueRelativePathName (that removes prepended "game/" and grants ".ftl" ext)
+			fileChkLOD = fileOk;
+			if(boost::ends_with(fileChkLOD.string(), ".ftl")) {
+				fileChkLOD.remove_ext();
+			}
+			fileChkLOD.append( util::toLowercase(strLOD) ).append( ".ftl" );
+		//}
 		
-		if(io.obj && io.obj->fileUniqueRelativePathName == fileChkLOD && io.objLOD[ltChkLOD] == nullptr) {
-			io.objLOD[ltChkLOD] = io.obj;
+		EERIE_3DOBJ * objLoad = nullptr;
+		if(ltCfgLOD == LOD_PERFECT) { // LOD_PERFECT (original/vanilla/main) must be initialized elsewhere
+			objLoad = io.obj;
 		} else {
-			EERIE_3DOBJ * objLoad = loadObject(fileChkLOD, pbox).release();
-			if(objLoad) {
-				io.objLOD[ltChkLOD] = objLoad;
-				if(!io.obj) { // default becomes best quality available
-					io.obj = objLoad;
-					io.currentLOD = ltChkLOD;
-				} else {
-					if(io.currentLOD == ltChkLOD && io.obj->fileUniqueRelativePathName.basename() != fileChkLOD.basename()) {
-						LogWarning << "3DModel basenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " fileLOD=" << fileChkLOD << " "; // TODO LogDebug
-					}
-				}
+			objLoad = loadObject(fileChkLOD, pbox).release();
+			LogDebugIf(objLoad, "LOD file loaded: " << fileChkLOD);
+			LogDebugIf(!objLoad, "LOD file not found: " << fileChkLOD);
+		}
+		
+		if(!objLoad && ltCfgLOD == LOD_ICON) { // LOD_ICON may be customized by mod developer
+			// otherwise it shall always exist
+			fileChkLOD = "graph/obj3d/interactive/system/lod/arx_icon_lod_32x32.ftl";
+			objLoad = loadObject(fileChkLOD, pbox).release();
+			LODIconAsSkin(objLoad, io.m_icon);
+		}
+		
+		if(!objLoad) { // re-uses lower quality LOD in higher ones if they are not available
+			LODFlag ltReuseLOD = static_cast<LODFlag>(ltCfgLOD << 1);
+			static bool allowPerfectOnHighLOD = [](){return platform::getEnvironmentVariableValueBoolean(allowPerfectOnHighLOD, "ARX_LODallowPerfectOnHigh", Logger::LogLevel::Info, "", true).getBoolean();}();
+			if(io.objLOD[LOD_PERFECT]->facelist.size() <= static_cast<size_t>(facesChk*1.25f) || (allowPerfectOnHighLOD && ltCfgLOD == LOD_HIGH)) { // TODOA faces multiplier as envvar
+				ltReuseLOD = LOD_PERFECT; // As all vanilla items are very low poly, this suffices for now. TODOA another loop with all LODs, just after this loop, to reuse nearest better LOD into lower ones, based on faces count. 
+			}
+			arx_assert_msg(io.objLOD[ltReuseLOD], "LOD to reuse %s is not set", LODtoStr(ltReuseLOD).c_str());
+			objLoad = io.objLOD[ltReuseLOD];
+			LogDebug("reused LOD " << LODtoStr(ltReuseLOD) << " at LOD " << LODtoStr(ltCfgLOD));
+		}
+		
+		if(objLoad) {
+			io.objLOD[ltCfgLOD] = objLoad;
+		}
+		
+		if(io.objLOD[ltCfgLOD]) { // update flags
+			io.availableLODFlags |= ltCfgLOD;
+			if(io.objLOD[ltCfgLOD] == io.objLOD[LOD_ICON]) {
+				io.iconLODFlags |= ltCfgLOD;
+				LogDebug("added LOD " << LODtoStr(ltCfgLOD) << " to " << io.idString());
 			}
 		}
 		
-		if(io.objLOD[ltChkLOD]) {
-			io.availableLODFlags |= ltChkLOD;
-		}
+		LogDebugIf(!io.objLOD[ltCfgLOD], "3D Model not found for " << io.idString() << " " << fileChkLOD << " (pbox:" << pbox << ")");
+		arx_assert(io.objLOD[ltCfgLOD]);
 	}
 	
-	if(!io.obj) {
-		LogError << "3D Model not found for " << io.idString() << " '" << fileRequest.string() << "' (pbox:" << pbox << ")";
-		return false;
-	}
-	
-	#ifdef ARX_DEBUG
-	if(io.usemesh.string().size() > 0 && io.obj->fileUniqueRelativePathName.string().size() > 0 && io.usemesh != io.obj->fileUniqueRelativePathName) {
-		LogDebug("3DModel filenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " usemesh=" << io.usemesh << " ");
-	}
-	#endif
+	LogDebugIf(io.usemesh.string().size() && io.obj->fileUniqueRelativePathName.string().size() && io.usemesh != io.obj->fileUniqueRelativePathName, "3DModel filenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " usemesh=" << io.usemesh << " ");
 	
 	return true;
 }
 
-std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
+std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) { // TODO meshes should be loaded just one time ? unless they accept unique dynamic tweaks that could be saved. But still, if this doesnt happen it could re-use a default mesh.
 	
 	std::unique_ptr<EERIE_3DOBJ> object = ARX_FTL_Load(file);
 	if(object && pbox) {
 		EERIE_PHYSICS_BOX_Create(object.get());
 	}
+	
+	LogDebugIf(object, "faces=" << object->facelist.size() << ", pbox.radius=" << (pbox ? object->pbox->radius : 0.f) << ", file=" << object->fileUniqueRelativePathName );
 	
 	return object;
 }

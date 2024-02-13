@@ -307,7 +307,9 @@ static void ApplySPMax() {
 	ARX_PLAYER_Rune_Add_All();
 	notification_add("!!!!!!! FanTomAciE !!!!!!!");
 	player.Attribute_Redistribute += 10;
+	player.Attribute_Redistribute_TotalEarn += 10;
 	player.Skill_Redistribute += 50;
+	player.Skill_Redistribute_TotalEarn += 50;
 	player.level = std::max(player.level, short(10));
 	player.xp = GetXPforLevel(10);
 }

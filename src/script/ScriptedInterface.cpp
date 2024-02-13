@@ -51,6 +51,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "game/Inventory.h"
 #include "game/Entity.h"
 #include "game/Player.h"
+#include "gui/Console.h"
 #include "gui/Hud.h"
 #include "gui/Interface.h"
 #include "gui/Menu.h"
@@ -106,7 +107,21 @@ public:
 	
 };
 
-class TextInputCommand : public Command {
+class ConsoleHistoryCommand : public Command { // TODOA not working yet
+	
+	public:
+	
+		ConsoleHistoryCommand() : Command("hist") { }
+		
+		Result execute(Context & context) override {
+			
+			g_console.list(context.getWord(), true);
+			
+			return Success;
+		}
+};
+
+class TextInputCommand : public Command { // TODOA not working yet
 	
 	public:
 	
@@ -131,6 +146,8 @@ class TextInputCommand : public Command {
 			
 			g_gameTime.pause(GameTime::PauseUser);
 			
+			//TODOA see how ScriptConsole::draw() works ! it pauses the game and receives the input focus, try to not pause the game and make inscribing (hand writing) speed depend on objectknowledge 1s-5s skill 100-20  =  (1+((100-skill)/20))s. Inscribing will then fail if player moves or enter combat mode. Sound hand writing when finished. Sound dammit if fails. Store a history to not require re-typing everything.
+			
 			ARX_UNICODE_DrawTextInRect(hFontMenu, Vec2f(200,200), 999999, strQuestion, Color(232, 204, 142));
 			
 			TextInputWidget textbox(hFontMenu, strVal, Rectf(200,220,300,20));
@@ -140,8 +157,7 @@ class TextInputCommand : public Command {
 				return Failed;
 			}
 			
-			//todoa wait enter or esc key ? or is it automatic?
-			g_gameTime.resume(GameTime::PauseUser);
+			g_gameTime.resume(GameTime::PauseUser); // TODOA wait enter or esc key ? or is it automatic?
 			
 			if(!textbox.text().empty()) {
 				if(!SETVarValueText(context.getEntity()->m_variables, strVar, context.getStringVar(textbox.text(), context.getEntity()))) {
@@ -528,6 +544,7 @@ void setupScriptedInterface() {
 	ScriptEvent::registerCommand(std::make_unique<MapMarkerCommand>());
 	ScriptEvent::registerCommand(std::make_unique<DrawSymbolCommand>());
 	ScriptEvent::registerCommand(std::make_unique<TextInputCommand>());
+	ScriptEvent::registerCommand(std::make_unique<ConsoleHistoryCommand>());
 }
 
 } // namespace script

@@ -46,11 +46,15 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "game/Player.h"
 
-#include <stddef.h>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#include <algorithm>
+#include <deque>
 #include <limits>
+#include <random>
+#include <stddef.h>
+
+#include <boost/random/uniform_int_distribution.hpp>
 
 #include "animation/Animation.h"
 #include "animation/AnimationRender.h"
@@ -119,8 +123,10 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "physics/Attractors.h"
 #include "physics/Projectile.h"
 
+#include "platform/Environment.h"
 #include "platform/Platform.h"
 #include "platform/profiler/Profiler.h"
+#include "platform/Thread.h"
 
 #include "scene/ChangeLevel.h"
 #include "scene/Scene.h"
@@ -694,8 +700,8 @@ void ARX_PLAYER_MakeFreshHero() {
 	
 	player.m_skillOld = player.m_skill = skill;
 	
-	player.Attribute_Redistribute = 16;
-	player.Skill_Redistribute = 18;
+	player.Attribute_Redistribute_TotalEarn = player.Attribute_Redistribute = 16;
+	player.Skill_Redistribute_TotalEarn = player.Skill_Redistribute = 18;
 
 	player.level = 0;
 	player.xp = 0;
@@ -737,8 +743,8 @@ void ARX_PLAYER_MakeSpHero()
 	
 	player.m_skillOld = player.m_skill = skill;
 
-	player.Attribute_Redistribute = 6;
-	player.Skill_Redistribute = 10;
+	player.Attribute_Redistribute_TotalEarn = player.Attribute_Redistribute = 6;
+	player.Skill_Redistribute_TotalEarn = player.Skill_Redistribute = 10;
 
 	player.level = 1;
 	player.xp = 0;
@@ -778,8 +784,8 @@ void ARX_PLAYER_MakeAverageHero() {
 	player.m_skill.closeCombat += 2;
 	player.m_skill.defense += 2;
 	
-	player.Attribute_Redistribute = 0;
-	player.Skill_Redistribute = 0;
+	player.Attribute_Redistribute_TotalEarn = player.Attribute_Redistribute = 0;
+	player.Skill_Redistribute_TotalEarn = player.Skill_Redistribute = 0;
 	
 	player.level = 0;
 	player.xp = 0;
@@ -789,70 +795,459 @@ void ARX_PLAYER_MakeAverageHero() {
 }
 
 /*!
- * \brief Quickgenerate a random hero
+ * \brief Quickgenerate a random hero for a new play thru
  */
 void ARX_PLAYER_QuickGeneration() {
 	
 	unsigned char old_skin = player.skin;
 	ARX_PLAYER_MakeFreshHero();
 	player.skin = old_skin;
-
-	while(player.Attribute_Redistribute) {
-		float rn = Random::getf();
-
-		if(rn < 0.25f && player.m_attribute.strength < 18) {
-			player.m_attribute.strength++;
-			player.Attribute_Redistribute--;
-		} else if(rn < 0.5f && player.m_attribute.mind < 18) {
-			player.m_attribute.mind++;
-			player.Attribute_Redistribute--;
-		} else if(rn < 0.75f && player.m_attribute.dexterity < 18) {
-			player.m_attribute.dexterity++;
-			player.Attribute_Redistribute--;
-		} else if(player.m_attribute.constitution < 18) {
-			player.m_attribute.constitution++;
-			player.Attribute_Redistribute--;
-		}
-	}
-
-	while(player.Skill_Redistribute) {
-		float rn = Random::getf();
-
-		if(rn < 0.1f && player.m_skill.stealth < 18) {
-			player.m_skill.stealth++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.2f && player.m_skill.mecanism < 18) {
-			player.m_skill.mecanism++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.3f && player.m_skill.intuition < 18) {
-			player.m_skill.intuition++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.4f && player.m_skill.etheralLink < 18) {
-			player.m_skill.etheralLink++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.5f && player.m_skill.objectKnowledge < 18) {
-			player.m_skill.objectKnowledge++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.6f && player.m_skill.casting < 18) {
-			player.m_skill.casting++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.7f && player.m_skill.projectile < 18) {
-			player.m_skill.projectile++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.8f && player.m_skill.closeCombat < 18) {
-			player.m_skill.closeCombat++;
-			player.Skill_Redistribute--;
-		} else if(rn < 0.9f && player.m_skill.defense < 18) {
-			player.m_skill.defense++;
-			player.Skill_Redistribute--;
-		}
-	}
-
+	
+	ARX_PLAYER_ResetAttributesAndSkills(1.f,0.f);
+	
+	static std::string strPreferedRoleplayClassOrder = [](){std::string strValue="vanilla"; platform::getEnvironmentVariableValueString(strPreferedRoleplayClassOrder, "ARX_ScriptCodeEditorCommand", strValue, Logger::LogLevel::Info, "use 3 letters: w t m. warrior, thief and mage. ex.: \"mtw\" means mage will receive the best values, then thief and finally warrior."); return strValue;}();
+	ARX_PLAYER_RandomizeRoleplayClass(18.f, 18.f, strPreferedRoleplayClassOrder);
+	
 	player.level = 0;
 	player.xp = 0;
 	player.hunger = 100.f;
-
+	
 	ARX_PLAYER_ComputePlayerStats();
+}
+
+bool ARX_PLAYER_ResetAttributesAndSkills(float fMinAttrs, float fMinSkills) { // fMinAttrs < 1 will not reset, fMinSkills < 0 wont reset
+	float fSum = 0.f;
+	float fMinSum = 0.f;
+	
+	// attributes
+	if(fMinAttrs >= 1) {
+		fSum =
+			player.m_attribute.strength +
+			player.m_attribute.mind +
+			player.m_attribute.dexterity +
+			player.m_attribute.constitution;
+			
+		fMinSum = (fMinAttrs * 4);
+		if(fSum < 0) {
+			LogError << "attributes sum " << fSum << " is less than requested " << fMinSum;
+			return false;
+		}
+		float fRemaining = fSum - fMinSum;
+		arx_assert(fRemaining <= std::numeric_limits<unsigned char>::max());
+		
+		float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / 9.f; // div by tot skills
+		player.Attribute_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
+		player.m_attribute.strength =
+			player.m_attribute.mind =
+			player.m_attribute.dexterity =
+			player.m_attribute.constitution = (fMinAttrs + fAdjust);
+	} else {
+		LogWarning << "attributes won't be reset if min < 1.";
+	}
+	
+	// skills
+	if(fMinSkills >= 0) {
+		fSum =
+			player.m_skill.stealth +
+			player.m_skill.mecanism +
+			player.m_skill.intuition +
+			player.m_skill.etheralLink +
+			player.m_skill.objectKnowledge +
+			player.m_skill.casting +
+			player.m_skill.projectile +
+			player.m_skill.closeCombat +
+			player.m_skill.defense;
+			
+		fMinSum = (fMinSkills * 9);
+		if(fSum < fMinSum) {
+			LogError << "skills sum " << fSum << " is less than requested " << fMinSum;
+			return false;
+		}
+		float fRemaining = fSum - fMinSum;
+		arx_assert(fRemaining <= std::numeric_limits<unsigned char>::max());
+		
+		float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / 9.f; // div by tot skills
+		player.Skill_Redistribute += static_cast<unsigned char>(fRemaining); // trunc
+		player.m_skill.stealth =
+			player.m_skill.mecanism =
+			player.m_skill.intuition =
+			player.m_skill.etheralLink =
+			player.m_skill.objectKnowledge =
+			player.m_skill.casting =
+			player.m_skill.projectile =
+			player.m_skill.closeCombat =
+			player.m_skill.defense = (fMinSkills + fAdjust);
+	} else {
+		LogWarning << "skills won't be reset if min < 0.";
+	}
+	
+	return true;
+}
+
+/*
+ * vanilla code, less random, more balanced towards mixed class with not too high nor too low values
+ */
+bool ARX_PLAYER_Randomize(float maxAttribute, float maxSkill) {
+	if(maxAttribute >= 1.f) {
+		while(player.Attribute_Redistribute) {
+			float rn = Random::getf();
+
+			if(rn < 0.25f && player.m_attribute.strength < maxAttribute) {
+				player.m_attribute.strength++;
+				player.Attribute_Redistribute--;
+			} else if(rn < 0.5f && player.m_attribute.mind < maxAttribute) {
+				player.m_attribute.mind++;
+				player.Attribute_Redistribute--;
+			} else if(rn < 0.75f && player.m_attribute.dexterity < maxAttribute) {
+				player.m_attribute.dexterity++;
+				player.Attribute_Redistribute--;
+			} else if(player.m_attribute.constitution < maxAttribute) {
+				player.m_attribute.constitution++;
+				player.Attribute_Redistribute--;
+			} else {
+				break; // if reaches here, some points will remain available
+			}
+		}
+	}
+
+	if(maxSkill >= 1.f) {
+		while(player.Skill_Redistribute) {
+			float rn = Random::getf();
+
+			if(rn < 0.11f && player.m_skill.stealth < maxSkill) {
+				player.m_skill.stealth++;
+				player.Skill_Redistribute--;
+			} else if(rn < 0.22f && player.m_skill.mecanism < maxSkill) {
+				player.m_skill.mecanism++;
+				player.Skill_Redistribute--;
+			} else if(rn < 0.33f && player.m_skill.intuition < maxSkill) {
+				player.m_skill.intuition++;
+				player.Skill_Redistribute--;
+			} else if(rn < 0.44f && player.m_skill.etheralLink < maxSkill) {
+				player.m_skill.etheralLink++;
+				player.Skill_Redistribute--;
+			} else if(rn < 0.55f && player.m_skill.objectKnowledge < maxSkill) {
+				player.m_skill.objectKnowledge++;
+				player.Skill_Redistribute--;
+			} else if(rn < 0.66f && player.m_skill.casting < maxSkill) {
+				player.m_skill.casting++;
+				player.Skill_Redistribute--;
+			} else if(rn < 0.77f && player.m_skill.projectile < maxSkill) {
+				player.m_skill.projectile++;
+				player.Skill_Redistribute--;
+			} else if(rn < 0.88f && player.m_skill.closeCombat < maxSkill) {
+				player.m_skill.closeCombat++;
+				player.Skill_Redistribute--;
+			} else if(player.m_skill.defense < maxSkill) {
+				player.m_skill.defense++;
+				player.Skill_Redistribute--;
+			} else {
+				break; // if reaches here, some points will remain available
+			}
+		}
+	}
+	
+	return player.Skill_Redistribute > 0 || player.Attribute_Redistribute > 0;
+}
+
+bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::string roleplayClassPreferedOrder) {
+	LogInfo << "Skill_Redistribute_TotalEarn="     << static_cast<int>(player.Skill_Redistribute_TotalEarn);
+	LogInfo << "Attribute_Redistribute_TotalEarn=" << static_cast<int>(player.Attribute_Redistribute_TotalEarn);
+	
+	static int iTotSkills = 9;
+	if(roleplayClassPreferedOrder == "vanilla") {
+		return ARX_PLAYER_Randomize(maxAttribute, maxSkill);
+	}
+	
+	if(roleplayClassPreferedOrder.size() < 3 || roleplayClassPreferedOrder.find("m") == std::string::npos || roleplayClassPreferedOrder.find("w") == std::string::npos || roleplayClassPreferedOrder.find("t") == std::string::npos) {
+		LogError << "invalid roleplayClassPreferedOrder = " << roleplayClassPreferedOrder << ". it must contain [m]age [w]arrior [t]hief in any order you prefer your roleplay classes to be set as Maximum Medium Minimum preference ex.: mwt means mage is perfered over warrior that is prefered over thief.";
+		return false;
+	}
+	
+	if(maxAttribute <= 0) LogWarning << "attributes won't be randomized if max < 1.";
+	if(maxSkill     <= 0) LogWarning <<     "skills won't be randomized if max < 1.";
+	
+	std::string strMsgErrHelp = "Please retry with easier to compute minimum and maximum values.";
+	
+	float sr = static_cast<int>(player.Skill_Redistribute_TotalEarn);
+	if(maxSkill > 0) {
+		static f32 fPercSkillVanillaRandom = [](){return platform::getEnvironmentVariableValueFloat(fPercSkillVanillaRandom, "ARX_VanillaRandomSkillCalcMaxPercentAllowed", Logger::LogLevel::Info, "The less you set, it will probably get slower to calc, but less remaining points will be allowed to use the vanilla randomizer. And instead of too high, just use \"vanilla\" rebirth option (instead of class choice like \"wmt\"). ", 0.35f, 0.10f, 0.75f).getFloat();}(); 
+		float fMaxRemaining = sr * fPercSkillVanillaRandom;
+		
+		float fMaxDistToMaxRemain = sr - fMaxRemaining;
+		float fMaxRandomDistribSum = iTotSkills * maxSkill;
+		
+		strMsgErrHelp += " The maximum*totalSkills has a maximum random sum of " + std::to_string(fMaxRandomDistribSum) + "; The max remaining points allowed is " + std::to_string(fMaxRemaining) + "; Total skill points to distribute is " + std::to_string(sr) + "; Max distributed that provide the max remaining is " + std::to_string(fMaxDistToMaxRemain) + ";"; // TODO add constraints based on this?
+		
+		float sumSkills = 0.f;
+		int iRetryCount = 0;
+		while(true) {
+			fMaxRandomDistribSum = iTotSkills * maxSkill;
+			if(iRetryCount > 200000) {
+				LogError << "Too many skill randomizer retries count. " << strMsgErrHelp; // this is better than endless loop.
+				return false;
+			}
+			if(iRetryCount > 0 && iRetryCount%1000 == 0) {
+				if(maxSkill > 1) {
+					if(fMaxDistToMaxRemain < fMaxRandomDistribSum) {
+						maxSkill--;
+						LogWarning << "Lowering maxSkill allowed to " << maxSkill << " to \"speed up\" randomizer.";
+					} else {
+						maxSkill++;
+						LogWarning << "Increasing maxSkill allowed to " << maxSkill << " to allow the randomizer to work at all.";
+					}
+				} else {
+					LogError << "Unable to change maxSkill allowed. " << strMsgErrHelp;
+					return false;
+				}
+			}
+			
+			float sumChk = 0;
+			std::deque<float> rndSkills;
+			std::string strMsgRnd;
+			for(int iSk = 0; iSk < iTotSkills; iSk++) {
+				rndSkills.push_back(Random::Mt19937plus() * maxSkill);
+				sumChk += rndSkills[rndSkills.size()-1];
+				strMsgRnd += std::string() + ", rnd=" + std::to_string(rndSkills[rndSkills.size()-1]) + "; ";
+			}
+			LogInfo << "max=" << maxSkill << ", sum=" << sumChk << ", skrd=" << sr << " -> " << strMsgRnd;
+			
+			float fRemaining = 0.f;
+			if(sumChk > sr) {
+				iRetryCount++;
+				LogWarning << "Retrying (" << iRetryCount << ") random rolls (skills sum " << sumChk << " > " << sr << ", overflowed)";
+				continue;
+			} else {
+				fRemaining = sr - sumChk;
+			}
+			
+			if(fRemaining > fMaxRemaining) { // (sr >= iTotSkills/fPercSkillVanillaRandom) && 
+				iRetryCount++;
+				LogWarning << "Retrying (" << iRetryCount << ") random rolls (skills sum remaining " << fRemaining << " is above the limit of " << fMaxRemaining << ")";
+				continue;
+			}
+			
+			std::ranges::sort(rndSkills); //, std::ranges::greater());
+			
+			//////////////////////////////////////// distribute 
+			
+			//PlayerSkill psBefore = player.m_skill;
+			sumSkills = 0;
+			for(int iMinToMax = 2; iMinToMax >= 0; iMinToMax--) {
+				std::vector<float> ps3;
+				for(int i3 = 0; i3 < 3; i3++) {
+					ps3.push_back(rndSkills[0]); // removes the 3 from the beggining
+					rndSkills.pop_front();
+				}
+				int iIndex;
+				switch(roleplayClassPreferedOrder[iMinToMax]) {
+					case 't':
+						sumSkills += player.m_skill.stealth = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						ps3.erase(ps3.begin() + iIndex);
+						sumSkills += player.m_skill.mecanism = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						ps3.erase(ps3.begin() + iIndex);
+						sumSkills += player.m_skill.intuition = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						ps3.erase(ps3.begin() + iIndex);
+						break;
+					case 'm':
+						sumSkills += player.m_skill.etheralLink = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						ps3.erase(ps3.begin() + iIndex);
+						sumSkills += player.m_skill.objectKnowledge = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						ps3.erase(ps3.begin() + iIndex);
+						sumSkills += player.m_skill.casting = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						ps3.erase(ps3.begin() + iIndex);
+						break;
+					case 'w':
+						sumSkills += player.m_skill.projectile = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						ps3.erase(ps3.begin() + iIndex);
+						sumSkills += player.m_skill.closeCombat = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						ps3.erase(ps3.begin() + iIndex);
+						sumSkills += player.m_skill.defense = ps3[iIndex = Random::get(0, ps3.size()-1)];
+						ps3.erase(ps3.begin() + iIndex);
+						break;
+				}
+			}
+			arx_assert(static_cast<int>(sumChk * 100) == static_cast<int>(sumSkills * 100));
+			
+			#define LOG_SKILLS "" \
+				<< ", Ts=" << player.m_skill.stealth \
+				<< ", Tm=" << player.m_skill.mecanism \
+				<< ", Ti=" << player.m_skill.intuition \
+				<< ", Mel=" << player.m_skill.etheralLink \
+				<< ", Mok=" << player.m_skill.objectKnowledge \
+				<< ", Mcs=" << player.m_skill.casting \
+				<< ", Wp=" << player.m_skill.projectile \
+				<< ", Wcc=" << player.m_skill.closeCombat \
+				<< ", Wd=" << player.m_skill.defense
+			
+			LogDebug(sumSkills << "/" << sr << ", rpgOrder=" << roleplayClassPreferedOrder << ", retry=" << iRetryCount << LOG_SKILLS);
+			
+			break;
+		}
+		
+		if(sumSkills < sr) {
+			float fRemaining = sr - sumSkills;
+			arx_assert(fRemaining <= std::numeric_limits<unsigned char>::max());
+			float fAdjust = (fRemaining - static_cast<int>(fRemaining)) / static_cast<float>(iTotSkills);
+			if(fAdjust > 0.f) {
+				player.m_skill.stealth += fAdjust;
+				player.m_skill.mecanism += fAdjust;
+				player.m_skill.intuition += fAdjust;
+				player.m_skill.etheralLink += fAdjust;
+				player.m_skill.objectKnowledge += fAdjust;
+				player.m_skill.casting += fAdjust;
+				player.m_skill.projectile += fAdjust;
+				player.m_skill.closeCombat += fAdjust;
+				player.m_skill.defense += fAdjust;
+			}
+			player.Skill_Redistribute = static_cast<unsigned char>(fRemaining); // trunc
+			if(player.Skill_Redistribute > 0) {
+				LogInfo << "Distribute remaining skill points " << static_cast<int>(player.Skill_Redistribute) << " with vanilla algorithm."; // this is good to escape the requested class and add some unpredictness
+				ARX_PLAYER_Randomize(0.f, maxSkill);
+				LogInfo << "Final skills distribution: " << LOG_SKILLS;
+			}
+		}
+		
+	}
+	
+	int iAR = static_cast<int>(player.Attribute_Redistribute_TotalEarn);
+	if(maxAttribute > 0) {
+		static f32 fPercAttrVanillaRandom = [](){return platform::getEnvironmentVariableValueFloat(fPercAttrVanillaRandom, "ARX_VanillaRandomAttributeCalcMaxPercentAllowed", Logger::LogLevel::Info, "The less you set, less remaining points will be allowed to use the vanilla randomizer. And instead of too high, just use \"vanilla\" rebirth option (instead of class choice like \"wmt\"). ", 0.35f, 0.10f, 0.75f).getFloat();}(); 
+		float fMaxAttrRemaining = iAR * fPercAttrVanillaRandom;
+		
+		int iRetryCount = 0;
+		std::deque<float> rndAttrs;
+		float fRemaining = 0.f;
+		while(true) {
+			if(iRetryCount > 200000) {
+				LogError << "Too many attribute randomizer retries count. " << strMsgErrHelp; // this is better than endless loop.
+				return false;
+			}
+			
+			rndAttrs.clear();
+			float sumAttr = 0.f;
+			std::string strMsgRnd;
+			for(int iAt = 0; iAt < 4; iAt++) {
+				rndAttrs.push_back(Random::Mt19937plus() * maxAttribute);
+				sumAttr += rndAttrs[rndAttrs.size()-1];
+				strMsgRnd += std::string() + ", rnd=" + std::to_string(rndAttrs[rndAttrs.size()-1]) + "; ";
+			}
+			LogInfo << "max=" << maxAttribute << ", sum=" << sumAttr << ", atrd=" << iAR << " -> " << strMsgRnd;
+			
+			fRemaining = 0.f;
+			if(sumAttr > iAR) {
+				iRetryCount++;
+				LogWarning << "Retrying (" << iRetryCount << ") random rolls (attributes sum " << sumAttr << " > " << iAR << ", overflowed)";
+				continue;
+			} else {
+				fRemaining = iAR - sumAttr;
+			}
+			
+			if(fRemaining > fMaxAttrRemaining) {
+				iRetryCount++;
+				LogWarning << "Retrying (" << iRetryCount << ") random rolls (attributes sum remaining " << fRemaining << " is above the limit of " << fMaxAttrRemaining << ")";
+				continue;
+			}
+			
+			std::ranges::sort(rndAttrs, std::ranges::greater());
+			break;
+		}
+		
+		int iAttrIndex = 0;
+		for(int iMaxToMin = 0; iMaxToMin < 3; iMaxToMin++) {
+			switch(roleplayClassPreferedOrder[iMaxToMin]) { // the 2nd highest goes to constitution
+				case 'w':
+					player.m_attribute.strength = rndAttrs[iAttrIndex];
+					if(iMaxToMin == 0) player.m_attribute.constitution = rndAttrs[++iAttrIndex];
+					break;
+				case 'm':
+					player.m_attribute.mind = rndAttrs[iAttrIndex];
+					if(iMaxToMin == 0) player.m_attribute.constitution = rndAttrs[++iAttrIndex];
+					break;
+				case 't':
+					player.m_attribute.dexterity = rndAttrs[iAttrIndex];
+					if(iMaxToMin == 0) player.m_attribute.constitution = rndAttrs[++iAttrIndex];
+					break;
+			}
+			iAttrIndex++;
+		}
+		
+		/* TODO RM
+		while(iAR > 0) {
+			bool bAssigned = false;
+			float rn = Random::Mt19937plus(); // for time based seed could add: Thread::sleep(PlatformDuration((1s * Random::getf())/10.f));
+			float fPrefChanceMult = 1.f;
+			for(int iMinToMax = 2; iMinToMax >= 0; iMinToMax--) {
+				switch(roleplayClassPreferedOrder[iMinToMax]) { // this works like if/else as is from lower to higher chance, therefore probability ranges apply. ex.: wmt -> 0.75 0.50 0.25 -> 1st t 0.25 (from 0 to <0.25) else m 0.50 (from >0.25 to <0.50) else w 0.75 (from >0.50 to <0.75) (like in vanilla)
+					case 'w':
+						if(rn < (fPrefChanceMult * 0.25f) && player.m_attribute.strength < maxAttribute) {
+							player.m_attribute.strength++;
+							bAssigned = true;
+						}
+						break;
+					case 'm':
+						if(rn < (fPrefChanceMult * 0.25f) && player.m_attribute.mind < maxAttribute) {
+							player.m_attribute.mind++;
+							bAssigned = true;
+						}
+						break;
+					case 't':
+						if(rn < (fPrefChanceMult * 0.25f) && player.m_attribute.dexterity < maxAttribute) {
+							player.m_attribute.dexterity++;
+							bAssigned = true;
+						}
+						break;
+				}
+				fPrefChanceMult += 1.f;
+				if(bAssigned) break;
+			}
+			
+			if(bAssigned) {
+				iAR--;
+			} else {
+				if(player.m_attribute.constitution < maxAttribute) {
+					player.m_attribute.constitution++;
+					iAR--;
+				}
+			}
+			
+			if(
+				player.m_attribute.strength >= maxAttribute &&
+				player.m_attribute.mind >= maxAttribute &&
+				player.m_attribute.dexterity >= maxAttribute &&
+				player.m_attribute.constitution >= maxAttribute
+			) {
+				arx_assert(
+					player.m_attribute.strength == maxAttribute &&
+					player.m_attribute.mind == maxAttribute &&
+					player.m_attribute.dexterity == maxAttribute &&
+					player.m_attribute.constitution == maxAttribute
+				);
+				arx_assert(
+					player.m_attribute.strength +
+					player.m_attribute.mind +
+					player.m_attribute.dexterity +
+					player.m_attribute.constitution
+					<= std::numeric_limits<unsigned char>::max() );
+				break;
+			}
+		}
+		*/
+		
+		player.Attribute_Redistribute = static_cast<unsigned char>(fRemaining);
+		if(player.Attribute_Redistribute > 0) {
+			LogInfo << "Distribute remaining attribute points " << static_cast<int>(player.Attribute_Redistribute) << " with vanilla algorithm."; // this is good to escape the requested class and add some unpredictness
+			ARX_PLAYER_Randomize(maxAttribute, 0.f);
+		}
+		
+		LogInfo << "Final attributes distribution: "
+			<< "  S=" << player.m_attribute.strength
+			<< ", M=" << player.m_attribute.mind
+			<< ", D=" << player.m_attribute.dexterity
+			<< ", C=" << player.m_attribute.constitution;
+	}
+	
+	return sr > 0 || iAR > 0;
 }
 
 /*!
@@ -893,7 +1288,9 @@ static void ARX_PLAYER_LEVEL_UP() {
 	ARX_SOUND_PlayInterface(g_snd.PLAYER_LEVEL_UP);
 	player.level++;
 	player.Skill_Redistribute += 15;
+	player.Skill_Redistribute_TotalEarn += 15;
 	player.Attribute_Redistribute++;
+	player.Attribute_Redistribute_TotalEarn++;
 	ARX_PLAYER_ComputePlayerStats();
 	player.lifePool.current = player.m_lifeMaxWithoutMods;
 	player.manaPool.current = player.m_manaMaxWithoutMods;

@@ -171,6 +171,8 @@ public:
 	//!< Execute the current command
 	void execute();
 	
+	int list(std::string filter, bool execOnSingleMatch = false);
+	
 	void update();
 	void draw();
 	

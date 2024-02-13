@@ -26,17 +26,20 @@
 
 #include "platform/Platform.h"
 
-#define ARX_LOG(Level)         ::Logger(ARX_FILE, __LINE__, Level)
+#define ARX_LOG(Level)         ::Logger(ARX_FILE, __LINE__, Level, __func__)
 #define ARX_LOG_FORCED(Level)  ::Logger(ARX_FILE, __LINE__, Level, true)
-#define ARX_LOG_ENABLED(Level) ::Logger::isEnabled(ARX_FILE, Level)
+#define ARX_LOG_ENABLED(Level) ::Logger::isEnabled(ARX_FILE, Level, __PRETTY_FUNCTION__, __LINE__)
 
 #ifdef ARX_DEBUG
 //! Log a Debug message. Arguments are only evaluated if their results will be used.
 #define LogDebug(...)    \
 	if(arx_unlikely(ARX_LOG_ENABLED(::Logger::Debug))) \
-		ARX_LOG_FORCED(::Logger::Debug) << __VA_ARGS__
+		ARX_LOG_FORCED(::Logger::Debug) << __VA_ARGS__ << " @" << __PRETTY_FUNCTION__
+#define LogDebugIf(condition, ...)    \
+	if(condition) { LogDebug(__VA_ARGS__); }
 #else
-#define LogDebug(...)    ARX_DISCARD(__VA_ARGS__)
+#define LogDebug(...)               ARX_DISCARD(__VA_ARGS__)
+#define LogDebugIf(condition, ...)  ARX_DISCARD(__VA_ARGS__)
 #endif
 
 //! Log an Info message. Arguments are always evaluated.
@@ -97,8 +100,8 @@ public:
 	
 	Logger(const char * _file, int _line, LogLevel _level, bool _enabled)
 		: file(_file), line(_line), level(_level), enabled(_enabled) { }
-	Logger(const char * _file, int _line, LogLevel _level)
-		: file(_file), line(_line), level(_level), enabled(isEnabled(_file, _level)) { }
+	Logger(const char * _file, int _line, LogLevel _level, const char * _function = nullptr)
+		: file(_file), line(_line), level(_level), enabled(isEnabled(_file, _level, _function, _line)) { }
 	
 	template <class T>
 	Logger & operator<<(const T & i) {
@@ -164,7 +167,7 @@ public:
 	 *         Log levels inherit their enabled state: e.g. if Info is enabled,
 	 *         Warning and Error are also enabled.
 	 */
-	static bool isEnabled(const char * file, LogLevel level);
+	static bool isEnabled(const char * file, LogLevel level, const char * function = nullptr, int line = -1);
 	
 	/*!
 	 * Flush buffered output in all logging backends.

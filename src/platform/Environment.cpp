@@ -22,7 +22,9 @@
 #include <cctype>
 #include <algorithm>
 #include <mutex>
+#include <regex>
 #include <sstream>
+#include <typeinfo>
 #include <utility>
 
 #include <stdlib.h> // needed for realpath and more
@@ -537,96 +539,461 @@ void setEnvironmentVariable(const char * name, const char * value) {
 	#endif
 }
 
-const char * getEnvironmentVariableValue(const char * name, char cLogMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
-	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead
-	const char * pc = pcOverrideValue ? pcOverrideValue : getenv(name); // override is mainly to just show messages
-	if(pc) {
-		std::stringstream msg; msg << "[EnvironmentVariable]: " << name << " = \"" << pc << "\". " << strMsg;
-		LogDebug(msg.str());
-		switch(cLogMode) {
-			case 'i': break; // TODO LogInfo << msg.str();break;
-			case 'w': LogWarning << msg.str();break;
-			case 'e': LogError << msg.str();break;
-			case '.':break; //logs nothing
-			default: arx_assert_msg(false, "invalid log mode '%c' obs.: msg='%s'", cLogMode, msg.str().c_str()); break;
+bool EnvRegex::isSet() {
+	return re && strRegex.size(); 
+}
+bool EnvRegex::matchRegex(std::string data) {
+	return re && strRegex.size() && std::regex_search(data.c_str(), *re);
+}
+bool EnvRegex::setRegex(std::string strRE, bool allowLog) {
+	try
+	{
+		if(!re) {
+			re = new std::regex(strRE.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
+		} else {
+			*re = std::regex(strRE.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
 		}
-		return pc;
+		strRegex = strRE;
+		return true;
+	} catch (const std::regex_error& e) {
+		if(allowLog) {
+			LogError << "regex_error caught: " << e.what(); // TODO queue if !allowLog ?
+		}
+	}
+	return false;
+}
+
+/*TODORM
+template <typename TB, typename TC>
+EnvVarHandler<TB,TC> & EnvVarHandler<TB,TC>::operator=(const EnvVarHandler<TB,TC> & evCopyFrom) {
+	//arx_assert(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom);
+	arx_assert(evCopyFrom.bJustToCopyFrom); // this is mainly to lower confusion
+	//init();
+	strId = evCopyFrom.strId;
+	evb = evCopyFrom.evb;
+	//evc = evCopyFrom.evc;
+	evbOld = evCopyFrom.evbOld;
+	evbMin = evCopyFrom.evbMin;
+	evbMax = evCopyFrom.evbMax;
+	return *this;
+}
+
+template <typename TB, typename TC>
+EnvVarHandler<TB,TC>::EnvVarHandler(std::string _strId, std::string _msg, TB evbDefault, TB _evbMin, TB _evbMax) {
+	strId=(_strId);
+	evbOld=(evbDefault);
+	evbMin=(_evbMin);
+	evbMax=(_evbMax);
+	msg=(_msg);
+	bJustToCopyFrom=(true);
+	evb=(evbDefault);
+	
+	arx_assert_msg(strId.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789") == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
+	
+	const char * pcVal = getenv(strId.c_str());
+	if(pcVal) {
+		LogInfo << "[EnvVar] " << strId << " = \"" << pcVal << "\"";
+		parseToEVB(pcVal);
 	} else {
-		return defaultValue;
+		strEVB = toString().c_str(); // the default will be converted to string here
 	}
+}
+
+template <typename TB, typename TC>
+std::string EnvVarHandler<TB,TC>::toString() {
+	std::string str;
+	try {
+		str = boost::lexical_cast<std::string>(evb);
+	} catch(const std::exception & e) {
+		LogError << "[EnvVar] " << strId << ": converting to string from \"" << evb << "\""; //TODO if this ever happens and evb shows up here, this should be used to convert instead..
+		return "ERROR";
+	}
+	return str;
+}
+
+template <typename TB, typename TC>
+EnvVarHandler<TB,TC> & EnvVarHandler<TB,TC>::setEVB(TB _evb) {
+	evbOld = evb;
+	evb = _evb;
+	
+	if(evb > evbMax) evb = evbMax;
+	else
+	if(evb < evbMin) evb = evbMin;
+	
+	strEVB = toString(); // not the requested but the fixed
+	
+	return *this;
+}
+
+template <typename TB, typename TC>
+EnvVarHandler<TB,TC> & EnvVarHandler<TB,TC>::parseToEVB(std::string _strEVB) {
+	try {
+		setEVB( boost::lexical_cast<TB>(_strEVB) );
+	} catch(const std::exception & e) {
+		LogError << "[EnvVar] " << strId << ": parsing \"" << _strEVB << "\"";
+	}
+	
+	return *this;
+}
+*/
+
+const char * getEnvironmentVariableValueBase(const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
+	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead, how to cfg it?
+	const char * pcVal = pcOverrideValue ? pcOverrideValue : getenv(name); // override is mainly to just show messages
+	if(pcVal) {
+		std::stringstream msg; msg << "[EnvironmentVariable]: " << name << " = \"" << pcVal << "\"; " << strMsg;
+		switch(logMode) {
+			case Logger::LogLevel::Warning: LogWarning << msg.str();break;
+			case Logger::LogLevel::Info   : LogInfo    << msg.str(); break;
+			case Logger::LogLevel::Error  : LogError   << msg.str();break;
+			case Logger::LogLevel::Debug  : LogDebug(msg.str());break;
+			case Logger::LogLevel::None   : break; // logs nothing, important in case of mutex lock (you will know you need this the moment the engine freezes)
+			default: arx_assert_msg(false, "invalid log mode '%d' obs.: msg='%s'", logMode, msg.str().c_str()); break;
+		}
+	} else {
+		pcVal = defaultValue;
+	}
+	return pcVal;
 	#else
-	// TODO ARX_UNUSED(name); ?
-	#endif
 	return nullptr;
+	#endif
 }
 
-bool getEnvironmentVariableValueBoolean(const char * name, char cLogMode, const char * strMsg, bool defaultValue) {
-	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
+/* // TODO the static var being initialized should not be used inside lambda, should only receive a final return value from it. May be easier to just rework it all into EnvVarHandler (*FixNonSenseCode)
+EnvVarHandler & initEnvVarStr(std::string & varString, const char * name, std::string & val, const char * strMsg, const Logger::LogLevel logMode) {
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
+	if(pc) val = pc;
+	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr);
+}
+*/
+// TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
+
+/**
+ * the var not being captured is a hint you forgot to use static, unless it is a class member.
+ */
+EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, std::string & strValue, const Logger::LogLevel logMode, const char * strMsg) {
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
+	if(pc) strValue = pc;
+	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr);
+}
+
+EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) { // tip: use arx param: --debug="src"
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
+	std::string strRegex = pc ? pc : defaultValue;
+	getEnvVar(name)->initVar(nullptr, nullptr, nullptr, nullptr, &varRegex).setVal(strRegex).setMsg(strMsg);
+	return varRegex;
+}
+
+EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode, const char * strMsg, bool defaultValue) {
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string ev = pc ? pc : "";
-	if(ev.size() > 0) {
-		ev = util::toLowercase(ev);
-		if(ev == "true" || ev == "false" || ev == "1" || ev == "0") {
-			return ev == "true" || ev == "1";
-		} else {
-			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be 'true' or '1', 'false' or 0 ! " + std::string(strMsg)).c_str(), ev.c_str());
+	return getEnvVar(name)->initVar(nullptr, nullptr, nullptr, &varBool, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, strMsg, defaultValue ? "true" : "false");
+}
+
+EnvVar & getEnvironmentVariableValueFloat(float & varFloat, const char * name, const Logger::LogLevel logMode, const char * strMsg, f32 defaultValue, f32 min, f32 max) {
+	// sync with almost identical integer code below if possible
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
+	std::string ev = pc ? pc : "";
+	return getEnvVar(name)->initVar(nullptr, nullptr, &varFloat, nullptr, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
+}
+
+EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, const Logger::LogLevel logMode, const char * strMsg, s32 defaultValue, s32 min, s32 max) {
+	// sync with almost identical float code above if possible
+	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
+	std::string ev = pc ? pc : "";
+	return getEnvVar(name)->initVar(nullptr, &varInt, nullptr, nullptr, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
+}
+
+EnvVar & EnvVar::initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex) {
+	arx_assert_msg(!varString && !varInt && !varFloat && !varRegex, "this ID was already initialized: id=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr); // this will happen on env var name clash
+	
+	if(_varString) {
+		varString = _varString;
+	} else
+	if(_varInt) {
+		varInt    = _varInt;
+	} else
+	if(_varFloat) {
+		varFloat  = _varFloat;
+	} else
+	if(_varBool) {
+		varBool   = _varBool;
+	} else
+	if(_varRegex) {
+		varRegex  = _varRegex;
+	} else {
+		arx_assert(false);
+	}
+	
+	for(size_t i = 0; i < vEnvVar.size() ; i++) { // TODO try unique_ptr in some way instead?
+		if(&vEnvVar[i] == this) continue;
+		
+		if(
+			(varString && vEnvVar[i].varString == varString) ||
+			(varInt    && vEnvVar[i].varInt    == varInt   ) ||
+			(varFloat  && vEnvVar[i].varFloat  == varFloat ) ||
+			(varBool   && vEnvVar[i].varBool   == varBool  ) ||
+			(varRegex  && vEnvVar[i].varRegex  == varRegex )
+		) {
+			arx_assert_msg(false, "id=%s using a pointer already used by idOther=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), vEnvVar[i].id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr);
 		}
 	}
-	return defaultValue;
+	
+	return *this;
 }
 
-f32 getEnvironmentVariableValueFloat(const char * name, char cLogMode, const char * strMsg, f32 defaultValue, bool bAllowNegative, f32 min, f32 max) {
-	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
-	std::string ev = pc ? pc : "";
-	if(ev.size() > 0) { // sync with almost identical integer code below if possible
-		if(ev.find_first_not_of("0123456789-.") != std::string::npos) {
-			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be float ! " + std::string(strMsg)).c_str(), ev.c_str());
+// do not convert/parse to set values, to prevent type mistakes
+EnvVar & EnvVar::setVal(std::string val, bool allowLog) {
+	if(varRegex) {
+		if(val != varRegex->strRegex) {
+			modified = true;
+		}
+		
+		if(val.size() > 0) {
+			varRegex->setRegex(val, allowLog);
 		} else {
-			f32 val = util::parseFloat(ev);
-			if(val < min) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
-				val = min;
+			varRegex->strRegex.clear();
+		}
+		
+		if(allowLog) LogInfo << "Environment Variable (Regex) Set to: " << id << " = \"" << val << "\"";
+	} else
+	if(varString) {
+		if(val.size() == 0) {
+			(*varString) = "DUMMY"; // Keep here!!! why this is important? probably because the std::string variable pointed by varString was not initialized (not constructed yet) when setVal() is called from getEnvironmentVariableValueString(). So, without this line, it will crash! These all failed (without "DUMMY" first): varString->assign(val); (*varString) = ""; (*varString).clear(); TODO remove this after (*FixNonSenseCode)
+			(*varString) = "";
+		} else {
+			(*varString) = val;
+		}
+		if(allowLog) LogInfo << "Environment Variable (String) Set to: " << id << " = \"" << val << "\"";
+		modified = true;
+	} else {
+		if(allowLog) LogWarning << id << " not String type";
+	}
+	
+	return *this;
+}
+EnvVar & EnvVar::setVal(s32 val, bool allowLog) {
+	if(varInt) {
+		(*varInt) = val;
+		if(allowLog) LogInfo << "Environment Variable (Integer) Set to: " << id << " = " << val;
+		modified = true;
+	} else {
+		if(allowLog) LogWarning << id << " not Int type";
+	}
+	return *this;
+}
+EnvVar & EnvVar::setVal(f32 val, bool allowLog) {
+	if(varFloat) {
+		(*varFloat) = val;
+		if(allowLog) LogInfo << "Environment Variable (Float) Set to: " << id << " = " << val;
+		modified = true;
+	} else {
+		if(allowLog) LogWarning << id << " not Float type";
+	}
+	return *this;
+}
+EnvVar & EnvVar::setVal(bool val, bool allowLog) {
+	if(varBool) {
+		(*varBool) = val;
+		if(allowLog) LogInfo << "Environment Variable (Boolean) Set to:" << id << " = " << (val ? "true" : "false"); // see (*CESV1)
+		modified = true;
+	} else {
+		if(allowLog) LogWarning << id << " not Bool type";
+	}
+	return *this;
+}
+EnvVar & EnvVar::setValAuto(std::string val, bool allowLog, std::string strMsg, std::string valDefault, std::string strMin, std::string strMax) {
+	if(val.size() == 0) {
+		val = valDefault;
+	}
+	
+	if(varString || varRegex) {
+		return setVal(val, allowLog);
+	} else
+	if(varInt) {
+		int value = util::parseInt(val);
+		if(val.find_first_not_of("0123456789-") != std::string::npos) {
+			if(allowLog) LogError << "Wrong value should be integer, but is \"" << val << "\" ! " << strMsg;
+		} else {
+			if(strMin.size() > 0) iMin = util::parseInt(strMin);
+			if(strMax.size() > 0) iMax = util::parseInt(strMax);
+			if(value < iMin) {
+				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << iMin << "; " << strMsg;
+				value = iMin;
 			}
-			if(val > max) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
-				val = max;
+			if(value > iMax) {
+				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << iMax << "; " << strMsg;
+				value = iMax;
 			}
-			if(bAllowNegative) return val;
-			if(val < 0.f) {
-				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());
+		}
+		
+		return setVal(value, allowLog);
+	} else
+	if(varFloat) {
+		f32 value = util::parseFloat(val);
+		if(val.find_first_not_of("0123456789-.") != std::string::npos) {
+			if(allowLog) LogError << "Wrong value should be Float, but is \"" << val << "\" ! " << strMsg;
+		} else {
+			if(strMin.size() > 0) fMin = util::parseFloat(strMin);
+			if(strMax.size() > 0) fMax = util::parseFloat(strMax);
+			if(value < fMin) {
+				if(allowLog) LogWarning << "Fixing " << value << " to minimum: " << fMin << "; " << strMsg;
+				value = fMin;
+			}
+			if(value > fMax) {
+				if(allowLog) LogWarning << "Fixing " << value << " to maximum: " << fMax << "; " << strMsg;
+				value = fMax;
+			}
+		}
+		
+		return setVal(value, allowLog);
+	} else
+	if(varBool) {
+		bool b = false;
+		val = util::toLowercase(val);
+		if(val == "true" || val == "false" || val == "1" || val == "0") { // TODO float?
+			b = val == "true" || val == "1";
+		} else {
+			if(allowLog) LogError << "Wrong value should be 'true' or '1', 'false' or 0, but is \"" << val << "\" ! " << strMsg;
+		}
+		
+		return setVal(b, allowLog);
+	}
+	
+	LogDebugIf(allowLog, "type not implemented. " << val << ", " << valDefault << ", " << strMin << ", " << strMax << ", " << strMsg);
+	arx_assert_msg(false, "type not implemented");
+	
+	return *this;
+}
+
+std::string EnvVar::getString() {
+	if(varString) { return varString->c_str(); }
+	if(varInt   ) { return std::to_string(*varInt); }
+	if(varFloat ) { return std::to_string(*varFloat); }
+	if(varBool  ) { return *varBool ? "true" : "false"; }
+	if(varRegex ) { return varRegex->strRegex; }
+	LogError << id << " not initialized";
+	return "";
+}
+int EnvVar::getInteger() {
+	if(varInt   ) { return *varInt; }
+	if(varFloat ) { return static_cast<int>(*varFloat); }
+	if(varString) { return util::parseInt(varString->c_str()); }
+	if(varBool  ) { return *varBool ? 1 : 0; }
+	if(varRegex ) { return varRegex->strRegex.size(); }
+	LogError << id << " not initialized";
+	return 0;
+}
+float EnvVar::getFloat() {
+	if(varFloat ) { return *varFloat; }
+	if(varInt   ) { return static_cast<float>(*varInt); }
+	if(varString) { return util::parseFloat(varString->c_str()); }
+	if(varBool  ) { return *varBool ? 1.f : 0.f; }
+	if(varRegex ) { return varRegex->strRegex.size(); }
+	LogError << id << " not initialized";
+	return 0.f;
+}
+bool EnvVar::getBoolean() {
+	if(varBool  ) { return *varBool; }
+	if(varFloat ) { return *varFloat != 0; }
+	if(varInt   ) { return static_cast<float>(*varInt) != 0; }
+	if(varString) { return std::string(varString->c_str()) == "true"; }
+	if(varRegex ) { return varRegex->strRegex.size(); }
+	LogError << id << " not initialized";
+	return 0.f;
+}
+
+EnvVar * getEnvVar(std::string id) { // get or create handler
+	for(size_t i = 0; i < vEnvVar.size() ; i++) {
+		if(vEnvVar[i].getId() == id) {
+			return &vEnvVar[i];
+		}
+	}
+	
+	vEnvVar.emplace_back(EnvVar(id));
+	return &vEnvVar[vEnvVar.size() - 1];
+}
+std::string getEnvVarList() { // TODO change vEnvVar to a std::map for nice auto sort
+	std::string str;
+	std::string str2;
+	for(size_t i = 0; i < vEnvVar.size() ; i++) {
+		str2 = vEnvVar[i].getId() + "=\"" + vEnvVar[i].getString() + "\"; ";
+		LogInfo << "Environment Variable: " << str2;
+		str += str2;
+	}
+	return str;
+}
+
+/*TODORM
+EnvVarHandler::EnvVarHandler(std::string _strId, bool _bJustToCopyFrom, TB evbDefault, TB _evbMin, TB _evbMax, std::string msg) :
+		strId(_strId),
+		evbOld(evbDefault),
+		evbMin(_evbMin),
+		evbMax(_evbMax),
+		bJustToCopyFrom(_bJustToCopyFrom),
+		evb(evbDefault)
+{
+	const char * pcVal = getenv(strId.c_str());
+	if(!pcVal) pcVal = toString().c_str();
+	strEVB = pcVal;
+	
+	//TODOB parse to int float bool, but evc needs external converter
+	evb = boost::lexical_cast<TB>(tmp);
+	switch (typeid(TB)) {
+		case 'i':
+			evb = util::parseInt(strEVB);
+			break;
+		case 'd':
+		case 'f':
+			evb = util::parseFloat(strEVB);
+			break;
+		case 'b':
+			strEVB = util::toLowercase(strEVB)
+			if(strEVB == "true" || strEVB == "false" || strEVB == "1" || strEVB == "0") { // TODO float?
+				evb = strEVB == "true" || strEVB == "1";
 			} else {
-				return val;
+				LogError << "Wrong value should be 'true' or '1', 'false' or 0, but is \"" << strEVB << "\" ! " << msg;
 			}
-		}
+		default:
+			arx_assert(false, "unsupported type '%c'", typeid(TB));
 	}
-	return defaultValue;
 }
+*/
 
-s32 getEnvironmentVariableValueInteger(const char * name, char cLogMode, const char * strMsg, s32 defaultValue, bool bAllowNegative, s32 min, s32 max) {
-	const char * pc = getEnvironmentVariableValue(name, cLogMode, strMsg);
-	std::string ev = pc ? pc : "";
-	if(ev.size() > 0) { // sync with almost identical float code above if possible
-		if(ev.find_first_not_of("0123456789-") != std::string::npos) {
-			getEnvironmentVariableValue(name, 'e', (std::string() + "Wrong value should be integer ! " + std::string(strMsg)).c_str(), ev.c_str());
-		} else {
-			s32 val = util::parseInt(ev);
-			if(val < min) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to minimum: " + std::to_string(min)).c_str(), ev.c_str());
-				val = min;
-			}
-			if(val > max) {
-				getEnvironmentVariableValue(name, 'w', (std::string() + "Fixing " + std::to_string(val) + " to maximum: " + std::to_string(max)).c_str(), ev.c_str());
-				val = max;
-			}
-			if(bAllowNegative) return val;
-			if(val < 0.f) {
-				getEnvironmentVariableValue(name, 'e', (std::string() + "Should be positive ! " + std::string(strMsg)).c_str(), ev.c_str());
-			} else {
-				return val;
-			}
-		}
+/*TODORM
+platform::EnvVar * EnvVarHandler(const char varType, const std::string envVarID, const char logMode, const std::string strMsg, const std::string valDefault, const std::string strMin, const std::string strMax) { // TODO test it, see Logger::isEnabled()
+	const char * pc = platform::getEnvironmentVariableValueBase(envVarID.c_str(), logMode);
+	std::string str = pc ? pc : "";
+	platform::EnvVar * ev2 = platform::getEnvVar(envVarID);
+	static std::vector<void*> store;
+	switch(varType) {
+		case 's':
+			store.emplace_back(new std::string());
+			ev2->initVar(static_cast<std::string*>(store[store.size()-1]), nullptr, nullptr, nullptr, nullptr);
+			break;
+		case 'i':
+			store.emplace_back(new int());
+			ev2->initVar(nullptr, static_cast<int*>(store[store.size()-1]), nullptr, nullptr, nullptr);
+			break;
+		case 'f':
+			store.emplace_back(new float());
+			ev2->initVar(nullptr, nullptr, static_cast<float*>(store[store.size()-1]), nullptr, nullptr);
+			break;
+		case 'b':
+			store.emplace_back(new bool());
+			ev2->initVar(nullptr, nullptr, nullptr, static_cast<bool*>(store[store.size()-1]), nullptr);
+			break;
+		case 'r':
+			store.emplace_back(new platform::EnvRegex());
+			ev2->initVar(nullptr, nullptr, nullptr, nullptr, static_cast<platform::EnvRegex*>(store[store.size()-1]) );
+			break;
+		default: arx_assert(false); break;
 	}
-	return defaultValue;
+	//if (typeid(store) == typeid(std::string())) {
+	ev2->setValAuto(str, false, strMsg, valDefault, strMin, strMax); 
+	return ev2; 
 }
+*/
 
 void unsetEnvironmentVariable(const char * name) {
 	#if ARX_PLATFORM == ARX_PLATFORM_WIN32

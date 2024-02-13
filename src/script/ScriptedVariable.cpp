@@ -55,6 +55,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "game/Item.h"
 #include "game/Inventory.h"
 #include "graphics/data/Mesh.h"
+#include "platform/Environment.h"
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
 #include "util/Number.h"
@@ -332,20 +333,133 @@ public:
 	
 };
 
-//class EnvSetCommand : public Command {
+class EnvironmentCommand : public Command {
 	
-//public:
+public:
 	
-	//EnvSetCommand() : Command("set") { }
+	EnvironmentCommand() : Command("env") { }
 	
-	//Result execute(Context & context) override {
-		//std::string envVar = context.getStringVar(context.getWord()));
-		//std::string val = context.getStringVar(context.getWord()));
-		//if(val.find_first_not_of("0123456789-.") != std::string::npos) {
-			//platform::setEnvironmentVariable(envVar, val);
-		//}
-	//}
-//};
+	#ifdef ARX_DEBUG
+	void envVarDebugTests() {
+		// TODO add a platform::removeEnvVar(...) to just unbloat the list ?
+		static int iTst1 = [](){return platform::getEnvironmentVariableValueInteger(iTst1, "ARX_iTst1").getInteger();}();
+		static int iTst2 = [](){return platform::getEnvironmentVariableValueInteger(iTst2, "ARX_iTst2", Logger::LogLevel::Info).getInteger();}();
+		//static int iTst2wrong = [](){return platform::getEnvironmentVariableValueInteger(iTst2wrong, "ARX_iTst2", Logger::LogLevel::Info).getInteger();}();
+		static int iTst3 = [](){return platform::getEnvironmentVariableValueInteger(iTst3, "ARX_iTst3", Logger::LogLevel::Info, "").getInteger();}();
+		static int iTst4 = [](){return platform::getEnvironmentVariableValueInteger(iTst4, "ARX_iTst4", Logger::LogLevel::Info, "msg", 4, 1, 10).getInteger();}();arx_assert(iTst4==4);
+		static int iTst5 = [](){return platform::getEnvironmentVariableValueInteger(iTst5, "ARX_iTst5", Logger::LogLevel::Info, "", 5, 15).getInteger();}();arx_assert(iTst5==15);
+		static int iTst6 = [](){return platform::getEnvironmentVariableValueInteger(iTst6, "ARX_iTst6", Logger::LogLevel::Info, "", 13, 6, 12).getInteger();}();arx_assert(iTst6==12);
+		
+		static float fTst1 = [](){return platform::getEnvironmentVariableValueFloat(fTst1, "ARX_fTst1", Logger::LogLevel::Info, "", 0.33f, 0.1f, 10.f).getFloat();}();arx_assert(fTst1 == 0.33f);
+		static float fTst2 = [](){return platform::getEnvironmentVariableValueFloat(fTst2, "ARX_fTst2", Logger::LogLevel::Info, "msg", 0.05f, 0.1f).getFloat();}();arx_assert(fTst2 == 0.1f);
+		static float fTst3 = [](){return platform::getEnvironmentVariableValueFloat(fTst3, "ARX_fTst3", Logger::LogLevel::Info, "", 0.33f).getFloat();}();arx_assert(fTst3 == 0.33f);
+		static float fTst4 = [](){return platform::getEnvironmentVariableValueFloat(fTst4, "ARX_fTst4", Logger::LogLevel::Info, "msg").getFloat();}();
+		static float fTst5 = [](){return platform::getEnvironmentVariableValueFloat(fTst5, "ARX_fTst5", Logger::LogLevel::Info).getFloat();}();
+		static float fTst6 = [](){return platform::getEnvironmentVariableValueFloat(fTst6, "ARX_fTst6").getFloat();}();
+		
+		static bool bTst1 = [](){return platform::getEnvironmentVariableValueBoolean(bTst1, "ARX_bTst1").getBoolean();}();
+		static bool bTst2 = [](){return platform::getEnvironmentVariableValueBoolean(bTst2, "ARX_bTst2", Logger::LogLevel::Info, "", true).getBoolean();}();arx_assert(bTst2 == true);
+		static bool bTst3 = [](){return platform::getEnvironmentVariableValueBoolean(bTst3, "ARX_bTst3", Logger::LogLevel::Info, "").getBoolean();}();
+		static bool bTst4 = [](){return platform::getEnvironmentVariableValueBoolean(bTst4, "ARX_bTst4", Logger::LogLevel::Info).getBoolean();}();
+	}
+	#endif
+	
+	/**
+	 * This is intended to tweak env vars in memory to avoid having to restart the game.
+	 * This is not intended to set permanent env vars on the system nor to prepare the environment for sub proccesses (but could be).
+	 * This is UNSAFE! this means that the checks performed during normal env var reading will not be performed again, so be careful.
+	 * This is intended for careful mod developers and source code developers.
+	 * env -l //list all in console log
+	 * env -s <envVarId> <value> //set EnvVar to <value>
+	 * env -g <envVarId> <scriptVariable> //get EnvVar value into <scriptVariable>
+	 */
+	Result execute(Context & context) override {
+		#ifdef ARX_DEBUG
+		envVarDebugTests();
+		#endif
+		
+		bool bSet = false;
+		bool bGet = false;
+		
+		HandleFlags("lsg") {
+			if(flg & flag('l')) {
+				platform::EnvVarHandler::getEnvVarHandlerList();
+				//platform::getEnvVarList();
+				return Success;
+			}
+			if(flg & flag('s')) {
+				bSet = true;
+			}
+			if(flg & flag('g')) {
+				bGet = true;
+			}
+		}
+		
+		std::string envVar = context.getStringVar(context.getWord());
+		
+		if(bSet) {
+			std::string val = context.getStringVar(context.getWord());
+			
+			//platform::getEnvVar(envVar)->setValAuto(val, true);
+			//platform::EnvVarHandler ev;ev.getEnvVarHandler(envVar)->parseToEVB(val);
+			//platform::setValueAtEnvVarHandler(envVar, val);
+			platform::EnvVarHandler * ev = platform::EnvVarHandler::getEVH(envVar);
+			if(!ev) return Failed;
+			ev->setAuto(val);
+			
+			return Success;
+		}
+		
+		if(bGet) {
+			std::string var = context.autoVarNameForScope(true, context.getWord());
+			
+			platform::EnvVarHandler * ev = platform::EnvVarHandler::getEVH(envVar);
+			if(!ev) return Failed;
+			
+			std::string val = ev->toString();
+			
+			Entity * entWriteTo = context.getEntity();
+			Entity * entReadFrom = context.getEntity();
+			
+			SCRIPT_VARIABLES & variablesWriteTo = isLocalVariable(var) ? entWriteTo->m_variables : svar;
+			
+			SCRIPT_VAR * sv = nullptr;
+			switch(var[0]) {
+				case '$':      // global text
+				case '\xA3': { // local text
+					sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val, entReadFrom));
+					break;
+				}
+				
+				case '#':      // global long
+				case '\xA7': { // local long
+					sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val, entReadFrom)));
+					break;
+				}
+				
+				case '&':      // global float
+				case '@': {    // local float
+					sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val, entReadFrom));
+					break;
+				}
+				
+				default: {
+					ScriptWarning << "Unknown variable type: " << var;
+					return Failed;
+				}
+			}
+			
+			if(!sv) {
+				ScriptWarning << "Unable to set variable " << var;
+				return Failed;
+			}
+			
+			return Success;
+		}
+		
+		return Failed;
+	}
+};
 
 class ArithmeticCommand : public Command {
 	
@@ -377,13 +491,17 @@ private:
 		size_t positionBeforeWord;
 		
 		if(strWord != "[") {
-			ScriptWarning << "Malformed calculation: calc must start with '[' " << strCalcMsg;
+			ScriptError << "Malformed calculation: calc must start with '[' " << strCalcMsg;
 			return 99999999999.f;
+		} else {
+			strCalcMsg = "[ ";
 		}
 		
 		int iWordCount = 0;
 		char cMode = 'v';
 		while(true) {
+			DebugScript(", cMode=" << cMode << ", cOperator=" << cOperator << ", iWordCount=" << iWordCount << ", fCalc=" << fCalc << ", fWorkWithValue=" << fWorkWithValue);
+			
 			context.skipWhitespaceAndComment();
 			positionBeforeWord = context.getPosition(); //Put after skip new lines.
 			strWord = context.getWord();
@@ -428,6 +546,7 @@ private:
 				
 				case 'o': // operation
 					if(strWord == "]") {
+						DebugScript( ": " << strCalcMsg << " = " << fCalc);
 						return fCalc;
 					}
 					
@@ -448,7 +567,8 @@ private:
 			iWordCount++;
 		}
 		
-		return fCalc;
+		ScriptError << "Malformed calculation: calc must end with ']' " << strCalcMsg;
+		return 99999999999.f;
 	}
 	
 	float calculate(float left, float right, Operator opOverride, Context & context, Entity * entReadFrom) {
@@ -500,14 +620,14 @@ public:
 			
 			case '#':      // global long
 			case '\xA7': { // local long
-				long old = GETVarValueLong(variables, var);
+				long old = op == ArithmeticCommand::Calc ? 0 : GETVarValueLong(variables, var);
 				sv = SETVarValueLong(variables, var, long(calculate(float(old), val, op, context, context.getEntity())));
 				break;
 			}
 			
 			case '&':   // global float
 			case '@': { // local float
-				float old = GETVarValueFloat(variables, var);
+				float old = op == ArithmeticCommand::Calc ? 0.f : GETVarValueFloat(variables, var);
 				sv = SETVarValueFloat(variables, var, calculate(old, val, op, context, context.getEntity()));
 				break;
 			}
@@ -645,6 +765,7 @@ void setupScriptedVariable() {
 	ScriptEvent::registerCommand(std::make_unique<UnsetCommand>());
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("++", 1));
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("--", -1));
+	ScriptEvent::registerCommand(std::make_unique<EnvironmentCommand>());
 	
 }
 
