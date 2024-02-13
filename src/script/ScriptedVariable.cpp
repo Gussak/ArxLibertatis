@@ -383,7 +383,8 @@ public:
 		
 		HandleFlags("lsg") {
 			if(flg & flag('l')) {
-				platform::getEnvVarList();
+				platform::EnvVarHandler::getEnvVarHandlerList();
+				//platform::getEnvVarList();
 				return Success;
 			}
 			if(flg & flag('s')) {
@@ -398,27 +399,27 @@ public:
 		
 		if(bSet) {
 			std::string val = context.getStringVar(context.getWord());
-			//platform::EnvVar ev = platform::getEnvVar(envVar);
-			platform::getEnvVar(envVar)->setValAuto(val, true);
-			//if(ev.isString()) {
-				//platform::getEnvVar(envVar)->setVal(val, true);
-			//} else
-			//if(boost::contains(val, ".")) {
-				//platform::getEnvVar(envVar)->setVal(util::parseFloat(val), true);
-			//} else {
-				//platform::getEnvVar(envVar)->setVal(util::parseInt(val), true);
-			//}
+			
+			//platform::getEnvVar(envVar)->setValAuto(val, true);
+			//platform::EnvVarHandler ev;ev.getEnvVarHandler(envVar)->parseToEVB(val);
+			//platform::setValueAtEnvVarHandler(envVar, val);
+			platform::EnvVarHandler * ev = platform::EnvVarHandler::getEVH(envVar);
+			if(!ev) return Failed;
+			ev->setAuto(val);
 			
 			return Success;
 		}
 		
 		if(bGet) {
-			std::string val = platform::getEnvVar(envVar)->getString();
+			std::string var = context.autoVarNameForScope(true, context.getWord());
+			
+			platform::EnvVarHandler * ev = platform::EnvVarHandler::getEVH(envVar);
+			if(!ev) return Failed;
+			
+			std::string val = ev->toString();
 			
 			Entity * entWriteTo = context.getEntity();
 			Entity * entReadFrom = context.getEntity();
-			
-			std::string var = context.autoVarNameForScope(true, context.getWord());
 			
 			SCRIPT_VARIABLES & variablesWriteTo = isLocalVariable(var) ? entWriteTo->m_variables : svar;
 			

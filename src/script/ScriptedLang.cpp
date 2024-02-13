@@ -160,12 +160,12 @@ public:
 		DebugScript(' ' << label);
 		
 		if(warnUglyCoding && context.isCheckTimerIdVsGoToLabelOnce()) {
-			static platform::EnvRegex erWarnTimerCallingGoSubScriptName = [](){return platform::getEnvironmentVariableValueRegex(erWarnTimerCallingGoSubScriptName, "ARX_WarnTimerCallingGoSub");}();
+			static platform::EnvRegex erWarnTimerCallingGoSubScriptName = [](){return platform::getEnvironmentVariableValueRegex(erWarnTimerCallingGoSubScriptName, "ARX_TimerCallingGoSubWarn", Logger::LogLevel::Info, "Timers should only call GoTo. This regex filters what scripts will show the warning.");}();
 			if(erWarnTimerCallingGoSubScriptName.isSet() && sub && erWarnTimerCallingGoSubScriptName.matchRegex(context.getScript()->file)) {
-				ScriptWarning << "Timers should only call GoTo. ExtraInfo: timer '" << context.getTimerName() << "', first target label '" << label << "'";
+				ScriptWarning << erWarnTimerCallingGoSubScriptName.getMsg() << "ExtraInfo: timer '" << context.getTimerName() << "', first target label '" << label << "'";
 			}
 			
-			static platform::EnvRegex erWarnTimerIdMismatchCallLabel = [](){return platform::getEnvironmentVariableValueRegex(erWarnTimerIdMismatchCallLabel, "ARX_WarnTimerIdMismatchCallLabel");}();
+			static platform::EnvRegex erWarnTimerIdMismatchCallLabel = [](){return platform::getEnvironmentVariableValueRegex(erWarnTimerIdMismatchCallLabel, "ARX_TimerLabelMismatchWarn");}();
 			if(erWarnTimerIdMismatchCallLabel.isSet() && erWarnTimerIdMismatchCallLabel.matchRegex(context.getScript()->file)) {
 				std::string labelChk = label;
 				labelChk.resize(std::remove(labelChk.begin(), labelChk.end(), '_') - labelChk.begin());

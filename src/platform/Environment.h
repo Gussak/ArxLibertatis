@@ -20,6 +20,7 @@
 #ifndef ARX_PLATFORM_ENVIRONMENT_H
 #define ARX_PLATFORM_ENVIRONMENT_H
 
+#include <functional>
 #include <limits>
 #include <optional>
 #include <regex>
@@ -29,8 +30,11 @@
 #include <stddef.h>
 #include <map>
 
+#include "boost/lexical_cast.hpp"
+
 #include "io/log/Logger.h"
 #include "platform/Platform.h"
+#include "util/String.h"
 
 namespace fs { class path; }
 
@@ -142,7 +146,8 @@ class EnvRegex {
 	friend class EnvVar;
 	
 	std::regex * re;
-	std::string str;
+	std::string strRegex;
+	std::string strMsg;
 	
 public:
 
@@ -151,56 +156,94 @@ public:
 	bool isSet();
 	bool matchRegex(std::string data);
 	bool setRegex(std::string strRE, bool allowLog);
-	std::string getRegex() { return str; }
+	std::string getRegex() { return strRegex; }
+	std::string getMsg() {return strMsg;}
 };
 
-template <typename TB, typename TC = bool> // TC default is anything dummy
 class EnvVarHandler { // useful to take action only when the envvar is modified dinamically
 private:
+	class EnvVarData {
+	public:
+		EnvVarData() : evS(""), evI(0), evF(0.f), evB(false) {}
+		
+		unsigned char evt;
+		
+		std::string evS;
+		int evI;
+		float evF;
+		bool evB;
+		
+		bool operator!=(EnvVarData & other) {
+			switch(evt) {
+				case 'S': return evS != other.evS;
+				case 'I': return evI != other.evI;
+				case 'F': return evF != other.evF;
+				case 'B': return evB != other.evB;
+				default: arx_assert(false);
+			}
+		}
+	};
+
 	std::string strId;
-	TB evarOld;
-	TB evarMin;
-	TB evarMax;
 	
+	unsigned char evt;
+	
+	EnvVarData evbCurrent;
+	EnvVarData evbOld;
+	EnvVarData evbMin;
+	EnvVarData evbMax;
+	
+	std::string strEVB;
+	std::string msg;
+	
+	inline static std::map<std::string, EnvVarHandler&> vEVH;
+	
+  std::function<void()> funcConvert;
+  
 	bool bJustToCopyFrom;
-	//bool bCanOnlyCopyFromAnother;
+  bool useFuncConvert;
+  bool hasExternalConverter;
+  
+	void initTmpInstanceAndReadEnvVar(char _evt, std::string _strId, std::string _msg, bool _useFuncConvert, bool _bJustToCopyFrom);
+	void fixMinMax();
 	
 public:
-	TB ev;
 	
-	TC evc; // this is an extra custom type help, as a string at ev or other type may be converted into something evc special outside here after detecting a change in ev thru chkMod()
+	EnvVarHandler & setOnUpdateConverter(auto func) { funcConvert = std::move(func); useFuncConvert = true; return *this; } // funcConvert();
+	EnvVarHandler & setHasExternalConverter() { hasExternalConverter = true; return *this; } // funcConvert();
 	
-	void init() { ev = evarMin = evarMax = TB(); }
+	bool chkMod(bool bConsume = true, bool bConvert = true);
 	
-	bool chkMod() {
-		if(ev != evarOld) { evarOld = ev; return true; };
-		return false;
-	}
+	EnvVarHandler() { bJustToCopyFrom=(false); useFuncConvert=(false); hasExternalConverter=(false); }
+	EnvVarHandler(const EnvVarHandler & evCopyFrom);
+	EnvVarHandler & operator=(const EnvVarHandler & evCopyFrom);
 	
-	/*
-	 * 
-	 */
+	// T type, F1 F2 F3 suffixes. constructor() and get()
+	#define EnvVarHandlerEasySimpleCode(TYPE,F1,F2,F3,MIN,MAX) \
+		EnvVarHandler(std::string _strId, std::string _msg, TYPE val, TYPE min = MIN, TYPE max = MAX) { \
+			evbCurrent.ev##F1 = val; evbOld.ev##F1 = val; evbMin.ev##F1 = min; evbMax.ev##F1 = max; \
+			initTmpInstanceAndReadEnvVar(std::string(#F1)[0], _strId, _msg, false, true); } \
+		TYPE get##F2() { arx_assert_msg(evt != std::string(#F1)[0], "requested %c but is %c", std::string(#F1)[0], evt); \
+			return evbCurrent.ev##F1##F3; } \
+		EnvVarHandler & set##F1(TYPE val) { evbCurrent.ev##F1 = val; fixMinMax(); if(!hasExternalConverter) chkMod(true, useFuncConvert); return *this; }
 	
-	//EnvVarHandler() : bCanOnlyCopyFromAnother(true) { }
-	EnvVarHandler() : bJustToCopyFrom(false) { }
-	EnvVarHandler(EnvVarHandler & evCopyFrom) : bJustToCopyFrom(false) {
-		//arx_assert(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom);
-		arx_assert(evCopyFrom.bJustToCopyFrom);
-		init();
-		strId = evCopyFrom.strId;
-		ev = evCopyFrom.ev;
-		evc = evCopyFrom.evc;
-	}
+	//EnvVarHandlerEasySimpleCode(const char *, S, C,.c_str(), "", "") // this is important! otherwise a const char would call the boolean overload!!
+	EnvVarHandlerEasySimpleCode(std::string , S, S, , "", "")
+	EnvVarHandlerEasySimpleCode(int         , I, I, , std::numeric_limits<int>::min(),   std::numeric_limits<int>::max())
+	EnvVarHandlerEasySimpleCode(float       , F, F, , std::numeric_limits<float>::min(), std::numeric_limits<float>::max())
+	EnvVarHandlerEasySimpleCode(bool        , B, B, , false, false)
+	EnvVarHandler(std::string _strId, std::string _msg, const char * val) : EnvVarHandler(_strId, _msg, std::string(val)) {} // this is important! otherwise a const char val would call the boolean overload!!
 	
-	EnvVarHandler(std::string _strId, bool _bJustToCopyFrom) : strId(_strId), bJustToCopyFrom(_bJustToCopyFrom) { // _bJustToCopyFrom w/o default value, is important to prevent assignment to string when an EnvVarHandler is declared, to prevent: EnvVarHandler evTest = "test";
-		//arx_assert(!bCanOnlyCopyFromAnother);
-		init();
-	}
-	
-	//EnvVarHandler(TB _evar) { init(); ev = _evar; }
+	//EnvVarHandler(TB _evar) { init(); evb = _evar; }
 	
 	std::string id() { return strId; }
 	//EnvVarHandler & setId(std::string _id) { arx_assert(strId == "" && _id != ""); strId = _id; return *this; }
+	
+	std::string toString();
+	EnvVarHandler & setAuto(std::string _strEVB);
+	static EnvVarHandler * getEVH(std::string _id);
+	static std::string getEnvVarHandlerList();
+	inline static const char* validIdChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789";
 };
 
 // TODO template <typename TB> ? but what about the conversions between types? would have to be handled outside here right?
@@ -219,12 +262,13 @@ private:
 	f32 fMin;
 	f32 fMax;
 	bool * varBool;
+	std::string msg;
 	
 	bool modified;
 	
 public:
 	
-	EnvVar(std::string _id) : id(_id), varString(nullptr), varRegex(nullptr), varInt(nullptr), iMin(0), iMax(0), varFloat(nullptr), fMin(0.f), fMax(0.f), varBool(nullptr), modified(false) {}
+	EnvVar(std::string _id) : id(_id), varString(nullptr), varRegex(nullptr), varInt(nullptr), iMin(0), iMax(0), varFloat(nullptr), fMin(0.f), fMax(0.f), varBool(nullptr), msg(""), modified(false) {}
 	
 	EnvVar & initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex);
 	
@@ -235,6 +279,9 @@ public:
 	EnvVar & setVal(f32 val, bool allowLog = false);
 	EnvVar & setVal(bool val, bool allowLog = false);
 	EnvVar & setValAuto(std::string val, bool allowLog = false, std::string strMsg = "", std::string valDefault = "", std::string valMin = "", std::string valMax = "");
+	
+	EnvVar & setMsg(std::string _strMsg) { msg = _strMsg; return *this; }
+	std::string getMsg() {return msg;}
 	
 	std::string getString();
 	s32 getInteger();

@@ -166,9 +166,9 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 		static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", Logger::LogLevel::None, "", ".*");}();
 		if(level == Logger::Debug) {
 			// multi regex ex.: ":someFileRegex:someFuncRegex:someLineRegex:someMessageRegex"
-			static platform::EnvVarHandler<std::string> evFileFuncLineSplitRegexStr = [](){platform::EnvVarHandler<std::string> evTmp("ARX_Debug",true); std::string strValue; platform::getEnvironmentVariableValueString(evFileFuncLineSplitRegexStr.ev, evTmp.id().c_str(), strValue, Logger::LogLevel::None, ""); evTmp.ev = strValue; return evTmp;}();
-			if(evFileFuncLineSplitRegexStr.chkMod()) {
-				std::string strMultiRegex = evFileFuncLineSplitRegexStr.ev;
+			static platform::EnvVarHandler evStrFileFuncLineSplitRegex = [](){return platform::EnvVarHandler("ARX_Debug", "ex.: \";ArxGame;LOD;.*\"","").setHasExternalConverter();}();
+			if(evStrFileFuncLineSplitRegex.chkMod()) {
+				std::string strMultiRegex = evStrFileFuncLineSplitRegex.getS();
 				if(strMultiRegex.size() > 1) {
 					std::string strToken = strMultiRegex.substr(0, 1); // user requested delimiter
 					std::string strMultiRegexTmp = strMultiRegex.substr(1);
@@ -180,7 +180,7 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 					if(vRegex.size() > 1) erFunc.setRegex(vRegex[1], false);
 					if(vRegex.size() > 2) erLine.setRegex(vRegex[2], false);
 				} else {
-					LogError << "invalid split regex \"" << evFileFuncLineSplitRegexStr.ev << "\" for " << evFileFuncLineSplitRegexStr.id();
+					LogError << "invalid split regex \"" << evStrFileFuncLineSplitRegex.getS() << "\" for " << evStrFileFuncLineSplitRegex.id();
 				}
 			}
 			

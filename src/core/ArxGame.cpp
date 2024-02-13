@@ -1620,7 +1620,8 @@ class LODarxGame {
 	int distBetweenLODs;
 	int minFPS;
 	int deltaFPS;
-	platform::EnvVarHandler<float, FpsCounter> evFPS; //(std::string("DUMMY"), false);
+	FpsCounter evFPS;
+	platform::EnvVarHandler evFloatFPS; //(std::string("DUMMY"), false);
 	float playerMovedRecalcLODmoveMinDist;
 	float lodRecalcDelay;
 	float lodUpdateDelay;
@@ -1641,8 +1642,8 @@ public:
 		
 		deltaFPS = [this](){return platform::getEnvironmentVariableValueInteger(deltaFPS, "ARX_LODDeltaFPS", Logger::LogLevel::Info, "this is how much FPS above the minimum that will allow LOD to be improved for one item per iteration and for the distant LOD levels thru ARX_LODDistStep", 10, 1).getInteger();}();
 		
-		evFPS = [this](){ platform::EnvVarHandler<float,FpsCounter> evTmp("ARX_LODFPSdelay", true); evTmp.ev = 0.33f; evTmp.ev = platform::getEnvironmentVariableValueFloat(evFPS.ev, evTmp.id().c_str(), Logger::LogLevel::None, "a more responsive FPS check (less than 1s), so LOD can change faster", evTmp.ev, 0.1f, 1.f ).getFloat(); return evTmp; }();
-		evFPS.evc.CalcFPS(true);
+		evFloatFPS = [this](){return platform::EnvVarHandler("ARX_LODFPSdelay", "a more responsive FPS check (less than 1s), so LOD can change faster", 0.33f, 0.1f, 1.f).setOnUpdateConverter( [this](){evFPS.setDelay(evFloatFPS.getF());} );}();
+		evFPS.CalcFPS(true);
 		
 		playerMovedRecalcLODmoveMinDist = [this](){return platform::getEnvironmentVariableValueFloat(playerMovedRecalcLODmoveMinDist, "ARX_LODPlayerMoveDistToRecalcLOD", Logger::LogLevel::Info, "recalculate LOD after player moves this distance", 25.f, 10.f).getFloat();}(); // how far shall player move
 		
@@ -1655,22 +1656,21 @@ public:
 		frameTimeNow = g_platformTime.frameStart();
 		
 		// tweak worst LOD dist based on performance
-		if(evFPS.chkMod()) evFPS.evc.setDelay(evFPS.ev);
-		if(evFPS.evc.CalcFPS(false)) {
-			if(evFPS.evc.FPS < minFPS) {
+		if(evFPS.CalcFPS(false)) {
+			if(evFPS.FPS < minFPS) {
 				if(useWorstFromLOD > LOD_HIGH) {
 					useWorstFromLOD = static_cast<LODFlag>(useWorstFromLOD >> 1);
 					LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD));
 				}
 			} else
-			if(evFPS.evc.FPS >= (minFPS+deltaFPS)) {
+			if(evFPS.FPS >= (minFPS+deltaFPS)) {
 				if(useWorstFromLOD < LOD_ICON) {
 					useWorstFromLOD = static_cast<LODFlag>(useWorstFromLOD << 1);
 					LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD));
 				}
 			}
 			
-			LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD) << ", evFPS=" << evFPS.evc.FPS);
+			LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD) << ", evFloatFPS=" << evFPS.FPS);
 			
 			entityChangedLODthisTime = nullptr;
 		}
@@ -1784,7 +1784,7 @@ public:
 			entity.setLOD(requestLOD); // can always lower quality 
 		} else
 		if(requestLOD < entity.currentLOD) { // can only carefully increase quality
-			if(!entityChangedLODthisTime && evFPS.evc.FPS >= (minFPS+deltaFPS)) {
+			if(!entityChangedLODthisTime && evFPS.FPS >= (minFPS+deltaFPS)) {
 				LogDebug("improve LOD from " << LODtoStr(entity.currentLOD) << " to " << LODtoStr(requestLOD) << " for " << entity.idString());
 				entity.setLOD(requestLOD);
 				entityChangedLODthisTime = &entity;

@@ -481,19 +481,19 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	
 	LODFlag lodChk = lodRequest;
 	
-	static platform::EnvVarHandler<std::string,LODFlag> evLODMax = [](){platform::EnvVarHandler<std::string,LODFlag> evTmp("ARX_LODMax",true); std::string strValue = "PERFECT"; platform::getEnvironmentVariableValueString(evLODMax.ev, evTmp.id().c_str(), strValue, Logger::LogLevel::Info, ""); evTmp.ev = strValue; return evTmp;}();
-	if(evLODMax.chkMod()) evLODMax.evc = strToLOD(evLODMax.ev);
+	static LODFlag evLODMax = LOD_PERFECT;
+	static platform::EnvVarHandler evStrLODMax = [](){return platform::EnvVarHandler("ARX_LODMax","set max LOD allowed",LODtoStr(evLODMax)).setOnUpdateConverter( [](){evLODMax = strToLOD(evStrLODMax.getS());} );}();
 	
-	static platform::EnvVarHandler<std::string,LODFlag> evLODMin = [](){platform::EnvVarHandler<std::string,LODFlag> evTmp("ARX_LODMin",true); std::string strValue = "ICON"; platform::getEnvironmentVariableValueString(evLODMin.ev, evTmp.id().c_str(), strValue, Logger::LogLevel::Info, ""); evTmp.ev = strValue; return evTmp;}();
-	if(evLODMin.chkMod()) evLODMin.evc = strToLOD(evLODMin.ev);
+	static LODFlag evLODMin = LOD_ICON;
+	static platform::EnvVarHandler evStrLODMin = [](){return platform::EnvVarHandler("ARX_LODMin","set min LOD allowed",LODtoStr(evLODMin)).setOnUpdateConverter( [](){evLODMin = strToLOD(evStrLODMin.getS());} );}();
 	
-	if(evLODMin.evc < evLODMax.evc) {
-		evLODMin.ev = LODtoStr(evLODMin.evc = evLODMax.evc);
-		LogWarning << "fixed LOD min to '" << LODtoStr(evLODMin.evc) << "'";
+	if(evLODMin < evLODMax) {
+		evStrLODMin.setAuto(LODtoStr(evLODMin = evLODMax));
+		LogWarning << "fixed LOD min to '" << LODtoStr(evLODMin) << "'";
 	}
-	if(evLODMax.evc > evLODMin.evc) {
-		evLODMax.ev = LODtoStr(evLODMax.evc = evLODMin.evc);
-		LogWarning << "fixed LOD max to '" << evLODMax.ev << "'";
+	if(evLODMax > evLODMin) {
+		evStrLODMax.setAuto(LODtoStr(evLODMax = evLODMin));
+		LogWarning << "fixed LOD max to '" << evStrLODMax.getS() << "'";
 	}
 	
 	if(!obj) {
@@ -507,8 +507,8 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	}
 	
 	// because max quality is lowest flag value
-	if(lodChk < evLODMax.evc) lodChk = evLODMax.evc;
-	if(lodChk > evLODMin.evc) lodChk = evLODMin.evc;
+	if(lodChk < evLODMax) lodChk = evLODMax;
+	if(lodChk > evLODMin) lodChk = evLODMin;
 	
 	// seek available LOD if requested not found
 	if(!(availableLODFlags & lodChk)) {
