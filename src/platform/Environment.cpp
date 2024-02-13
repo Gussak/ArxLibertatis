@@ -588,7 +588,7 @@ EnvVarHandler<TB,TC>::EnvVarHandler(std::string _strId, std::string _msg, TB evb
 	bJustToCopyFrom=(true);
 	evb=(evbDefault);
 	
-	arx_assert_msg(strId.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789") == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
+	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
 	
 	const char * pcVal = getenv(strId.c_str());
 	if(pcVal) {
@@ -901,6 +901,132 @@ bool EnvVar::getBoolean() {
 	if(varRegex ) { return varRegex->strRegex.size(); }
 	LogError << id << " not initialized";
 	return 0.f;
+}
+
+EnvVarHandler::EnvVarHandler(const EnvVarHandler & evCopyFrom) {
+	bJustToCopyFrom=(false);
+	hasInternalConverter=(false);
+	
+	*this = evCopyFrom; // operator=()
+	
+	vEVH.emplace(strId, this);
+}
+EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
+	if(!(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom)) {
+		LogCritical << "(operator=()) the EnvVarHandler (this:" << bJustToCopyFrom << ", copyFrom:" << evCopyFrom.bJustToCopyFrom << ") were not used as expected";
+	}
+	
+	strId = evCopyFrom.strId;
+	
+	evbCurrent = evCopyFrom.evbCurrent;
+	evbOld = evCopyFrom.evbOld;
+	evbMin = evCopyFrom.evbMin;
+	evbMax = evCopyFrom.evbMax;
+	
+	msg = evCopyFrom.msg;
+	
+	funcConvert = evCopyFrom.funcConvert;
+	hasInternalConverter = evCopyFrom.hasInternalConverter;
+	
+	LogDebug(strId << ", " << msg);
+	arx_assert(strId.size() > 0);
+	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
+	
+	return *this;
+}
+std::string EnvVarHandler::toString() {
+	switch(evt) {
+		case 'S': return evbCurrent.evS;
+		case 'I': return std::to_string(evbCurrent.evI);
+		case 'F': return std::to_string(evbCurrent.evF);
+		case 'B': return evbCurrent.evB ? "true" : "false";
+		default: arx_assert_msg(false, "type not set for %s", strId.c_str());
+	}
+	return "";
+}
+EnvVarHandler & EnvVarHandler::setAuto(std::string _strEVB) {
+	try {
+		switch(evt) {
+			case 'S': setS(_strEVB); break;
+			case 'I': setI(boost::lexical_cast<int>(_strEVB)); break; // util::parseInt()
+			case 'F': setF(boost::lexical_cast<float>(_strEVB)); break; // util::parseFloat()
+			case 'B': setB(util::toLowercase(_strEVB) == "true"); break;
+			default: arx_assert(false);
+		}
+	} catch(const std::exception & e) {
+		LogError << "[EnvVar] " << strId << ": parsing \"" << _strEVB << "\" to '" << evt << "'";
+	}
+	
+	return *this;
+}
+EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
+	for(auto it : vEVH) {
+		if(it.first == _id) {
+			return it.second;
+		}
+	}
+	return nullptr;
+}
+std::string EnvVarHandler::getEnvVarHandlerList() { // static
+	std::string strList;
+	std::string str2;
+	std::string str3;
+	for(auto it : vEVH) {
+		if(it.second->strId == it.first) {
+			str3 = "env -s " + it.first + " \"" + it.second->toString() + "\"";
+			str2 =             it.first + "=\"" + it.second->toString() + "\";";
+			LogInfo << "Environment Variable: " << str2;
+			strList += str3 + " //" + str2 + "\n";
+		} else {
+			LogCritical << "invalid var at list for " << it.first;
+		}
+	}
+	return strList;
+}
+EnvVarHandler & EnvVarHandler::setCommon() {
+	fixMinMax(); 
+	if(isModified() && hasInternalConverter) {
+		funcConvert();
+		clearModified();
+	}
+	return *this;
+}
+void EnvVarHandler::initTmpInstanceAndReadEnvVar(char _evt, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom) {
+	evbMax.evt = evbMin.evt = evbOld.evt = evbCurrent.evt = evt = _evt;
+	strId = _strId;
+	msg = _msg;
+	hasInternalConverter = _hasInternalConverter;
+	bJustToCopyFrom = _bJustToCopyFrom;
+	
+	//funcConvert = [](){};
+	
+	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
+	
+	const char * pcVal = getenv(strId.c_str());
+	if(pcVal) {
+		LogInfo << "[EnvVar] " << strId << " = \"" << pcVal << "\"";
+		setAuto(pcVal); // this may call funcConvert() if configured to
+	} else {
+		strEVB = toString().c_str(); // the default will just be converted to string here
+		// funcConvert() should not be necessary to be called here, as at this moment this tmp EnvVarHandler shall already receive this default value from the externally converted custom external variable
+	}
+}
+void EnvVarHandler::fixMinMax() {
+	switch(evt) {
+		case 'S':break;
+		case 'I':
+			if(evbCurrent.evI < evbMin.evI) evbCurrent.evI = evbMin.evI;
+			else
+			if(evbCurrent.evI > evbMax.evI) evbCurrent.evI = evbMax.evI;
+			break;
+		case 'F':
+			if(evbCurrent.evF < evbMin.evF) evbCurrent.evF = evbMin.evF;
+			else
+			if(evbCurrent.evF > evbMax.evF) evbCurrent.evF = evbMax.evF;
+			break;
+		case 'B':break;
+		default: arx_assert(false);
+	}
 }
 
 EnvVar * getEnvVar(std::string id) { // get or create handler
