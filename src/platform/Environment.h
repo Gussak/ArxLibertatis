@@ -164,9 +164,10 @@ class EnvVarHandler { // useful to take action only when the envvar is modified 
 private:
 	class EnvVarData {
 	public:
-		EnvVarData() : evS(""), evI(0), evF(0.f), evB(false) {}
+		EnvVarData() : evtD('~'), evS(""), evI(0), evF(0.f), evB(false) {}
 		
-		char evt;
+		char evtD;
+		std::string strIdD;
 		
 		std::string evS;
 		int evI;
@@ -174,19 +175,20 @@ private:
 		bool evB;
 		
 		bool operator!=(EnvVarData & other) {
-			switch(evt) {
+			arx_assert_msg(evtD != '~' && other.evtD != '~', "invalid this %c, other %c", evtD, other.evtD);
+			switch(evtD) {
 				case 'S': return evS != other.evS;
 				case 'I': return evI != other.evI;
 				case 'F': return evF != other.evF;
 				case 'B': return evB != other.evB;
-				default: arx_assert(false);
+				default: arx_assert_msg(false, "type not set %s", strIdD.c_str());
 			}
 		}
 	};
 
 	std::string strId;
 	
-	char evt;
+	char evtH;
 	
 	EnvVarData evbCurrent;
 	EnvVarData evbOld;
@@ -203,7 +205,7 @@ private:
 	bool bJustToCopyFrom;
   bool hasInternalConverter;
   
-	void initTmpInstanceAndReadEnvVar(char _evt, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom);
+	void initTmpInstanceAndReadEnvVar(char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom);
 	void fixMinMax();
 	
 	EnvVarHandler & setCommon();
@@ -215,8 +217,9 @@ public:
 	bool isModified() { return evbCurrent != evbOld; }
 	EnvVarHandler & clearModified() { evbOld = evbCurrent; return *this; }
 	
-	EnvVarHandler() { bJustToCopyFrom=(false); hasInternalConverter=(false); }
+	EnvVarHandler() { evtH=('~'); bJustToCopyFrom=(false); hasInternalConverter=(false); }
 	EnvVarHandler(const EnvVarHandler & evCopyFrom);
+	
 	EnvVarHandler & operator=(const EnvVarHandler & evCopyFrom);
 	
 	// F1 F2 suffixes. constructor() and get()
@@ -224,7 +227,7 @@ public:
 		EnvVarHandler(std::string _strId, std::string _msg, TYPE val, TYPE min = MIN, TYPE max = MAX) { \
 			evbCurrent.ev##SUFFIX = val; evbOld.ev##SUFFIX = val; evbMin.ev##SUFFIX = min; evbMax.ev##SUFFIX = max; \
 			initTmpInstanceAndReadEnvVar(std::string(#SUFFIX)[0], _strId, _msg, false, true); } \
-		TYPE get##SUFFIX() { arx_assert_msg(std::string(#SUFFIX) != std::string({evt, '\0'}), "requested %s but is %c", #SUFFIX, evt); \
+		TYPE get##SUFFIX() { arx_assert_msg(std::string(#SUFFIX) != std::string({evtH, '\0'}), "requested %s but is %c", #SUFFIX, evtH); \
 			return evbCurrent.ev##SUFFIX; } \
 		EnvVarHandler & set##SUFFIX(TYPE val) { evbCurrent.ev##SUFFIX = val; return setCommon(); }
 	

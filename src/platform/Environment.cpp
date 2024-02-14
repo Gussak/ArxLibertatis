@@ -904,12 +904,11 @@ bool EnvVar::getBoolean() {
 }
 
 EnvVarHandler::EnvVarHandler(const EnvVarHandler & evCopyFrom) {
-	bJustToCopyFrom=(false);
-	hasInternalConverter=(false);
+	EnvVarHandler();
 	
 	*this = evCopyFrom; // operator=()
 	
-	vEVH.emplace(strId, this);
+	vEVH[strId] = this;
 }
 EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
 	if(!(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom)) {
@@ -935,7 +934,7 @@ EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
 	return *this;
 }
 std::string EnvVarHandler::toString() {
-	switch(evt) {
+	switch(evtH) {
 		case 'S': return evbCurrent.evS;
 		case 'I': return std::to_string(evbCurrent.evI);
 		case 'F': return std::to_string(evbCurrent.evF);
@@ -946,7 +945,7 @@ std::string EnvVarHandler::toString() {
 }
 EnvVarHandler & EnvVarHandler::setAuto(std::string _strEVB) {
 	try {
-		switch(evt) {
+		switch(evtH) {
 			case 'S': setS(_strEVB); break;
 			case 'I': setI(boost::lexical_cast<int>(_strEVB)); break; // util::parseInt()
 			case 'F': setF(boost::lexical_cast<float>(_strEVB)); break; // util::parseFloat()
@@ -954,7 +953,7 @@ EnvVarHandler & EnvVarHandler::setAuto(std::string _strEVB) {
 			default: arx_assert(false);
 		}
 	} catch(const std::exception & e) {
-		LogError << "[EnvVar] " << strId << ": parsing \"" << _strEVB << "\" to '" << evt << "'";
+		LogError << "[EnvVar] " << strId << ": parsing \"" << _strEVB << "\" to '" << evtH << "'";
 	}
 	
 	return *this;
@@ -991,8 +990,8 @@ EnvVarHandler & EnvVarHandler::setCommon() {
 	}
 	return *this;
 }
-void EnvVarHandler::initTmpInstanceAndReadEnvVar(char _evt, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom) {
-	evbMax.evt = evbMin.evt = evbOld.evt = evbCurrent.evt = evt = _evt;
+void EnvVarHandler::initTmpInstanceAndReadEnvVar(char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom) {
+	evbMax.evtD = evbMin.evtD = evbOld.evtD = evbCurrent.evtD = evtH = _evtH;
 	strId = _strId;
 	msg = _msg;
 	hasInternalConverter = _hasInternalConverter;
@@ -1012,7 +1011,7 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(char _evt, std::string _strId, 
 	}
 }
 void EnvVarHandler::fixMinMax() {
-	switch(evt) {
+	switch(evtH) {
 		case 'S':break;
 		case 'I':
 			if(evbCurrent.evI < evbMin.evI) evbCurrent.evI = evbMin.evI;
