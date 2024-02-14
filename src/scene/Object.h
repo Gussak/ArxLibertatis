@@ -67,6 +67,7 @@ VertexGroupId getGroupForVertex(const EERIE_3DOBJ * eobj, VertexId vertex);
 std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox = true);
 
 EERIE_3DOBJ * Eerie_Copy(const EERIE_3DOBJ * obj);
+EERIE_3DOBJ * Eerie_CopyTo(const EERIE_3DOBJ * obj, EERIE_3DOBJ * nouvo);
 void EERIE_Object_Precompute_Fast_Access(EERIE_3DOBJ * object);
 void EERIE_3DOBJ_RestoreTextures(EERIE_3DOBJ * eobj);
 void EERIE_OBJECT_CenterObjectCoordinates(EERIE_3DOBJ * ret);

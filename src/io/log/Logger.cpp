@@ -166,8 +166,8 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 		static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", Logger::LogLevel::None, "", ".*");}();
 		if(level == Logger::Debug) {
 			// multi regex ex.: ":someFileRegex:someFuncRegex:someLineRegex:someMessageRegex"
-			static platform::EnvVarHandler evStrFileFuncLineSplitRegex = [](){return platform::EnvVarHandler("ARX_Debug", "ex.: \";ArxGame;LOD;.*\"","").setHasExternalConverter();}();
-			if(evStrFileFuncLineSplitRegex.chkMod()) {
+			static platform::EnvVarHandler evStrFileFuncLineSplitRegex = [](){return platform::EnvVarHandler("ARX_Debug", "ex.: \";ArxGame;LOD;.*\"","");}();
+			if(evStrFileFuncLineSplitRegex.isModified()) {
 				std::string strMultiRegex = evStrFileFuncLineSplitRegex.getS();
 				if(strMultiRegex.size() > 1) {
 					std::string strToken = strMultiRegex.substr(0, 1); // user requested delimiter
@@ -182,6 +182,7 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 				} else {
 					LogError << "invalid split regex \"" << evStrFileFuncLineSplitRegex.getS() << "\" for " << evStrFileFuncLineSplitRegex.id();
 				}
+				evStrFileFuncLineSplitRegex.clearModified();
 			}
 			
 			// apply debug filters

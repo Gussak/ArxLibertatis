@@ -904,31 +904,21 @@ bool EnvVar::getBoolean() {
 }
 
 EnvVarHandler::EnvVarHandler(const EnvVarHandler & evCopyFrom) {
-	bJustToCopyFrom=(false);
-	useFuncConvert=(false);
+	EnvVarHandler(); dbgH = 7000;
 	
 	*this = evCopyFrom; // operator=()
 	
-	arx_assert(!bJustToCopyFrom);
-	vEVH.emplace(strId, *this);
+	vEVH[strId] = this;
+	LogDebug("vEVH[" << strId << "]=" << static_cast<void*>(this) << ", evtH=" << evtH << ", evCopyFrom.evtH=" << evCopyFrom.evtH);
+	arx_assert(vEVH[strId]->strId == strId);
 }
-EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom)
-{
-	if(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom) {
-		LogWarning << "the EnvVarHandler (this:" << bJustToCopyFrom << ", copyFrom:" << evCopyFrom.bJustToCopyFrom << ") were not used as expected";
+EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
+	if(!(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom)) {
+		LogCritical << "operator=(): the EnvVarHandler for \"" << evCopyFrom.strId << "\", this:" << bJustToCopyFrom << "/dbgH=" << dbgH << ", copyFrom:" << evCopyFrom.bJustToCopyFrom << "/dbgH=" << evCopyFrom.dbgH << ", were not used as expected.";
 	}
 	
-	strId = evCopyFrom.strId;
-	
-	evbCurrent = evCopyFrom.evbCurrent;
-	evbOld = evCopyFrom.evbOld;
-	evbMin = evCopyFrom.evbMin;
-	evbMax = evCopyFrom.evbMax;
-	
-	msg = evCopyFrom.msg;
-	
-	funcConvert = evCopyFrom.funcConvert;
-	useFuncConvert = evCopyFrom.useFuncConvert;
+	copyFrom(evCopyFrom);
+	dbgH += 10;
 	
 	LogDebug(strId << ", " << msg);
 	arx_assert(strId.size() > 0);
@@ -936,29 +926,27 @@ EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom)
 	
 	return *this;
 }
-std::string EnvVarHandler::toString()
-{
-	switch(evt) {
+std::string EnvVarHandler::toString() {
+	switch(evtH) {
 		case 'S': return evbCurrent.evS;
 		case 'I': return std::to_string(evbCurrent.evI);
 		case 'F': return std::to_string(evbCurrent.evF);
 		case 'B': return evbCurrent.evB ? "true" : "false";
-		default: arx_assert(false);
+		default: arx_assert_msg(false, "type not set for %s", strId.c_str());
 	}
 	return "";
 }
-EnvVarHandler & EnvVarHandler::setAuto(std::string _strEVB)
-{
+EnvVarHandler & EnvVarHandler::setAuto(std::string _strEVB) {
 	try {
-		switch(evt) {
+		switch(evtH) {
 			case 'S': setS(_strEVB); break;
-			case 'I': setI(boost::lexical_cast<int>(_strEVB)); break;
-			case 'F': setF(boost::lexical_cast<float>(_strEVB)); break;
+			case 'I': setI(boost::lexical_cast<int>(_strEVB)); break; // util::parseInt()
+			case 'F': setF(boost::lexical_cast<float>(_strEVB)); break; // util::parseFloat()
 			case 'B': setB(util::toLowercase(_strEVB) == "true"); break;
 			default: arx_assert(false);
 		}
 	} catch(const std::exception & e) {
-		LogError << "[EnvVar] " << strId << ": parsing \"" << _strEVB << "\" to '" << evt << "'";
+		LogError << "[EnvVar] " << strId << ": parsing \"" << _strEVB << "\" to '" << evtH << "'";
 	}
 	
 	return *this;
@@ -966,7 +954,7 @@ EnvVarHandler & EnvVarHandler::setAuto(std::string _strEVB)
 EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
 	for(auto it : vEVH) {
 		if(it.first == _id) {
-			return &it.second;
+			return it.second;
 		}
 	}
 	return nullptr;
@@ -974,44 +962,36 @@ EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
 std::string EnvVarHandler::getEnvVarHandlerList() { // static
 	std::string strList;
 	std::string str2;
+	std::string str3;
 	for(auto it : vEVH) {
-		str2 = it.first + "=\"" + it.second.toString() + "\";\n";
-		LogInfo << "Environment Variable: " << str2;
-		strList += str2;
+		LogDebug("vEVH["<<it.first<<"]=0x"<<static_cast<void*>(it.second));
+		if(it.second->strId == it.first) {
+			str3 = "env -s " + it.first + " \"" + it.second->toString() + "\"";
+			str2 =             it.first + "=\"" + it.second->toString() + "\";";
+			LogInfo << "Environment Variable: " << str2;
+			strList += str3 + " //" + str2 + "\n";
+		} else {
+			LogCritical << "invalid var at list for " << it.first << ", dbgH=" << it.second->dbgH;
+		}
 	}
 	return strList;
 }
-/**
- * asking to consume and to convert while not having an internal converter will prevent the consupmtion
- */
-bool EnvVarHandler::chkMod(bool bConsume, bool bConvert) {
-	bool bMod = evbCurrent != evbOld;
-	if(bMod) {
-		if(bConvert) {
-			if(useFuncConvert) {
-				funcConvert();
-			} else {
-				bConsume = false;
-				LogCritical << strId << ": consumption denied because there is no internal converter. Set it up or convert externally.";
-			}
-		}
-		
-		if(bConsume) {
-			evbOld = evbCurrent;
-		}
+EnvVarHandler & EnvVarHandler::setCommon() {
+	fixMinMax(); 
+	if(isModified() && hasInternalConverter) {
+		funcConvert();
+		clearModified();
 	}
-	return bMod;
+	return *this;
 }
-void EnvVarHandler::initTmpInstanceAndReadEnvVar(char _evt, std::string _strId, std::string _msg, bool _useFuncConvert, bool _bJustToCopyFrom) {
-	evbMax.evt = evbMin.evt = evbOld.evt = evbCurrent.evt = evt = _evt;
-	strId = _strId;
+void EnvVarHandler::initTmpInstanceAndReadEnvVar(char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom) {
+	evbMax.evtD = evbMin.evtD = evbOld.evtD = evbCurrent.evtD = evtH = _evtH;
+	evbMax.strIdD = evbMin.strIdD = evbOld.strIdD = evbCurrent.strIdD = strId = _strId;
 	msg = _msg;
-	useFuncConvert = _useFuncConvert;
+	hasInternalConverter = _hasInternalConverter;
 	bJustToCopyFrom = _bJustToCopyFrom;
 	
 	//funcConvert = [](){};
-	
-	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
 	
 	const char * pcVal = getenv(strId.c_str());
 	if(pcVal) {
@@ -1021,9 +1001,12 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(char _evt, std::string _strId, 
 		strEVB = toString().c_str(); // the default will just be converted to string here
 		// funcConvert() should not be necessary to be called here, as at this moment this tmp EnvVarHandler shall already receive this default value from the externally converted custom external variable
 	}
+	
+	arx_assert(evtH=='S' || evtH=='B' || evtH=='F' || evtH=='I');
+	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
 }
 void EnvVarHandler::fixMinMax() {
-	switch(evt) {
+	switch(evtH) {
 		case 'S':break;
 		case 'I':
 			if(evbCurrent.evI < evbMin.evI) evbCurrent.evI = evbMin.evI;

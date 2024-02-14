@@ -176,8 +176,10 @@ void MakeUserFlag(TextureContainer * tc) {
 }
 
 EERIE_3DOBJ * Eerie_Copy(const EERIE_3DOBJ * obj) {
-	
 	EERIE_3DOBJ * nouvo = new EERIE_3DOBJ();
+	return Eerie_CopyTo(obj, nouvo);
+}
+EERIE_3DOBJ * Eerie_CopyTo(const EERIE_3DOBJ * obj, EERIE_3DOBJ * nouvo) {
 	
 	nouvo->vertexlist = obj->vertexlist;
 	nouvo->vertexWorldPositions.resize(nouvo->vertexlist.size());
@@ -539,16 +541,29 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 	return true;
 }
 
-std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) { // TODO meshes should be loaded just one time ? unless they accept unique dynamic tweaks that could be saved. But still, if this doesnt happen it could re-use a default mesh.
+std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
 	
-	std::unique_ptr<EERIE_3DOBJ> object = ARX_FTL_Load(file);
-	if(object && pbox) {
-		EERIE_PHYSICS_BOX_Create(object.get());
+	static std::map<std::string, EERIE_3DOBJ*> fltCache; // TODO check if meshes accept unique dynamic tweaks that could be saved, but anyway the initial load can still re-use the original mesh.
+	
+	std::string id = res::path(file).remove_ext().string();
+	if(!fltCache[id]) {
+		EERIE_3DOBJ* obj = ARX_FTL_Load(file).release();
+		if(obj && pbox) {
+			EERIE_PHYSICS_BOX_Create(obj);
+		}
+		
+		LogDebugIf(obj, "faces=" << obj->facelist.size() << ", pbox.radius=" << (pbox ? obj->pbox->radius : 0.f) << ", file=" << obj->fileUniqueRelativePathName );
+		
+		if(obj) fltCache[id] = obj;
 	}
 	
-	LogDebugIf(object, "faces=" << object->facelist.size() << ", pbox.radius=" << (pbox ? object->pbox->radius : 0.f) << ", file=" << object->fileUniqueRelativePathName );
+	if(fltCache[id]) {
+		std::unique_ptr<EERIE_3DOBJ> object = std::make_unique<EERIE_3DOBJ>();
+		Eerie_CopyTo(fltCache[id], object.get());
+		return object;
+	}
 	
-	return object;
+	return { };
 }
 
 void EERIE_OBJECT_CenterObjectCoordinates(EERIE_3DOBJ * ret) {

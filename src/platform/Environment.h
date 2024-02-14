@@ -164,9 +164,11 @@ class EnvVarHandler { // useful to take action only when the envvar is modified 
 private:
 	class EnvVarData {
 	public:
-		EnvVarData() : evS(""), evI(0), evF(0.f), evB(false) {}
+		EnvVarData() { dbgD=(2000); evtD=('.'); evS=(""); evI=(0); evF=(0.f); evB=(false); }
 		
-		unsigned char evt;
+		int dbgD = 1000;
+		char evtD = '.';
+		std::string strIdD;
 		
 		std::string evS;
 		int evI;
@@ -174,19 +176,20 @@ private:
 		bool evB;
 		
 		bool operator!=(EnvVarData & other) {
-			switch(evt) {
+			//arx_assert_msg(evtD != '~' && other.evtD != '~', "invalid this %c, other %c", evtD, other.evtD);
+			switch(evtD) {
 				case 'S': return evS != other.evS;
 				case 'I': return evI != other.evI;
 				case 'F': return evF != other.evF;
 				case 'B': return evB != other.evB;
-				default: arx_assert(false);
+				default: arx_assert_msg(false, "type not set %s", strIdD.c_str());
 			}
 		}
 	};
 
+	int dbgH = 3000;
+	char evtH = '.';
 	std::string strId;
-	
-	unsigned char evt;
 	
 	EnvVarData evbCurrent;
 	EnvVarData evbOld;
@@ -196,51 +199,80 @@ private:
 	std::string strEVB;
 	std::string msg;
 	
-	inline static std::map<std::string, EnvVarHandler&> vEVH;
+	std::function<void()> funcConvert;
+	bool hasInternalConverter;
 	
-  std::function<void()> funcConvert;
-  
 	bool bJustToCopyFrom;
-  bool useFuncConvert;
-  bool hasExternalConverter;
-  
-	void initTmpInstanceAndReadEnvVar(char _evt, std::string _strId, std::string _msg, bool _useFuncConvert, bool _bJustToCopyFrom);
+	
+	EnvVarHandler & copyFrom(const EnvVarHandler & evCopyFrom) {
+		dbgH += 1;
+		evtH = evCopyFrom.evtH;
+		
+		strId = evCopyFrom.strId;
+		
+		evbCurrent = evCopyFrom.evbCurrent;
+		evbOld = evCopyFrom.evbOld;
+		evbMin = evCopyFrom.evbMin;
+		evbMax = evCopyFrom.evbMax;
+		
+		strEVB = evCopyFrom.msg;
+		msg = evCopyFrom.msg;
+		
+		funcConvert = evCopyFrom.funcConvert;
+		hasInternalConverter = evCopyFrom.hasInternalConverter;
+		
+		// bJustToCopyFrom = false;
+		return *this;
+	}
+	
+	inline static std::map<std::string, EnvVarHandler*> vEVH;
+	
+	void initTmpInstanceAndReadEnvVar(char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom);
 	void fixMinMax();
+	
+	EnvVarHandler & setCommon();
 	
 public:
 	
-	EnvVarHandler & setOnUpdateConverter(auto func) { funcConvert = std::move(func); useFuncConvert = true; return *this; } // funcConvert();
-	EnvVarHandler & setHasExternalConverter() { hasExternalConverter = true; return *this; } // funcConvert();
+	EnvVarHandler & setOnUpdateConverter(auto func) { funcConvert = std::move(func); hasInternalConverter = true; return *this; } // funcConvert();
 	
-	bool chkMod(bool bConsume = true, bool bConvert = true);
+	bool isModified() { return evbCurrent != evbOld; }
+	EnvVarHandler & clearModified() { evbOld = evbCurrent; return *this; }
 	
-	EnvVarHandler() { bJustToCopyFrom=(false); useFuncConvert=(false); hasExternalConverter=(false); }
+	EnvVarHandler() { dbgH = 5000; evtH=('.'); bJustToCopyFrom=(false); hasInternalConverter=(false); }
+	// constructors for base types. only used by temporary objects. here also: get.() and set.(val)
+	#define EnvVarHandlerEasySimpleCode(TYPE,SUFFIX,MIN,MAX) \
+		EnvVarHandler(std::string _strId, std::string _msg, TYPE val, TYPE min = MIN, TYPE max = MAX) { \
+			EnvVarHandler(); dbgH = 6000; \
+			evbCurrent.ev##SUFFIX = val; \
+			evbOld.ev##SUFFIX = val; \
+			evbMin.ev##SUFFIX = min; \
+			evbMax.ev##SUFFIX = max; \
+			initTmpInstanceAndReadEnvVar(std::string(#SUFFIX)[0], _strId, _msg, false, true); \
+		} \
+		TYPE get##SUFFIX() { \
+			arx_assert_msg(std::string(#SUFFIX) != std::string({evtH, '\0'}), "requested %s but is %c", #SUFFIX, evtH); \
+			return evbCurrent.ev##SUFFIX; \
+		} \
+		EnvVarHandler & set##SUFFIX(TYPE val) { \
+			evbCurrent.ev##SUFFIX = val; \
+			return setCommon(); \
+		}
+	EnvVarHandlerEasySimpleCode(std::string , S, "", "")
+	EnvVarHandlerEasySimpleCode(int         , I, std::numeric_limits<int>::min(),   std::numeric_limits<int>::max())
+	EnvVarHandlerEasySimpleCode(float       , F, std::numeric_limits<float>::min(), std::numeric_limits<float>::max())
+	EnvVarHandlerEasySimpleCode(bool        , B, false, false)
 	EnvVarHandler(const EnvVarHandler & evCopyFrom);
+	EnvVarHandler(std::string _strId, std::string _msg, const char * val) : EnvVarHandler(_strId, _msg, std::string(val)) { } // this is important! otherwise a const char val would call the boolean overload!!
+	~EnvVarHandler() { dbgH += 1000000; }
+	
 	EnvVarHandler & operator=(const EnvVarHandler & evCopyFrom);
 	
-	// T type, F1 F2 F3 suffixes. constructor() and get()
-	#define EnvVarHandlerEasySimpleCode(TYPE,F1,F2,F3,MIN,MAX) \
-		EnvVarHandler(std::string _strId, std::string _msg, TYPE val, TYPE min = MIN, TYPE max = MAX) { \
-			evbCurrent.ev##F1 = val; evbOld.ev##F1 = val; evbMin.ev##F1 = min; evbMax.ev##F1 = max; \
-			initTmpInstanceAndReadEnvVar(std::string(#F1)[0], _strId, _msg, false, true); } \
-		TYPE get##F2() { arx_assert_msg(evt != std::string(#F1)[0], "requested %c but is %c", std::string(#F1)[0], evt); \
-			return evbCurrent.ev##F1##F3; } \
-		EnvVarHandler & set##F1(TYPE val) { evbCurrent.ev##F1 = val; fixMinMax(); if(!hasExternalConverter) chkMod(true, useFuncConvert); return *this; }
-	
-	//EnvVarHandlerEasySimpleCode(const char *, S, C,.c_str(), "", "") // this is important! otherwise a const char would call the boolean overload!!
-	EnvVarHandlerEasySimpleCode(std::string , S, S, , "", "")
-	EnvVarHandlerEasySimpleCode(int         , I, I, , std::numeric_limits<int>::min(),   std::numeric_limits<int>::max())
-	EnvVarHandlerEasySimpleCode(float       , F, F, , std::numeric_limits<float>::min(), std::numeric_limits<float>::max())
-	EnvVarHandlerEasySimpleCode(bool        , B, B, , false, false)
-	EnvVarHandler(std::string _strId, std::string _msg, const char * val) : EnvVarHandler(_strId, _msg, std::string(val)) {} // this is important! otherwise a const char val would call the boolean overload!!
-	
-	//EnvVarHandler(TB _evar) { init(); evb = _evar; }
-	
 	std::string id() { return strId; }
-	//EnvVarHandler & setId(std::string _id) { arx_assert(strId == "" && _id != ""); strId = _id; return *this; }
 	
 	std::string toString();
 	EnvVarHandler & setAuto(std::string _strEVB);
+	
 	static EnvVarHandler * getEVH(std::string _id);
 	static std::string getEnvVarHandlerList();
 	inline static const char* validIdChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789";
