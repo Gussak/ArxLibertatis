@@ -481,32 +481,24 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	
 	LODFlag lodChk = lodRequest;
 	
-	//static LODFlag evLODMax = LOD_PERFECT;
-	//static platform::EnvVarHandler evStrLODMax = [](){  return platform::EnvVarHandler(&evStrLODMax, "ARX_LODMax","set max LOD allowed",LODtoStr(evLODMax)).setOnUpdateConverter( [](){evLODMax = strToLOD(evStrLODMax.getS());} );  }();
-	static LODFlag evLODMax = [this](){
-		static const char* id = "ARX_LODMax";
-		return platform::EnvVarHandler(nullptr, id, "set max LOD allowed", LODtoStr(evLODMax))
-			.setOnUpdateConverter( [this](){
-				platform::EnvVarHandler * evh = platform::EnvVarHandler::getEVH(id);
-				evLODMax = strToLOD(evh->getS());
-				if(evLODMin < evLODMax) {
-					evhMin.setAuto(LODtoStr(evLODMin = evLODMax));
-					LogWarning << "fixed LOD min to '" << LODtoStr(evLODMin) << "'";
-				}
-			} )
-			.createNewInstanceAndCopyMeToIt().getF();
-	}();
 	
+	static LODFlag evLODMax = LOD_PERFECT;
 	static LODFlag evLODMin = LOD_ICON;
-	static platform::EnvVarHandler evStrLODMin = [](){  return platform::EnvVarHandler(&evStrLODMin, "ARX_LODMin","set min LOD allowed",LODtoStr(evLODMin)).setOnUpdateConverter( [](){evLODMin = strToLOD(evStrLODMin.getS());} );  }();
 	
-	if(evLODMin < evLODMax) {
-		evStrLODMin.setAuto(LODtoStr(evLODMin = evLODMax));
-		LogWarning << "fixed LOD min to '" << LODtoStr(evLODMin) << "'";
-	}
-	if(evLODMax > evLODMin) {
-		evStrLODMax.setAuto(LODtoStr(evLODMax = evLODMin));
-		LogWarning << "fixed LOD max to '" << evStrLODMax.getS() << "'";
+	{ // config and fix after updating if necessary
+		static platform::EnvVarHandler evStrLODMax = [](){  return platform::EnvVarHandler(&evStrLODMax, "ARX_LODMax","set max LOD allowed",LODtoStr(evLODMax)).setOnUpdateConverter( [](){evLODMax = strToLOD(evStrLODMax.getS());} );  }();
+		
+		static platform::EnvVarHandler evStrLODMin = [](){  return platform::EnvVarHandler(&evStrLODMin, "ARX_LODMin","set min LOD allowed",LODtoStr(evLODMin)).setOnUpdateConverter( [](){evLODMin = strToLOD(evStrLODMin.getS());} );  }();
+		
+		if(evLODMin < evLODMax) {
+			evStrLODMin.setAuto(LODtoStr(evLODMin = evLODMax));
+			LogWarning << "fixed LOD min to '" << LODtoStr(evLODMin) << "'";
+		}
+		
+		if(evLODMax > evLODMin) {
+			evStrLODMax.setAuto(LODtoStr(evLODMax = evLODMin));
+			LogWarning << "fixed LOD max to '" << evStrLODMax.getS() << "'";
+		}
 	}
 	
 	if(!obj) {
