@@ -502,11 +502,11 @@ bool askOkCancel(const std::string & question, const std::string & title) {
  * 		TODO
  */
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, size_t lineAtFileToEdit) {
-	static std::string systemPopupCmd = [](){  static const char* id = "ARX_ScriptErrorPopupCommand"; return platform::EnvVarHandler(nullptr, id, "Attention: custom user command!", "").setOnUpdateConverter( [](){systemPopupCmd = platform::EnvVarHandler::getEVH(id)->getS();} ).createNewInstanceAndCopyMeToIt().getS();  }();
+	static platform::EnvVarHandler * systemPopupCmd = [](){ return platform::EnvVarHandler::create("ARX_ScriptErrorPopupCommand", "Attention: custom user command!", ""); }();
 	
 	static time_t ignoreTo = time(0);time_t now = time(0); // TODO? static PlatformInstant ignoreTo = platform::getTime();PlatformInstant now = platform::getTime(); // See LOD code about PlatformDuration(1s * float)
-	if(systemPopupCmd.size() && now >= ignoreTo) {
-		std::string strSysPopupCmd = systemPopupCmd;
+	if(systemPopupCmd->getS().size() && now >= ignoreTo) {
+		std::string strSysPopupCmd = systemPopupCmd->getS();
 		
 		std::string strTitleOk = "ArxLibertatis: " + strTitle;
 		util::applyTokenAt(strSysPopupCmd, "%{title}", util::escapeString(strTitleOk));
@@ -519,8 +519,8 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 			ssMsg << " [FileToEdit] '" << strFileToEdit << ":" << lineAtFileToEdit << "'\n";
 		}
 		
-		static std::string codeEditorCmd = [](){  static const char* id = "ARX_ScriptCodeEditorCommand"; return platform::EnvVarHandler(nullptr, id, "Attention: custom user command!", "").setOnUpdateConverter( [](){systemPopupCmd = platform::EnvVarHandler::getEVH(id)->getS();} ).createNewInstanceAndCopyMeToIt().getS();  }();
-		if(codeEditorCmd.size() > 0) {
+		static platform::EnvVarHandler * codeEditorCmd = [](){ return platform::EnvVarHandler::create("ARX_ScriptCodeEditorCommand", "Attention: custom user command!", ""); }();
+		if(codeEditorCmd->getS().size() > 0) {
 			ssMsg << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
 		}
 		
@@ -529,8 +529,8 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 		util::applyTokenAt(strSysPopupCmd, "%{details}", std::string() + " [DETAILS] \n" + util::escapeString(strDetails, strEscapeChars));
 		
 		int retPopupCmd = platform::runUserCommand(strSysPopupCmd.c_str());
-		if(retPopupCmd == 0 && codeEditorCmd.size() > 0 && strFileToEdit.size() > 0) { // clicked ok
-			std::string strCodeEditorCmd = std::string() + codeEditorCmd;
+		if(retPopupCmd == 0 && codeEditorCmd->getS().size() > 0 && strFileToEdit.size() > 0) { // clicked ok
+			std::string strCodeEditorCmd = codeEditorCmd->getS();
 			
 			util::applyTokenAt(strCodeEditorCmd, "%{file}", strFileToEdit);
 			

@@ -486,18 +486,18 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	static LODFlag evLODMin = LOD_ICON;
 	
 	{ // config and fix after updating if necessary
-		static platform::EnvVarHandler evStrLODMax = [](){  return platform::EnvVarHandler(&evStrLODMax, "ARX_LODMax","set max LOD allowed",LODtoStr(evLODMax)).setOnUpdateConverter( [](){evLODMax = strToLOD(evStrLODMax.getS());} );  }();
+		static platform::EnvVarHandler * evStrLODMax = [](){  return platform::EnvVarHandler::create("ARX_LODMax", "set max LOD allowed", LODtoStr(evLODMax))->setConverter( [](){evLODMax = strToLOD(evStrLODMax->getS());} );  }();
 		
-		static platform::EnvVarHandler evStrLODMin = [](){  return platform::EnvVarHandler(&evStrLODMin, "ARX_LODMin","set min LOD allowed",LODtoStr(evLODMin)).setOnUpdateConverter( [](){evLODMin = strToLOD(evStrLODMin.getS());} );  }();
+		static platform::EnvVarHandler * evStrLODMin = [](){  return platform::EnvVarHandler::create("ARX_LODMin", "set min LOD allowed", LODtoStr(evLODMin))->setConverter( [](){evLODMin = strToLOD(evStrLODMin->getS());} );  }();
 		
 		if(evLODMin < evLODMax) {
-			evStrLODMin.setAuto(LODtoStr(evLODMin = evLODMax));
-			LogWarning << "fixed LOD min to '" << LODtoStr(evLODMin) << "'";
+			evStrLODMin->setAuto(LODtoStr(evLODMin = evLODMax));
+			LogWarning << "fixed LOD min to '" << evStrLODMin->getS() << "'";
 		}
 		
 		if(evLODMax > evLODMin) {
-			evStrLODMax.setAuto(LODtoStr(evLODMax = evLODMin));
-			LogWarning << "fixed LOD max to '" << evStrLODMax.getS() << "'";
+			evStrLODMax->setAuto(LODtoStr(evLODMax = evLODMin));
+			LogWarning << "fixed LOD max to '" << evStrLODMax->getS() << "'";
 		}
 	}
 	

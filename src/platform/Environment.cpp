@@ -815,35 +815,15 @@ bool EnvVar::getBoolean() {
 	return 0.f;
 }
 
-void EnvVarHandler::Genesis(EnvVarHandler * evAdam, EnvVarHandler * evEve) {
-	if(EVHLogOff::allowLog) LogDebugIf(evAdam->targetCopyTo && evEve->targetCopyTo, "DoubleCopying: (" << evAdam->strId << ")" << static_cast<const void*>(evAdam) << " = (" << evEve->strId << ")" << static_cast<const void*>(evEve));
-	
-	if(evAdam->targetCopyTo) {
-		evAdam->targetCopyTo->copyFrom(*evAdam);
-	}
-	
-	if(evEve->targetCopyTo) {
-		evEve->targetCopyTo->copyFrom(*evEve);
-	}
-}
-EnvVarHandler::EnvVarHandler(EnvVarHandler & evCopyFrom) {
-	EnvVarHandler();
-	Genesis(this, &evCopyFrom);
-}
-void EnvVarHandler::copyFrom(const EnvVarHandler & evCopyFrom) {
+EnvVarHandler & EnvVarHandler::copyFrom(const EnvVarHandler & evCopyFrom) {
 	if(evCopyFrom.strId.size() > 0) {
-		if(EVHLogOff::allowLog) LogDebugIf(this->strId.size() > 0, "Overwriting: (" << this->strId << ")" << static_cast<const void*>(this) << " = (" << evCopyFrom.strId << ")" << static_cast<const void*>(&evCopyFrom));
-		
 		this->copyRawFrom(evCopyFrom);
-		vEVH[this->strId] = this; // TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
-		
 		if(EVHLogOff::allowLog) LogDebug(static_cast<const void*>(this) << " = " << static_cast<const void*>(&evCopyFrom));
-		if(EVHLogOff::allowLog) LogInfo << "[EnvVar] " << this->strId << " = \"" << vEVH[this->strId]->toString() << "\"";
 	}
+	return *this;
 }
 EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
-	copyFrom(evCopyFrom);
-	return *this;
+	return copyFrom(evCopyFrom);
 }
 std::string EnvVarHandler::toString() {
 	switch(evtH) {
@@ -855,7 +835,7 @@ std::string EnvVarHandler::toString() {
 	}
 	return "";
 }
-EnvVarHandler & EnvVarHandler::setAuto(std::string _strEVB) {
+EnvVarHandler * EnvVarHandler::setAuto(std::string _strEVB) {
 	try {
 		switch(evtH) {
 			case 'S': setS(_strEVB); break;
@@ -868,7 +848,24 @@ EnvVarHandler & EnvVarHandler::setAuto(std::string _strEVB) {
 		LogError << "[EnvVar] " << strId << ": parsing \"" << _strEVB << "\" to '" << evtH << "'";
 	}
 	
-	return *this;
+	return this;
+}
+EnvVarHandler * EnvVarHandler::addToList(std::string _id, EnvVarHandler * evh) { // static
+	arx_assert(evh);
+	EnvVarHandler * evhExisting = vEVH[_id];
+	if(evhExisting) {
+		LogDebugIf( EVHLogOff::allowLog && evhExisting->strId.size() > 0, "Overwriting: "
+			<< "(" << evhExisting->strId << ")" << static_cast<const void*>(evhExisting)
+			<< " = (" << evh->strId << ")" << static_cast<const void*>(evh)
+		);
+		evhExisting->copyFrom(*evh);
+		delete evh;
+	} else {
+		vEVH[_id] = evh; // TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
+		if(EVHLogOff::allowLog) LogInfo << "[EnvVar] Created: " << evh->strId << " = \"" << vEVH[evh->strId]->toString() << "\"";
+		evhExisting = vEVH[_id];
+	}
+	return evhExisting;
 }
 EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
 	if(_id.find_first_not_of(validIdChars) != std::string::npos) {
@@ -908,18 +905,7 @@ EnvVarHandler & EnvVarHandler::setCommon() {
 	return *this;
 }
 
-/**
- * this is important if you do not capture a var address (by passing nullptr as first param)
- * this will create a new EnvVarHandler in the list.
- */
-EnvVarHandler & EnvVarHandler::createNewInstanceAndCopyMeToIt() {
-	arx_assert(targetCopyTo == nullptr);
-	targetCopyTo = new EnvVarHandler();
-	targetCopyTo->copyFrom(*this);
-	return *targetCopyTo;
-}
-
-void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom) {
+void EnvVarHandler::initEnvVar(char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter) {
 	
 	evbMax.evtD = evbMin.evtD = evbOld.evtD = evbCurrent.evtD = evtH = _evtH;
 	evbMax.strIdD = evbMin.strIdD = evbOld.strIdD = evbCurrent.strIdD = strId = _strId;
@@ -927,12 +913,8 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, 
 	msg = _msg;
 	
 	hasInternalConverter = _hasInternalConverter;
-	bJustToCopyFrom = _bJustToCopyFrom;
 	
 	//funcConvert = [](){};
-	
-	if(EVHLogOff::allowLog) LogDebugIf(!_targetCopyTo, _strId << ": targetCopyTo was not set. This requires using createNewInstanceAndCopyMeToIt().");
-	targetCopyTo = _targetCopyTo;
 	
 	const char * pcVal = getenv(strId.c_str());
 	if(pcVal) {
@@ -946,7 +928,7 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, 
 	arx_assert(evtH=='S' || evtH=='B' || evtH=='F' || evtH=='I');
 	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
 	
-	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << ", this=" << static_cast<const void*>(this) << ", targetCopyTo=" << static_cast<const void*>(_targetCopyTo) << "\n" << boost::stacktrace::stacktrace();
+	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << ", this=" << static_cast<const void*>(this) << "\n" << boost::stacktrace::stacktrace();
 	if(EVHLogOff::allowLog) { LogDebug(ssDbgMsg.str()); } else { RawDebug(ssDbgMsg.str()); }
 }
 void EnvVarHandler::fixMinMax() {

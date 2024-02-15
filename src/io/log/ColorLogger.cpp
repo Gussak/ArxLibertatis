@@ -36,11 +36,10 @@ void ColorConsole::log(const Source & file, int line, Logger::LogLevel level, st
 	
 	size_t length = 0;
 	
-	static std::string logDateTimeFormat = [](){  platform::EVHLogOff o; static const char* id = "ARX_LogDateTimeFormat"; return platform::EnvVarHandler(nullptr, id, "simplified date/time format \"Y:M:D-h:m:s\"", "Y/h:m:s").setOnUpdateConverter( [](){logDateTimeFormat = platform::EnvVarHandler::getEVH(id)->getS();} ).createNewInstanceAndCopyMeToIt().getS();  }();
-	
-	if(logDateTimeFormat.size() > 0) {
-		std::cout << util::getDateTimeString(logDateTimeFormat);
-		length = logDateTimeFormat.size();
+	static platform::EnvVarHandler * logDateTimeFormat = [](){ platform::EVHLogOff o; return platform::EnvVarHandler::create("ARX_LogDateTimeFormat", "simplified date/time format \"Y:M:D-h:m:s\"", "Y/h:m:s"); }();
+	if(logDateTimeFormat->getS().size() > 0) {
+		std::cout << util::getDateTimeString(logDateTimeFormat->getS());
+		length = logDateTimeFormat->getS().size();
 	}
 	
 	const char * c = "\x1b[m";
