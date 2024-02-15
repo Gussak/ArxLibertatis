@@ -908,6 +908,10 @@ EnvVarHandler & EnvVarHandler::setCommon() {
 	return *this;
 }
 
+/**
+ * this is important if you do not capture a var address (by passing nullptr as first param)
+ * this will create a new EnvVarHandler in the list.
+ */
 EnvVarHandler & EnvVarHandler::createNewInstanceAndCopyMeToIt() {
 	arx_assert(targetCopyTo == nullptr);
 	targetCopyTo = new EnvVarHandler();
@@ -942,7 +946,7 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, 
 	arx_assert(evtH=='S' || evtH=='B' || evtH=='F' || evtH=='I');
 	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
 	
-	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << ", this=" << static_cast<const void*>(this) << ", targetCopyTo=" << static_cast<const void*>(_targetCopyTo); // << "\n" << boost::stacktrace::stacktrace();
+	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << ", this=" << static_cast<const void*>(this) << ", targetCopyTo=" << static_cast<const void*>(_targetCopyTo) << "\n" << boost::stacktrace::stacktrace();
 	if(EVHLogOff::allowLog) { LogDebug(ssDbgMsg.str()); } else { RawDebug(ssDbgMsg.str()); }
 }
 void EnvVarHandler::fixMinMax() {

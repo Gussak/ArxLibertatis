@@ -246,8 +246,6 @@ private:
 	
 public:
 	
-	//inline static bool allowLog = true; // prevents __gnu_cxx::recursive_init_error when false
-	
 	EnvVarHandler & createNewInstanceAndCopyMeToIt();
 	
 	EnvVarHandler & setOnUpdateConverter(auto func) {

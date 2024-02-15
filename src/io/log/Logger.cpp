@@ -165,10 +165,11 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 		static platform::EnvRegex erFunc = [](){return platform::getEnvironmentVariableValueRegex(erFunc, "ARX_DebugFunc", Logger::LogLevel::None, "", ".*");}();
 		static platform::EnvRegex erLine = [](){return platform::getEnvironmentVariableValueRegex(erLine, "ARX_DebugLine", Logger::LogLevel::None, "", ".*");}();
 		if(level == Logger::Debug) {
-			// multi regex ex.: ":someFileRegex:someFuncRegex:someLineRegex:someMessageRegex"
-			static platform::EnvVarHandler evStrFileFuncLineSplitRegex = [](){ platform::EVHLogOff o; return platform::EnvVarHandler(&evStrFileFuncLineSplitRegex, "ARX_Debug", "ex.: \";ArxGame;LOD;.*\"", ";.*;.*;.*"); }();
-			if(evStrFileFuncLineSplitRegex.isModified()) {
-				std::string strMultiRegex = evStrFileFuncLineSplitRegex.getS();
+			// multi regex ex.: "/someFileRegex/someFuncRegex/someLineRegex"
+			//static platform::EnvVarHandler evStrFileFuncLineSplitRegex = [](){ platform::EVHLogOff o; return platform::EnvVarHandler(&evStrFileFuncLineSplitRegex, "ARX_Debug", "ex.: \";ArxGame;LOD;.*\"", ";.*;.*;.*"); }();
+			static platform::EnvVarHandler * evStrFileFuncLineSplitRegex = [](){ platform::EVHLogOff o; return &platform::EnvVarHandler(nullptr, "ARX_Debug", "ex.: \";ArxGame;LOD;.*\"", ";.*;.*;.*").createNewInstanceAndCopyMeToIt(); }();
+			if(evStrFileFuncLineSplitRegex->isModified()) {
+				std::string strMultiRegex = evStrFileFuncLineSplitRegex->getS();
 				if(strMultiRegex.size() > 1) {
 					std::string strToken = strMultiRegex.substr(0, 1); // user requested delimiter
 					std::string strMultiRegexTmp = strMultiRegex.substr(1);
@@ -180,9 +181,9 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 					if(vRegex.size() > 1) erFunc.setRegex(vRegex[1], false);
 					if(vRegex.size() > 2) erLine.setRegex(vRegex[2], false);
 				} else {
-					LogError << "invalid split regex \"" << evStrFileFuncLineSplitRegex.getS() << "\" for " << evStrFileFuncLineSplitRegex.id();
+					LogError << "invalid split regex \"" << evStrFileFuncLineSplitRegex->getS() << "\" for " << evStrFileFuncLineSplitRegex->id();
 				}
-				evStrFileFuncLineSplitRegex.clearModified();
+				evStrFileFuncLineSplitRegex->clearModified();
 			}
 			
 			// apply debug filters
