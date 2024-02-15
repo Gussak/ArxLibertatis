@@ -164,9 +164,8 @@ class EnvVarHandler { // useful to take action only when the envvar is modified 
 private:
 	class EnvVarData {
 	public:
-		EnvVarData() { dbgD=(2000); evtD=('.'); evS=(""); evI=(0); evF=(0.f); evB=(false); }
+		EnvVarData() { evtD=('.'); evS=(""); evI=(0); evF=(0.f); evB=(false); }
 		
-		int dbgD = 1000;
 		char evtD = '.';
 		std::string strIdD;
 		
@@ -186,8 +185,7 @@ private:
 			}
 		}
 	};
-
-	int dbgH = 3000;
+	
 	char evtH = '.';
 	std::string strId;
 	
@@ -202,12 +200,11 @@ private:
 	std::function<void()> funcConvert;
 	bool hasInternalConverter;
 	
-	bool bJustToCopyFrom;
+	bool bJustToCopyFrom = false; // no copyRawFrom
+	EnvVarHandler * targetCopyTo; // no copyRawFrom
 	
-	EnvVarHandler & copyFrom(const EnvVarHandler & evCopyFrom) {
-		dbgH += 1;
+	EnvVarHandler & copyRawFrom(const EnvVarHandler & evCopyFrom) { // keep here, keep close to vars
 		evtH = evCopyFrom.evtH;
-		
 		strId = evCopyFrom.strId;
 		
 		evbCurrent = evCopyFrom.evbCurrent;
@@ -221,16 +218,23 @@ private:
 		funcConvert = evCopyFrom.funcConvert;
 		hasInternalConverter = evCopyFrom.hasInternalConverter;
 		
-		// bJustToCopyFrom = false;
+//	bJustToCopyFrom = false;
+//	targetCopyTo = nullptr;
+		
 		return *this;
 	}
+	bool copyFrom(const EnvVarHandler & evCopyFrom);
 	
 	inline static std::map<std::string, EnvVarHandler*> vEVH;
 	
-	void initTmpInstanceAndReadEnvVar(char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom);
+	void initTmpInstanceAndReadEnvVar(EnvVarHandler & _targetCopyTo, char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom);
 	void fixMinMax();
 	
 	EnvVarHandler & setCommon();
+	
+	static bool addToList(std::string strId, EnvVarHandler * evh);
+	
+	void Genesis(EnvVarHandler * evAdam, EnvVarHandler * evEve);
 	
 public:
 	
@@ -239,16 +243,16 @@ public:
 	bool isModified() { return evbCurrent != evbOld; }
 	EnvVarHandler & clearModified() { evbOld = evbCurrent; return *this; }
 	
-	EnvVarHandler() { dbgH = 5000; evtH=('.'); bJustToCopyFrom=(false); hasInternalConverter=(false); }
+	EnvVarHandler() { evtH=('.'); bJustToCopyFrom=(false); hasInternalConverter=(false); targetCopyTo=(nullptr); }
 	// constructors for base types. only used by temporary objects. here also: get.() and set.(val)
 	#define EnvVarHandlerEasySimpleCode(TYPE,SUFFIX,MIN,MAX) \
-		EnvVarHandler(std::string _strId, std::string _msg, TYPE val, TYPE min = MIN, TYPE max = MAX) { \
-			EnvVarHandler(); dbgH = 6000; \
+		EnvVarHandler(EnvVarHandler & _targetCopyTo, std::string _strId, std::string _msg, TYPE val, TYPE min = MIN, TYPE max = MAX) { \
+			EnvVarHandler(); \
 			evbCurrent.ev##SUFFIX = val; \
 			evbOld.ev##SUFFIX = val; \
 			evbMin.ev##SUFFIX = min; \
 			evbMax.ev##SUFFIX = max; \
-			initTmpInstanceAndReadEnvVar(std::string(#SUFFIX)[0], _strId, _msg, false, true); \
+			initTmpInstanceAndReadEnvVar(_targetCopyTo, std::string(#SUFFIX)[0], _strId, _msg, false, true); \
 		} \
 		TYPE get##SUFFIX() { \
 			arx_assert_msg(std::string(#SUFFIX) != std::string({evtH, '\0'}), "requested %s but is %c", #SUFFIX, evtH); \
@@ -262,11 +266,12 @@ public:
 	EnvVarHandlerEasySimpleCode(int         , I, std::numeric_limits<int>::min(),   std::numeric_limits<int>::max())
 	EnvVarHandlerEasySimpleCode(float       , F, std::numeric_limits<float>::min(), std::numeric_limits<float>::max())
 	EnvVarHandlerEasySimpleCode(bool        , B, false, false)
-	EnvVarHandler(const EnvVarHandler & evCopyFrom);
-	EnvVarHandler(std::string _strId, std::string _msg, const char * val) : EnvVarHandler(_strId, _msg, std::string(val)) { } // this is important! otherwise a const char val would call the boolean overload!!
-	~EnvVarHandler() { dbgH += 1000000; }
+	EnvVarHandler(EnvVarHandler & evCopyFrom);
+	EnvVarHandler(EnvVarHandler & _targetCopyTo, std::string _strId, std::string _msg, const char * val) : EnvVarHandler(_targetCopyTo, _strId, _msg, std::string(val)) { } // this is important! otherwise a const char val would call the boolean overload!!
+	~EnvVarHandler() { }
 	
 	EnvVarHandler & operator=(const EnvVarHandler & evCopyFrom);
+	//EnvVarHandler & operator=(EnvVarHandler & evCopyFrom) { Genesis(this, &evCopyFrom); return *this; }
 	
 	std::string id() { return strId; }
 	

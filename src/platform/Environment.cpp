@@ -26,6 +26,15 @@
 #include <sstream>
 #include <typeinfo>
 #include <utility>
+#include <typeinfo>
+
+#ifdef ARX_DEBUG
+#include <iostream>
+#define RawDebug(x) std::cout << "[D] " << __func__ << ": " << __LINE__ << ": " << x << "\n" //replace with LogDebug later if possible
+#endif
+
+#define BOOST_STACKTRACE_LINK
+#include <boost/stacktrace.hpp>
 
 #include <stdlib.h> // needed for realpath and more
 
@@ -563,80 +572,6 @@ bool EnvRegex::setRegex(std::string strRE, bool allowLog) {
 	return false;
 }
 
-/*TODORM
-template <typename TB, typename TC>
-EnvVarHandler<TB,TC> & EnvVarHandler<TB,TC>::operator=(const EnvVarHandler<TB,TC> & evCopyFrom) {
-	//arx_assert(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom);
-	arx_assert(evCopyFrom.bJustToCopyFrom); // this is mainly to lower confusion
-	//init();
-	strId = evCopyFrom.strId;
-	evb = evCopyFrom.evb;
-	//evc = evCopyFrom.evc;
-	evbOld = evCopyFrom.evbOld;
-	evbMin = evCopyFrom.evbMin;
-	evbMax = evCopyFrom.evbMax;
-	return *this;
-}
-
-template <typename TB, typename TC>
-EnvVarHandler<TB,TC>::EnvVarHandler(std::string _strId, std::string _msg, TB evbDefault, TB _evbMin, TB _evbMax) {
-	strId=(_strId);
-	evbOld=(evbDefault);
-	evbMin=(_evbMin);
-	evbMax=(_evbMax);
-	msg=(_msg);
-	bJustToCopyFrom=(true);
-	evb=(evbDefault);
-	
-	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
-	
-	const char * pcVal = getenv(strId.c_str());
-	if(pcVal) {
-		LogInfo << "[EnvVar] " << strId << " = \"" << pcVal << "\"";
-		parseToEVB(pcVal);
-	} else {
-		strEVB = toString().c_str(); // the default will be converted to string here
-	}
-}
-
-template <typename TB, typename TC>
-std::string EnvVarHandler<TB,TC>::toString() {
-	std::string str;
-	try {
-		str = boost::lexical_cast<std::string>(evb);
-	} catch(const std::exception & e) {
-		LogError << "[EnvVar] " << strId << ": converting to string from \"" << evb << "\""; //TODO if this ever happens and evb shows up here, this should be used to convert instead..
-		return "ERROR";
-	}
-	return str;
-}
-
-template <typename TB, typename TC>
-EnvVarHandler<TB,TC> & EnvVarHandler<TB,TC>::setEVB(TB _evb) {
-	evbOld = evb;
-	evb = _evb;
-	
-	if(evb > evbMax) evb = evbMax;
-	else
-	if(evb < evbMin) evb = evbMin;
-	
-	strEVB = toString(); // not the requested but the fixed
-	
-	return *this;
-}
-
-template <typename TB, typename TC>
-EnvVarHandler<TB,TC> & EnvVarHandler<TB,TC>::parseToEVB(std::string _strEVB) {
-	try {
-		setEVB( boost::lexical_cast<TB>(_strEVB) );
-	} catch(const std::exception & e) {
-		LogError << "[EnvVar] " << strId << ": parsing \"" << _strEVB << "\"";
-	}
-	
-	return *this;
-}
-*/
-
 const char * getEnvironmentVariableValueBase(const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue, const char * pcOverrideValue) {
 	#if ARX_HAVE_SETENV // TODO should test ARX_HAVE_GETENV instead, how to cfg it?
 	const char * pcVal = pcOverrideValue ? pcOverrideValue : getenv(name); // override is mainly to just show messages
@@ -903,28 +838,139 @@ bool EnvVar::getBoolean() {
 	return 0.f;
 }
 
-EnvVarHandler::EnvVarHandler(const EnvVarHandler & evCopyFrom) {
-	EnvVarHandler(); dbgH = 7000;
-	
-	*this = evCopyFrom; // operator=()
-	
-	vEVH[strId] = this;
-	LogDebug("vEVH[" << strId << "]=" << static_cast<void*>(this) << ", evtH=" << evtH << ", evCopyFrom.evtH=" << evCopyFrom.evtH);
-	arx_assert(vEVH[strId]->strId == strId);
-}
-EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
-	if(!(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom)) {
-		LogCritical << "operator=(): the EnvVarHandler for \"" << evCopyFrom.strId << "\", this:" << bJustToCopyFrom << "/dbgH=" << dbgH << ", copyFrom:" << evCopyFrom.bJustToCopyFrom << "/dbgH=" << evCopyFrom.dbgH << ", were not used as expected.";
+bool EnvVarHandler::addToList(std::string _strId, EnvVarHandler * evh) { // static
+	if(_strId.size() == 0) {
+	 LogDebug("Discarding " << _strId << " " << static_cast<const void*>(evh) << ", stacktrace: " << boost::stacktrace::stacktrace());
+	 return false;
 	}
 	
-	copyFrom(evCopyFrom);
-	dbgH += 10;
+	if(evh->bJustToCopyFrom) {
+		LogDebug("not expected: is just to copy from. " << _strId << " " << static_cast<const void*>(evh) << ", stacktrace: " << boost::stacktrace::stacktrace());
+		return false;
+	}
 	
-	LogDebug(strId << ", " << msg);
+	if(evh->targetCopyTo != nullptr) { // redundant evh->bJustToCopyFrom
+		LogDebug(_strId << "temporary instance " << static_cast<const void*>(evh) << " cannot be added to the list. Should be " << static_cast<const void*>(evh->targetCopyTo) << ". " << static_cast<const void*>(evh) << ", stacktrace: " << boost::stacktrace::stacktrace());
+		return false;
+	}
+	
+	//LogDebug("chk " << _strId << " " << vEVH.count(_strId) << ", " << static_cast<const void*>(vEVH.at(_strId)) << ", " << (vEVH.find(_strId) != vEVH.end() ? "found" : ""));
+	//LogDebug("chk sz=" << vEVH.size() << ", id=" << _strId << " count=" << vEVH.count(_strId) << ", found=" << (vEVH.find(_strId) != vEVH.end() ? "yes" : "no"));
+	if(vEVH.count(_strId) != 0) { //if(vEVH.contains(_strId)) {
+		LogDebugIf(vEVH[_strId] != evh, "list already contains (" << vEVH.count(_strId) << ") "
+			<< vEVH[_strId]->strId << " " << static_cast<const void*>(vEVH[_strId])
+			<< ", requested to add " << _strId << " " << static_cast<const void*>(evh)
+			<< ", stacktrace: " << boost::stacktrace::stacktrace());
+		return false;
+	} else {
+		vEVH[_strId] = evh; // creates new entry
+		//LogInfo << "[EnvVar] added (" << vEVH.count(_strId) << ") " << _strId << " " << static_cast<const void*>(evh);
+		//arx_assert(vEVH[evh->strId]->strId == evh->strId);
+		//LogDebug(_strId << " added " << static_cast<const void*>(evh) << ", stacktrace: " << boost::stacktrace::stacktrace());
+		return true;
+	}
+	
+	//LogDebug("vEVH[" << evh->strId << "]=" << static_cast<void*>(evh) << ", evtH=" << evh->evtH);
+	//arx_assert(vEVH[evh->strId]->strId == evh->strId);
+	//return true;
+	return false;
+}
+void EnvVarHandler::Genesis(EnvVarHandler * evAdam, EnvVarHandler * evEve) {
+	//LogDebug("evAdam, typeid=" << typeid(evAdam).name() << "; evEve, typeid=" << typeid(evEve).name());
+	if(evAdam->targetCopyTo == evEve) {
+		addToList(evAdam->strId, evEve);
+		evEve->copyFrom(*evAdam);
+	} else 
+	if(evEve->targetCopyTo == evAdam) {
+		addToList(evEve->strId, evAdam);
+		evAdam->copyFrom(*evEve);
+	} else {
+		//LogDebug(boost::stacktrace::stacktrace());
+		LogDebug("Adam and Eve didn't match:\n"
+			<< " evAdam " << static_cast<const void*>(evAdam) << " " << evAdam->strId << ", tgt=" << static_cast<const void*>(evAdam->targetCopyTo)
+			//<< ", typeid=" << typeid(evAdam).name());
+			<< " evEve  " << static_cast<const void*>(evEve ) << " " << evEve ->strId << ", tgt=" << static_cast<const void*>(evEve ->targetCopyTo));
+			//<< ", typeid=" << typeid(evAdam).name());
+		//arx_assert_msg(false, "Adam %p and Eve %p didn't match...", static_cast<const void*>(evAdam), static_cast<const void*>(evEve));
+	}
+}
+EnvVarHandler::EnvVarHandler(EnvVarHandler & evCopyFrom) {
+	EnvVarHandler();
+	Genesis(this, &evCopyFrom);
+	////if(evCopyFrom.strId.size() == 0) {
+	 ////LogDebug("Discarding " << static_cast<const void*>(&evCopyFrom) << ", stacktrace: " << boost::stacktrace::stacktrace());
+	 ////return;
+	////}
+	//addToList(evCopyFrom.strId, this);
+	////*this = evCopyFrom; // operator=()
+	//copyFrom(evCopyFrom);
+	//getEnvVarHandlerList();
+}
+//EnvVarHandler & EnvVarHandler::operator=(EnvVarHandler & evCopyFrom) {Genesis(this, &evCopyFrom);return *this;}
+EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
+	LogCritical << "this[" << static_cast<const void*>(this) << "]::operator=(" << static_cast<const void*>(&evCopyFrom) << ")";
+	addToList(evCopyFrom.strId, this);
+	copyFrom(evCopyFrom);
+	arx_assert_msg(false,"should not be used");
+	//Genesis(this, &evCopyFrom);
+	return *this;
+}
+/*
+EnvVarHandler & EnvVarHandler::operator=(EnvVarHandler & evCopyFrom) {
+	Genesis(this, &evCopyFrom);
+	////if(evCopyFrom.strId.size() == 0) {
+	 ////LogDebug("Discarding " << static_cast<const void*>(&evCopyFrom) << ", stacktrace: " << boost::stacktrace::stacktrace());
+	 ////return *this;
+	////}
+	
+	////if(!(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom)) {
+		////LogCritical << "operator=(): the EnvVarHandler for \"" << evCopyFrom.strId << "\""
+			////<< ", this["<< static_cast<void*>(this) <<"]:jtcf=" << bJustToCopyFrom
+			////<< ", copyFrom["<< static_cast<const void*>(&evCopyFrom) <<"]:jtcf=" << evCopyFrom.bJustToCopyFrom
+			////<< ", were not used as expected.";
+	////}
+	
+	//addToList(evCopyFrom.strId, this);
+	//copyFrom(evCopyFrom);
+	
+	////LogDebug(strId << ", " << msg);
+	////arx_assert(strId.size() > 0);
+	////arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
+	
+	return *this;
+}
+*/
+bool EnvVarHandler::copyFrom(const EnvVarHandler & evCopyFrom) {
+	if(strId.size() != 0) {
+		LogDebug(strId << " already configured, stacktrace: " << boost::stacktrace::stacktrace());
+		return false;
+	}
+	
+	if(evCopyFrom.strId.size() == 0) {
+		LogDebug(evCopyFrom.strId << " to copy from is invalid, stacktrace: " << boost::stacktrace::stacktrace());
+		return false;
+	}
+	
+	if(evCopyFrom.targetCopyTo != this) {
+		LogDebug(evCopyFrom.strId << " evCopyFrom.targetCopyTo=" << static_cast<const void*>(evCopyFrom.targetCopyTo) << " differs from this=" << static_cast<const void*>(this) << ", stacktrace: " << boost::stacktrace::stacktrace());
+		return false;
+	}
+	
+	if(!bJustToCopyFrom && evCopyFrom.bJustToCopyFrom) {
+		// ok
+	} else {
+		LogDebug("the EnvVarHandler for \"" << evCopyFrom.strId << "\""
+			<< ", this["<< static_cast<const void*>(this) <<"]:jtcf=" << (bJustToCopyFrom?"Y":"n")
+			<< ", copyFrom["<< static_cast<const void*>(&evCopyFrom) <<"]:jtcf=" << (evCopyFrom.bJustToCopyFrom?"Y":"n")
+			<< ", were not used as expected.");
+	}
+	
+	copyRawFrom(evCopyFrom);
+	
 	arx_assert(strId.size() > 0);
 	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
 	
-	return *this;
+	return true;
 }
 std::string EnvVarHandler::toString() {
 	switch(evtH) {
@@ -952,11 +998,16 @@ EnvVarHandler & EnvVarHandler::setAuto(std::string _strEVB) {
 	return *this;
 }
 EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
-	for(auto it : vEVH) {
-		if(it.first == _id) {
-			return it.second;
+	if(_id.find_first_not_of(validIdChars) != std::string::npos) {
+		LogError << "env var id contains invalid characters \"" << _id << "\"";
+	} else {
+		for(auto it : vEVH) {
+			if(it.first == _id) {
+				return it.second;
+			}
 		}
 	}
+	
 	return nullptr;
 }
 std::string EnvVarHandler::getEnvVarHandlerList() { // static
@@ -964,14 +1015,14 @@ std::string EnvVarHandler::getEnvVarHandlerList() { // static
 	std::string str2;
 	std::string str3;
 	for(auto it : vEVH) {
-		LogDebug("vEVH["<<it.first<<"]=0x"<<static_cast<void*>(it.second));
+		//LogDebug("vEVH["<<it.first<<"]=0x"<<static_cast<void*>(it.second));
 		if(it.second->strId == it.first) {
 			str3 = "env -s " + it.first + " \"" + it.second->toString() + "\"";
 			str2 =             it.first + "=\"" + it.second->toString() + "\";";
 			LogInfo << "Environment Variable: " << str2;
 			strList += str3 + " //" + str2 + "\n";
 		} else {
-			LogCritical << "invalid var at list for " << it.first << ", dbgH=" << it.second->dbgH;
+			LogCritical << "invalid var at list for " << it.first;
 		}
 	}
 	return strList;
@@ -984,7 +1035,8 @@ EnvVarHandler & EnvVarHandler::setCommon() {
 	}
 	return *this;
 }
-void EnvVarHandler::initTmpInstanceAndReadEnvVar(char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom) {
+void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler & _targetCopyTo, char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom) {
+	targetCopyTo = &_targetCopyTo;
 	evbMax.evtD = evbMin.evtD = evbOld.evtD = evbCurrent.evtD = evtH = _evtH;
 	evbMax.strIdD = evbMin.strIdD = evbOld.strIdD = evbCurrent.strIdD = strId = _strId;
 	msg = _msg;
@@ -1004,6 +1056,7 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(char _evtH, std::string _strId,
 	
 	arx_assert(evtH=='S' || evtH=='B' || evtH=='F' || evtH=='I');
 	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
+	RawDebug("id=" << _strId << ", this=" << static_cast<const void*>(this) << ", targetCopyTo=" << static_cast<const void*>(targetCopyTo)); // Do not use LogDebug() here, crashes w/o hints
 }
 void EnvVarHandler::fixMinMax() {
 	switch(evtH) {
@@ -1043,77 +1096,6 @@ std::string getEnvVarList() { // TODO change vEnvVar to a std::map for nice auto
 	}
 	return str;
 }
-
-/*TODORM
-EnvVarHandler::EnvVarHandler(std::string _strId, bool _bJustToCopyFrom, TB evbDefault, TB _evbMin, TB _evbMax, std::string msg) :
-		strId(_strId),
-		evbOld(evbDefault),
-		evbMin(_evbMin),
-		evbMax(_evbMax),
-		bJustToCopyFrom(_bJustToCopyFrom),
-		evb(evbDefault)
-{
-	const char * pcVal = getenv(strId.c_str());
-	if(!pcVal) pcVal = toString().c_str();
-	strEVB = pcVal;
-	
-	//TODOB parse to int float bool, but evc needs external converter
-	evb = boost::lexical_cast<TB>(tmp);
-	switch (typeid(TB)) {
-		case 'i':
-			evb = util::parseInt(strEVB);
-			break;
-		case 'd':
-		case 'f':
-			evb = util::parseFloat(strEVB);
-			break;
-		case 'b':
-			strEVB = util::toLowercase(strEVB)
-			if(strEVB == "true" || strEVB == "false" || strEVB == "1" || strEVB == "0") { // TODO float?
-				evb = strEVB == "true" || strEVB == "1";
-			} else {
-				LogError << "Wrong value should be 'true' or '1', 'false' or 0, but is \"" << strEVB << "\" ! " << msg;
-			}
-		default:
-			arx_assert(false, "unsupported type '%c'", typeid(TB));
-	}
-}
-*/
-
-/*TODORM
-platform::EnvVar * EnvVarHandler(const char varType, const std::string envVarID, const char logMode, const std::string strMsg, const std::string valDefault, const std::string strMin, const std::string strMax) { // TODO test it, see Logger::isEnabled()
-	const char * pc = platform::getEnvironmentVariableValueBase(envVarID.c_str(), logMode);
-	std::string str = pc ? pc : "";
-	platform::EnvVar * ev2 = platform::getEnvVar(envVarID);
-	static std::vector<void*> store;
-	switch(varType) {
-		case 's':
-			store.emplace_back(new std::string());
-			ev2->initVar(static_cast<std::string*>(store[store.size()-1]), nullptr, nullptr, nullptr, nullptr);
-			break;
-		case 'i':
-			store.emplace_back(new int());
-			ev2->initVar(nullptr, static_cast<int*>(store[store.size()-1]), nullptr, nullptr, nullptr);
-			break;
-		case 'f':
-			store.emplace_back(new float());
-			ev2->initVar(nullptr, nullptr, static_cast<float*>(store[store.size()-1]), nullptr, nullptr);
-			break;
-		case 'b':
-			store.emplace_back(new bool());
-			ev2->initVar(nullptr, nullptr, nullptr, static_cast<bool*>(store[store.size()-1]), nullptr);
-			break;
-		case 'r':
-			store.emplace_back(new platform::EnvRegex());
-			ev2->initVar(nullptr, nullptr, nullptr, nullptr, static_cast<platform::EnvRegex*>(store[store.size()-1]) );
-			break;
-		default: arx_assert(false); break;
-	}
-	//if (typeid(store) == typeid(std::string())) {
-	ev2->setValAuto(str, false, strMsg, valDefault, strMin, strMax); 
-	return ev2; 
-}
-*/
 
 void unsetEnvironmentVariable(const char * name) {
 	#if ARX_PLATFORM == ARX_PLATFORM_WIN32

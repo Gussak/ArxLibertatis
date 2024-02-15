@@ -482,10 +482,10 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	LODFlag lodChk = lodRequest;
 	
 	static LODFlag evLODMax = LOD_PERFECT;
-	static platform::EnvVarHandler evStrLODMax = [](){return platform::EnvVarHandler("ARX_LODMax","set max LOD allowed",LODtoStr(evLODMax)).setOnUpdateConverter( [](){evLODMax = strToLOD(evStrLODMax.getS());} );}();
+	static platform::EnvVarHandler evStrLODMax = [](){  return platform::EnvVarHandler(evStrLODMax, "ARX_LODMax","set max LOD allowed",LODtoStr(evLODMax)).setOnUpdateConverter( [](){evLODMax = strToLOD(evStrLODMax.getS());} );  }();
 	
 	static LODFlag evLODMin = LOD_ICON;
-	static platform::EnvVarHandler evStrLODMin = [](){return platform::EnvVarHandler("ARX_LODMin","set min LOD allowed",LODtoStr(evLODMin)).setOnUpdateConverter( [](){evLODMin = strToLOD(evStrLODMin.getS());} );}();
+	static platform::EnvVarHandler evStrLODMin = [](){  return platform::EnvVarHandler(evStrLODMin, "ARX_LODMin","set min LOD allowed",LODtoStr(evLODMin)).setOnUpdateConverter( [](){evLODMin = strToLOD(evStrLODMin.getS());} );  }();
 	
 	if(evLODMin < evLODMax) {
 		evStrLODMin.setAuto(LODtoStr(evLODMin = evLODMax));
