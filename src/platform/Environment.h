@@ -152,16 +152,18 @@ class EnvRegex {
 public:
 
 	EnvRegex() { }
+	EnvRegex(std::string _strRegex) { setRegex(_strRegex); } // no log is safer as default
 	
 	bool isSet();
 	bool matchRegex(std::string data);
-	bool setRegex(std::string strRE, bool allowLog);
+	bool setRegex(std::string strRE);
 	std::string getRegex() { return strRegex; }
 	std::string getMsg() {return strMsg;}
 };
 
 class EVHnoLog { // prevents __gnu_cxx::recursive_init_error when using ex.: LogDebug LogInfo .., while still being able to create log msgs from here.
 	friend class EnvVarHandler;
+	friend class EnvRegex;
 	inline static bool allowLog = true;
 public:
 	EVHnoLog() { allowLog = false; }
@@ -170,7 +172,7 @@ public:
 };
 
 #define evh_CreateSH static platform::EnvVarHandler * evh = platform::EnvVarHandler::create // create static var and function header
-#define evh_CreateNoLog platform::EVHnoLog evhTurnOffLogMessagesForEnvVarsTilReturn; evh_CreateSH
+#define evh_CreateSHnoLog platform::EVHnoLog evhTurnOffLogMessagesForEnvVarsTilReturn; evh_CreateSH
 #define evh_Create(...) platform::EnvVarHandler::create( __VA_ARGS__ )
 
 class EnvVarHandler {
@@ -299,70 +301,16 @@ public:
 	std::string id() { return strId; }
 	
 	std::string toString();
+	bool toBool();
+	int toInt();
+	float toFloat();
 	EnvVarHandler * setAuto(std::string _strEVB);
 	std::string getDescription() { return msg; }
 	
 	static EnvVarHandler * getEVH(std::string _id);
-	static std::string getEnvVarHandlerList();
+	static void getEnvVarHandlerList(bool bListAsEnvVar, bool bListShowDescription);
 	inline static const char* validIdChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789";
 };
-
-// TODO template <typename TB> ? but what about the conversions between types? would have to be handled outside here right?
-class EnvVar {
-	
-private:
-	std::string id;
-	
-	// TODO TB* evarPointer;
-	std::string * varString;
-	EnvRegex * varRegex;
-	s32 * varInt;
-	s32 iMin;
-	s32 iMax;
-	f32 * varFloat;
-	f32 fMin;
-	f32 fMax;
-	bool * varBool;
-	std::string msg;
-	
-	bool modified;
-	
-public:
-	
-	EnvVar(std::string _id) : id(_id), varString(nullptr), varRegex(nullptr), varInt(nullptr), iMin(0), iMax(0), varFloat(nullptr), fMin(0.f), fMax(0.f), varBool(nullptr), msg(""), modified(false) {}
-	
-	EnvVar & initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex);
-	
-	std::string getId() { return id; }
-	
-	EnvVar & setVal(std::string val, bool allowLog = false);
-	EnvVar & setVal(s32 val, bool allowLog = false);
-	EnvVar & setVal(f32 val, bool allowLog = false);
-	EnvVar & setVal(bool val, bool allowLog = false);
-	EnvVar & setValAuto(std::string val, bool allowLog = false, std::string strMsg = "", std::string valDefault = "", std::string valMin = "", std::string valMax = "");
-	
-	EnvVar & setMsg(std::string _strMsg) { msg = _strMsg; return *this; }
-	std::string getMsg() {return msg;}
-	
-	std::string getString();
-	s32 getInteger();
-	f32 getFloat();
-	bool getBoolean();
-	
-	bool checkModified() { if(modified) { modified = false; return true; } return false; }
-	
-	bool isString() { return varString || varRegex; }
-};
-
-static std::vector<EnvVar> vEnvVar;
-EnvVar * getEnvVar(std::string id);
-std::string getEnvVarList();
-
-const char * getEnvironmentVariableValueBase(const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
-EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = ".*");
-
-template <typename T>
-EnvVar & getEnvironmentVariableValueCustom(const T & var, const char * name, T & val, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const T min = std::numeric_limits<T>::min(), const T max = std::numeric_limits<T>::max());
 
 struct EnvironmentOverride {
 	

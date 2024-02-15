@@ -36,7 +36,7 @@ void ColorConsole::log(const Source & file, int line, Logger::LogLevel level, st
 	
 	size_t length = 0;
 	
-	static platform::EnvVarHandler * logDateTimeFormat = [](){ evh_CreateNoLog("ARX_LogDateTimeFormat", "simplified date/time format \"Y:M:D-h:m:s\"", "Y/h:m:s"); return evh; }();
+	static platform::EnvVarHandler * logDateTimeFormat = [](){ evh_CreateSHnoLog("ARX_LogDateTimeFormat", "simplified date/time format \"Y:M:D-h:m:s\"", "Y/h:m:s"); return evh; }();
 	if(logDateTimeFormat->getS().size() > 0) {
 		std::cout << util::getDateTimeString(logDateTimeFormat->getS());
 		length = logDateTimeFormat->getS().size();

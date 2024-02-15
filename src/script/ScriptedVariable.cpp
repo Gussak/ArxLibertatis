@@ -339,23 +339,26 @@ public:
 	
 	EnvironmentCommand() : Command("env") { }
 	
-	/**
-	 * This is intended to tweak env vars in memory to avoid having to restart the game.
-	 * This is not intended to set permanent env vars on the system nor to prepare the environment for sub proccesses (but could be).
-	 * This should be 100% safe as checks performed during normal env var initialization shall be performed again like limits, conversions and proper timing to allow these vars to be modified.
-	 * env -l //list all in console log
-	 * env -s <envVarId> <value> //set EnvVar to <value>
-	 * env -g <envVarId> <scriptVariable> //get EnvVar value into <scriptVariable>
-	 */
 	Result execute(Context & context) override {
 		
 		bool bSet = false;
 		bool bGet = false;
 		
-		HandleFlags("lsg") {
-			if(flg & flag('l')) {
-				platform::EnvVarHandler::getEnvVarHandlerList();
-				//platform::getEnvVarList();
+		bool bList = false;
+		bool bListAsEnvVar = false;
+		bool bListShowDescription = false;
+		
+		HandleFlags("hsglvd") {
+			if(flg & flag('h')) {
+				LogInfo << "Help for command " << getName() << ":" << "\n"
+					<< R"(
+\tThis is intended to tweak env vars in memory to avoid having to restart the game.
+\tThis is currently not intended to set permanent env vars on the system nor to prepare the environment for sub proccesses.
+\tThis should be 100% safe as checks performed during normal env var initialization shall be performed again like limits, conversions and proper timing to allow these vars to be modified.
+\t\tenv -l[vd]  // list all in console log: v: as environment variable, d: show description
+\t\tenv -s <envVarId> <value>  // set EnvVar to <value>
+\t\tenv -g <envVarId> <scriptVariable>  // get EnvVar value into <scriptVariable>
+)";
 				return Success;
 			}
 			if(flg & flag('s')) {
@@ -364,6 +367,20 @@ public:
 			if(flg & flag('g')) {
 				bGet = true;
 			}
+			if(flg & flag('l')) {
+				bList = true;
+			}
+			if(flg & flag('v')) {
+				bListAsEnvVar = true;
+			}
+			if(flg & flag('d')) {
+				bListShowDescription = true;
+			}
+		}
+		
+		if(bList) {
+			platform::EnvVarHandler::getEnvVarHandlerList(bListAsEnvVar, bListShowDescription);
+			return Success;
 		}
 		
 		std::string envVar = context.getStringVar(context.getWord());
@@ -371,9 +388,6 @@ public:
 		if(bSet) {
 			std::string val = context.getStringVar(context.getWord());
 			
-			//platform::getEnvVar(envVar)->setValAuto(val, true);
-			//platform::EnvVarHandler ev;ev.getEnvVarHandler(envVar)->parseToEVB(val);
-			//platform::setValueAtEnvVarHandler(envVar, val);
 			platform::EnvVarHandler * ev = platform::EnvVarHandler::getEVH(envVar);
 			if(!ev) return Failed;
 			ev->setAuto(val);
