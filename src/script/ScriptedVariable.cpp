@@ -103,6 +103,7 @@ public:
 	}
 	
 	/**
+	 * TODO: LogHelp()
 	 * the array must contain words separated by a single space
 	 */
 	std::string getWordAtIndex(std::string array, long indexAsked) {
@@ -142,37 +143,6 @@ public:
 		return word;
 	}
 	
-	/**
-	 * Set [-rw] <w?entWriteTo> <r?entReadFrom> <var> <val>
-	 * 		<entReadFrom> entity to read 'val' from
-	 * 		<entWriteTo> entity to write 'var' at
-	 * 
-	 * The Modes below are exclusive. Use only one.
-	 * 
-	 ** <-v> Mode: Array of words: assigns to var the array entry at index
-	 * Set -v[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array...> ;
-	 * 		<index> array index that begins in 0.
-	 * 		<array...> are words terminated with ';' word
-	 * 		; is required to know the list ended
-	 * 		returns "void" meaning index out of bounds
-	 * 
-	 ** <-a> Mode: Array concatenated in a string: assigns to var the array entry at index
-	 * Set -a[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array>
-	 * 		<index> array index that begins in 0
-	 * 		<array> is a string that contains words separated by spaces ' '
-	 * 
-	 ** <-x> Mode: Replaces a string in a string var matching a regex
-	 * Set -x[rw] <w?entWriteTo> <r?entReadFrom> <var> <x?regex> <x?replaceWith>
-	 * 
-	 * Usage examples:
-	 * Set <var> <val>
-	 * Set -r <entReadFrom> <var> <val>
-	 * Set -w <entWriteTo> <var> <val>
-	 * Set -rw <entWriteTo> <entReadFrom> <var> <val> //with both rw, first w then r, matching var val order
-	 * Set -a <var> <index> <arrayString> 
-	 * Set -v <var> <index> <array...> ;
-	 * Set -rwv <entWriteTo> <entReadFrom> <var> <index> <array...> ;
-	 */
 	Result execute(Context & context) override {
 		
 		Entity * entReadFrom = context.getEntity();
@@ -182,7 +152,41 @@ public:
 		bool bReadFrom=false;
 		bool bWriteTo=false;
 		
-		HandleFlags("rwavx") {
+		HandleFlags("hrwavx") {
+			if(flg & flag('h')) {
+				LogHelp("command " + getName(), R"(
+	Set [-rw] <w?entWriteTo> <r?entReadFrom> <var> <val>
+			<entReadFrom> entity to read 'val' from
+			<entWriteTo> entity to write 'var' at
+	
+	The Modes below are exclusive. Use only one.
+	
+	 <-v> Mode: Array of words: assigns to var the array entry at index
+	Set -v[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array...> ;
+			<index> array index that begins in 0.
+			<array...> are words terminated with ';' word
+			; is required to know the list ended
+			returns "void" meaning index out of bounds
+	
+	 <-a> Mode: Array concatenated in a string: assigns to var the array entry at index
+	Set -a[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array>
+			<index> array index that begins in 0
+			<array> is a string that contains words separated by spaces ' '
+	
+	 <-x> Mode: Replaces a string in a string var matching a regex
+	Set -x[rw] <w?entWriteTo> <r?entReadFrom> <var> <x?regex> <x?replaceWith>
+	
+	Usage examples:
+	Set <var> <val>
+	Set -r <entReadFrom> <var> <val>
+	Set -w <entWriteTo> <var> <val>
+	Set -rw <entWriteTo> <entReadFrom> <var> <val> //with both rw, first w then r, matching var val order
+	Set -a <var> <index> <arrayString> 
+	Set -v <var> <index> <array...> ;
+	Set -rwv <entWriteTo> <entReadFrom> <var> <index> <array...> ;
+)");
+				return Success;
+			}
 			if(flg & flag('r')) {
 				bReadFrom=true;
 			}
@@ -350,15 +354,14 @@ public:
 		
 		HandleFlags("hsglvd") {
 			if(flg & flag('h')) {
-				LogInfo << "Help for command " << getName() << ":" << "\n"
-					<< R"(
-\tThis is intended to tweak env vars in memory to avoid having to restart the game.
-\tThis is currently not intended to set permanent env vars on the system nor to prepare the environment for sub proccesses.
-\tThis should be 100% safe as checks performed during normal env var initialization shall be performed again like limits, conversions and proper timing to allow these vars to be modified.
-\t\tenv -l[vd]  // list all in console log: v: as environment variable, d: show description
-\t\tenv -s <envVarId> <value>  // set EnvVar to <value>
-\t\tenv -g <envVarId> <scriptVariable>  // get EnvVar value into <scriptVariable>
-)";
+				LogHelp("command " << getName(), R"(
+	This is intended to tweak env vars in memory to avoid having to restart the game.
+	This is currently not intended to set permanent env vars on the system nor to prepare the environment for sub proccesses.
+	This should be 100% safe as checks performed during normal env var initialization shall be performed again like limits, conversions and proper timing to allow these vars to be modified.
+		env -l[vd]  // list all in console log: v: as environment variable, d: show description
+		env -s <envVarId> <value>  // set EnvVar to <value>
+		env -g <envVarId> <scriptVariable>  // get EnvVar value into <scriptVariable>
+)");
 				return Success;
 			}
 			if(flg & flag('s')) {
@@ -464,6 +467,7 @@ public:
 private:
 	
 	/**
+	 * TODO: LogHelp()
 	 * if a var is expanded like ~@test1~ (at getWord()), it will NOT be read from entReadFrom, but from current/self entity
 	 */
 	float calc(Context & context, Entity * entReadFrom) {

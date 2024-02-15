@@ -48,6 +48,8 @@
 //! Log an Info message. Arguments are always evaluated.
 #define LogInfo     ARX_LOG(::Logger::Info)
 
+#define LogHelp(TOPIC,DESCRIPTION)     ARX_LOG(::Logger::Info) << "Help for " << TOPIC << ":\n" << DESCRIPTION
+
 //! Log a Warning message. Arguments are always evaluated.
 #define LogWarning  ARX_LOG(::Logger::Warning)
 

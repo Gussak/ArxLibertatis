@@ -64,7 +64,17 @@ class BehaviourCommand : public Command {
 	
 public:
 	
-	/**
+	BehaviourCommand() : Command("behavior", IO_NPC) { }
+	
+	Result execute(Context & context) override {
+		
+		std::string strEntId;
+		Entity * io = context.getEntity();
+		
+		Behaviour behavior = 0;
+		HandleFlags("helsdmfa012") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
 	 * behavior [-elsdmfa] [e?<applyAtEntityID>] <command>
 	 * -e <applyAtEntityID> uses specified entity to apply this command instead of the caller
 	 * -l sets flag BEHAVIOUR_LOOK_AROUND
@@ -76,16 +86,9 @@ public:
 	 * <command> commands:
 	 *  stack|unstack|unstackall|go_home|friendly|move_to|guard|none - these have no param
 	 *  wander_around|hide|look_for|flee <seconds> - these require <seconds> to perform that behavior
-	 */
-	BehaviourCommand() : Command("behavior", IO_NPC) { }
-	
-	Result execute(Context & context) override {
-		
-		std::string strEntId;
-		Entity * io = context.getEntity();
-		
-		Behaviour behavior = 0;
-		HandleFlags("elsdmfa012") {
+)");
+				return Success;
+			}
 			if(flg & flag('e')) { 
 				strEntId = context.getStringVar(context.getWord());
 				io = entities.getById(strEntId);
@@ -419,15 +422,18 @@ class SetMoveModeCommand : public Command {
 	
 public:
 	
-	/**
-	 * setmovemode [-e <applyAtEntityID>] <mode>
-	 */
 	SetMoveModeCommand() : Command("setmovemode", IO_NPC) { }
 	
 	Result execute(Context & context) override {
 		std::string strEntId;
 		
-		HandleFlags("e") {
+		HandleFlags("he") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * setmovemode [-e <applyAtEntityID>] <mode>
+)");
+				return Success;
+			}
 			if(flg & flag('e')) {
 				strEntId = context.getStringVar(context.getWord());
 			}
@@ -487,17 +493,6 @@ class SetTargetCommand : public Command {
 	
 public:
 	
-	/**
-	 * settarget [-sane] [e?<applyAtEntityID>] ["object"] <"path"|"none"|targetID>
-	 * "object" - is just ignored, does not modify any result
-	 * "path" - changes the target mode to TARGET_PATH
-	 * "none" - changes the target mode to TARGET_NONE
-	 * targetID - specifies the entity ID to be used as target
-	 * -s sets PATHFIND_ONCE flag
-	 * -a sets PATHFIND_ALWAYS flag
-	 * -n sets PATHFIND_NO_UPDATE flag
-	 * -e <applyAtEntityID> uses specified entity to apply this command instead of the caller
-	 */
 	SetTargetCommand() : Command("settarget", AnyEntity) { }
 	
 	Result execute(Context & context) override {
@@ -508,7 +503,21 @@ public:
 		bool bFlagS = false;
 		bool bFlagA = false;
 		bool bFlagN = false;
-		HandleFlags("sane") {
+		HandleFlags("hsane") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * settarget [-sane] [e?<applyAtEntityID>] ["object"] <"path"|"none"|targetID>
+	 * "object" - is just ignored, does not modify any result
+	 * "path" - changes the target mode to TARGET_PATH
+	 * "none" - changes the target mode to TARGET_NONE
+	 * targetID - specifies the entity ID to be used as target
+	 * -s sets PATHFIND_ONCE flag
+	 * -a sets PATHFIND_ALWAYS flag
+	 * -n sets PATHFIND_NO_UPDATE flag
+	 * -e <applyAtEntityID> uses specified entity to apply this command instead of the caller
+)");
+				return Success;
+			}
 			if(flg & flag('s')) bFlagS=true;
 			if(flg & flag('a')) bFlagA=true;
 			if(flg & flag('n')) bFlagN=true;

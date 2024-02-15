@@ -388,6 +388,8 @@ public:
 	 */
 	Result execute(Context & context) override {
 		
+		// below here can possibly be erased already
+		
 		std::string experiment = context.getWord();
 		if(experiment == "lod") {
 			Entity * ent = context.getEntity();

@@ -81,17 +81,20 @@ public:
 	
 	RotateCommand() : Command("rotate", AnyEntity) { }
 	
-	/**
-	 * Rotate [-ea] <e?strEntID> x y z
-	 * -a is absolute rotation
-	 */
 	Result execute(Context & context) override {
 		
 		Entity * io = context.getEntity();
 		std::string strEntID;
 		bool bAbs=false;
 		
-		HandleFlags("ea") {
+		HandleFlags("hea") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * Rotate [-ea] <e?strEntID> x y z
+	 * -a is absolute rotation
+)");
+				return Success;
+			}
 			if(flg & flag('a')) {
 				bAbs=true;
 			}
@@ -448,17 +451,6 @@ public:
 		return s;
 	}
 	
-	/**
-	 * INTERPOLATE [-flsp] <EntityToMove> <f?FromLocation> <TargetLocation|TargetEntity> <NearDist|PercentDist|StepDist>
-	 *  <EntityToMove>: (entityID) is who will be moved
-	 *  [-l]: no limits, allows negative distance and distance bigger than max distance
-	 *  [-f]: FromLocation: x,y,z is the absolute position to move from ignoring EntityToMove position
-	 *  [-s]: StepDist: will move this distance from where it is towards target. if negative, will move away instead.
-	 *  [-p]: PercentDist: Near dist but as percent. From 1.0 to 0.0 will be a percent of the distance between them, where 0.0 is at target. A negative percent will move past the target. A positive will move away the target.
-	 *  NearDist: if not -p and not -s. If bigger than the distance between the from and target location, allows moving farer instead of nearer, and if negative it can move past the target location.
-	 *  <TargetLocation|TargetEntity>: TargetLocation: x,y,z is the absolute target position; TargetEntity: (entityID) is the target entity to get the position
-	 * TODO: put this comment on wiki instead (keep here too would be better tho, but then it would be easier to format here how it would be required on wiki, so we could just copy/paste there)
-	 */
 	Result execute(Context & context) override {
 		Entity * entToMove = nullptr;
 		Entity * entTarget = nullptr;
@@ -471,7 +463,20 @@ public:
 		float fContextDist = 0.f;
 		char cDistMode = 'n'; //NearDist
 		
-		HandleFlags("flsp") {
+		HandleFlags("hflsp") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * INTERPOLATE [-flsp] <EntityToMove> <f?FromLocation> <TargetLocation|TargetEntity> <NearDist|PercentDist|StepDist>
+	 *  <EntityToMove>: (entityID) is who will be moved
+	 *  [-l]: no limits, allows negative distance and distance bigger than max distance
+	 *  [-f]: FromLocation: x,y,z is the absolute position to move from ignoring EntityToMove position
+	 *  [-s]: StepDist: will move this distance from where it is towards target. if negative, will move away instead.
+	 *  [-p]: PercentDist: Near dist but as percent. From 1.0 to 0.0 will be a percent of the distance between them, where 0.0 is at target. A negative percent will move past the target. A positive will move away the target.
+	 *  NearDist: if not -p and not -s. If bigger than the distance between the from and target location, allows moving farer instead of nearer, and if negative it can move past the target location.
+	 *  <TargetLocation|TargetEntity>: TargetLocation: x,y,z is the absolute target position; TargetEntity: (entityID) is the target entity to get the position
+)");
+				return Success;
+			}
 			if(flg & flag('f')) {
 				bAbsPosFrom = true;
 			}

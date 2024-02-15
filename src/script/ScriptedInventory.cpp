@@ -420,19 +420,22 @@ class InventoryCommand : public Command {
 			return count;
 		}
 		
-		/**
-		 * INVENTORY GetItemCount     [-e] <e?entInvReadFrom> <IntVar> <strItemIdPrefix>
-		 * INVENTORY GetItemList      [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
-		 * INVENTORY GetItemCountList [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
-		 * Obs.: if <strItemIdPrefix> is "*" or "all" it will match all entities.
-		 */
 		Result execute(Context & context) override {
 			
 			Entity * entInvReadFrom = context.getEntity();
 			Entity * entWriteTo = context.getEntity();
 			std::string strEntId;
 			
-			HandleFlags("e") {
+			HandleFlags("he") {
+				if(flg & flag('h')) {
+					LogHelp("command " << getName(), R"(
+		 * INVENTORY GetItemCount     [-e] <e?entInvReadFrom> <IntVar> <strItemIdPrefix>
+		 * INVENTORY GetItemList      [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
+		 * INVENTORY GetItemCountList [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
+		 * Obs.: if <strItemIdPrefix> is "*" or "all" it will match all entities.
+	)");
+					return Success;
+				}
 				if(flg & flag('e')) {
 					strEntId = context.getStringVar(context.getWord());
 					entInvReadFrom = entities.getById(strEntId);
@@ -616,9 +619,6 @@ class WeaponCommand : public Command {
 	
 public:
 	
-	/**
-	 * weapon [-e <applyAtEntityID>] <draw>
-	 */
 	WeaponCommand() : Command("weapon", IO_NPC) { }
 	
 	Result execute(Context & context) override {
@@ -626,7 +626,13 @@ public:
 		std::string strEntId;
 		Entity * io = context.getEntity();
 		
-		HandleFlags("e") {
+		HandleFlags("he") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * weapon [-e <applyAtEntityID>] <draw>
+)");
+				return Success;
+			}
 			if(flg & flag('e')) {
 				strEntId = context.getStringVar(context.getWord());
 				io = entities.getById(strEntId);
@@ -695,15 +701,6 @@ class DropItemCommand : public Command {
 	
 public:
 	
-	/**
-	 * dropitem [-pe] <e?entityID> <"all"|*|itemID|itemIdList>
-	 * -e: to drop from chosen entity inventory instead of self
-	 * -p: drop in front of player (without it will drop in front of entityID)
-	 * entityID: entity ID to drop items from
-	 * "all" or "*": to drop all items from entityID
-	 * itemID: item ID to be dropped
-	 * itemIdList: item IDs separated by " "
-	 */
 	DropItemCommand() : Command("dropitem") { }
 	
 	bool DropItem(Context & context, Entity * entDropFromInventory, std::string strItemID, bool bInFrontOfPlayer) { // context is used by ScriptWarning
@@ -729,7 +726,19 @@ public:
 		bool bInFrontOfPlayer = false;
 		std::string strEntId;
 		
-		HandleFlags("ep") {
+		HandleFlags("hep") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * dropitem [-pe] <e?entityID> <"all"|*|itemID|itemIdList>
+	 * -e: to drop from chosen entity inventory instead of self
+	 * -p: drop in front of player (without it will drop in front of entityID)
+	 * entityID: entity ID to drop items from
+	 * "all" or "*": to drop all items from entityID
+	 * itemID: item ID to be dropped
+	 * itemIdList: item IDs separated by " "
+)");
+				return Success;
+			}
 			if(flg & flag('e')) {
 				strEntId = context.getStringVar(context.getWord());
 			}

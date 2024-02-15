@@ -133,7 +133,13 @@ public:
 		return Success;
 	}
 	
-	/**
+	Result execute(Context & context) override {
+		
+		bool hasParams = false;
+		bool warnUglyCoding = true;
+		HandleFlags("hpw") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
 	 * <GoTo|GoSub> [-pw] <label> <p?params... ;>
 	 * ex.: GoSub -p FUNCTarget @testFloat=10.3 \xA7testFloat2=5 \xA3TestString="a b c" ; // it will create localvars (not globals) so only use localvar token chars for float, int and string.
 	 *  required single word as ';' is required to know when to stop collecting params
@@ -142,12 +148,9 @@ public:
 	 *   \xA7FUNCTarget_testFloat2 = 5.7
 	 *   \xA3FUNCTarget_TestString = "a b c"
 	 * -w will ignore coding non conformant with expected
-	 */
-	Result execute(Context & context) override {
-		
-		bool hasParams = false;
-		bool warnUglyCoding = true;
-		HandleFlags("pw") {
+)");
+				return Success;
+			}
 			if(flg & flag('p')) {
 				hasParams = true;
 			}
@@ -895,6 +898,7 @@ public:
 		return true;
 	}
 	/**
+	 * TODO LogHelp()
 	 * it is always 'if(and(...))' or 'if(or(...))' or the default 'if(SomeComparison)'
 	 * so all nested 'and()' or 'or()' or 'comparison' must be inside a initial abrangent/top 'and()' or 'or()' 
 	 */

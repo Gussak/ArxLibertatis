@@ -128,6 +128,7 @@ class TextInputCommand : public Command { // TODOA not working yet
 		TextInputCommand() : Command("ask") { }
 		
 		/**
+		 * TODO: LogHelp()
 		 * ask "<question>" <stringVar>
 		 */
 		Result execute(Context & context) override {

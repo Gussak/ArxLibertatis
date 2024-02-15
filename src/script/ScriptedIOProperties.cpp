@@ -445,7 +445,13 @@ public:
 	
 	HaloCommand() : Command("halo", AnyEntity) { }
 	
-	/**
+	Result execute(Context & context) override {
+		
+		Entity * io = context.getEntity();
+		
+		HandleFlags("hofnlcs") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
 	 * Halo command flags:
 	 * -o turn halo ON
 	 * -f turn halo OFF
@@ -453,13 +459,10 @@ public:
 	 * -c <R> <G> <B> halo color, each from 0.0f to 1.0f
 	 * -s <RADIUS> halo radius
 	 * -cs <R> <G> <B> <RADIUS>
-	 */
-	Result execute(Context & context) override {
-		
-		Entity * io = context.getEntity();
-		
-		HandleFlags("ofnlcs") {
-		
+)");
+				return Success;
+			}
+			
 			if(flg & flag('o')) {
 				io->halo_native.flags |= HALO_ACTIVE;
 			}
