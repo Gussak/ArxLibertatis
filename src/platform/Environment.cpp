@@ -29,7 +29,7 @@
 #include <typeinfo>
 
 #define BOOST_STACKTRACE_LINK
-#include <boost/stacktrace.hpp>
+#include <boost/stacktrace.hpp> // boost::stacktrace::stacktrace()
 
 #include <stdlib.h> // needed for realpath and more
 
@@ -589,12 +589,6 @@ const char * getEnvironmentVariableValueBase(const char * name, const Logger::Lo
 	#endif
 }
 
-EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, std::string & strValue, const Logger::LogLevel logMode, const char * strMsg) {
-	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
-	if(pc) strValue = pc;
-	return getEnvVar(name)->initVar(&varString, nullptr, nullptr, nullptr, nullptr);
-}
-
 EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode, const char * strMsg, const char * defaultValue) { // tip: use arx param: --debug="src"
 	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
 	std::string strRegex = pc ? pc : defaultValue;
@@ -822,7 +816,7 @@ bool EnvVar::getBoolean() {
 }
 
 void EnvVarHandler::Genesis(EnvVarHandler * evAdam, EnvVarHandler * evEve) {
-	LogDebugIf(evAdam->targetCopyTo && evEve->targetCopyTo, "DoubleCopying: (" << evAdam->strId << ")" << static_cast<const void*>(evAdam) << " = (" << evEve->strId << ")" << static_cast<const void*>(evEve));
+	if(EVHLogOff::allowLog) LogDebugIf(evAdam->targetCopyTo && evEve->targetCopyTo, "DoubleCopying: (" << evAdam->strId << ")" << static_cast<const void*>(evAdam) << " = (" << evEve->strId << ")" << static_cast<const void*>(evEve));
 	
 	if(evAdam->targetCopyTo) {
 		evAdam->targetCopyTo->copyFrom(*evAdam);
@@ -838,13 +832,13 @@ EnvVarHandler::EnvVarHandler(EnvVarHandler & evCopyFrom) {
 }
 void EnvVarHandler::copyFrom(const EnvVarHandler & evCopyFrom) {
 	if(evCopyFrom.strId.size() > 0) {
-		LogDebugIf(this->strId.size() > 0, "Overwriting: (" << this->strId << ")" << static_cast<const void*>(this) << " = (" << evCopyFrom.strId << ")" << static_cast<const void*>(&evCopyFrom));
+		if(EVHLogOff::allowLog) LogDebugIf(this->strId.size() > 0, "Overwriting: (" << this->strId << ")" << static_cast<const void*>(this) << " = (" << evCopyFrom.strId << ")" << static_cast<const void*>(&evCopyFrom));
 		
 		this->copyRawFrom(evCopyFrom);
 		vEVH[this->strId] = this; // TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
 		
-		LogDebug(static_cast<const void*>(this) << " = " << static_cast<const void*>(&evCopyFrom));
-		LogInfo << "[EnvVar] " << this->strId << " = \"" << vEVH[this->strId]->toString() << "\"";
+		if(EVHLogOff::allowLog) LogDebug(static_cast<const void*>(this) << " = " << static_cast<const void*>(&evCopyFrom));
+		if(EVHLogOff::allowLog) LogInfo << "[EnvVar] " << this->strId << " = \"" << vEVH[this->strId]->toString() << "\"";
 	}
 }
 EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
@@ -883,7 +877,7 @@ EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
 		if(vEVH.contains(_id)) {
 			return vEVH[_id];
 		} else {
-			LogWarning << _id << " is not a recognized env var";
+			if(EVHLogOff::allowLog) LogWarning << _id << " is not a recognized env var";
 		}
 	}
 	
@@ -897,7 +891,7 @@ std::string EnvVarHandler::getEnvVarHandlerList() { // static
 		if(it.second->strId == it.first) {
 			strAsAslScriptCommands = "env -s " + it.first + " \"" + it.second->toString() + "\" ";
 			str2 =             it.first + "=\"" + it.second->toString() + "\";";
-			LogInfo << "[EnvVar] " << str2;
+			if(EVHLogOff::allowLog) LogInfo << "[EnvVar] " << str2;
 			strListAsAslScriptCommands += strAsAslScriptCommands + " //" + str2 + "\n";
 		} else {
 			LogCritical << "invalid var at list for " << it.first;
@@ -933,12 +927,12 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, 
 	
 	//funcConvert = [](){};
 	
-	LogDebugIf(!_targetCopyTo, "targetCopyTo was not set. This requires using createNewInstanceAndCopyMeToIt().");
+	if(EVHLogOff::allowLog) LogDebugIf(!_targetCopyTo, _strId << ": targetCopyTo was not set. This requires using createNewInstanceAndCopyMeToIt().");
 	targetCopyTo = _targetCopyTo;
 	
 	const char * pcVal = getenv(strId.c_str());
 	if(pcVal) {
-		LogInfo << "[EnvVar] " << strId << " = \"" << pcVal << "\"";
+		if(EVHLogOff::allowLog) LogInfo << "[EnvVar] " << strId << " = \"" << pcVal << "\"";
 		setAuto(pcVal); // this may call funcConvert() if configured to
 	} else {
 		strEVB = toString().c_str(); // the default will just be converted to string here
@@ -947,8 +941,9 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, 
 	
 	arx_assert(evtH=='S' || evtH=='B' || evtH=='F' || evtH=='I');
 	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
-	RawDebug("id=" << _strId << ", this=" << static_cast<const void*>(this) << ", targetCopyTo=" << static_cast<const void*>(_targetCopyTo)); // Do not use LogDebug() here, crashes w/o hints
 	
+	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << ", this=" << static_cast<const void*>(this) << ", targetCopyTo=" << static_cast<const void*>(_targetCopyTo); // << "\n" << boost::stacktrace::stacktrace();
+	if(EVHLogOff::allowLog) { LogDebug(ssDbgMsg.str()); } else { RawDebug(ssDbgMsg.str()); }
 }
 void EnvVarHandler::fixMinMax() {
 	switch(evtH) {

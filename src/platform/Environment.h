@@ -160,6 +160,14 @@ public:
 	std::string getMsg() {return strMsg;}
 };
 
+class EVHLogOff { // prevents __gnu_cxx::recursive_init_error when false
+	friend class EnvVarHandler;
+	inline static bool allowLog = true;
+public:
+	EVHLogOff() { allowLog = false; }
+	~EVHLogOff() { allowLog = true; } // off until lambda returns
+	EVHLogOff & set(bool b) { allowLog = b; return *this; }
+};
 class EnvVarHandler { // useful to take action only when the envvar is modified dinamically
 private:
 	class EnvVarData {
@@ -237,6 +245,8 @@ private:
 	void Genesis(EnvVarHandler * evAdam, EnvVarHandler * evEve);
 	
 public:
+	
+	//inline static bool allowLog = true; // prevents __gnu_cxx::recursive_init_error when false
 	
 	EnvVarHandler & createNewInstanceAndCopyMeToIt();
 	
@@ -341,8 +351,6 @@ EnvVar * getEnvVar(std::string id);
 std::string getEnvVarList();
 
 const char * getEnvironmentVariableValueBase(const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
-//EnvVar & initEnvVarStr(std::string & varString, const char * name, char & val, const char * strMsg = "", const Logger::LogLevel logMode = Logger::LogLevel::Info);
-EnvVar & getEnvironmentVariableValueString(std::string & varString, const char * name, std::string & strValue, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "");
 EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = ".*");
 EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", bool defaultValue = false);
 EnvVar & getEnvironmentVariableValueFloat(f32 & varFloat, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", f32 defaultValue = 0.f, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());

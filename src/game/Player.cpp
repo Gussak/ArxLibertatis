@@ -805,7 +805,7 @@ void ARX_PLAYER_QuickGeneration() {
 	
 	ARX_PLAYER_ResetAttributesAndSkills(1.f,0.f);
 	
-	static std::string strPreferedRoleplayClassOrder = [](){std::string strValue="vanilla"; platform::getEnvironmentVariableValueString(strPreferedRoleplayClassOrder, "ARX_ScriptCodeEditorCommand", strValue, Logger::LogLevel::Info, "use 3 letters: w t m. warrior, thief and mage. ex.: \"mtw\" means mage will receive the best values, then thief and finally warrior."); return strValue;}();
+	static std::string strPreferedRoleplayClassOrder = "vanilla"; // [](){  static const char* id = "ARX_ScriptCodeEditorCommand"; return platform::EnvVarHandler(nullptr, id, "use 3 letters: w t m. warrior, thief and mage. ex.: \"mtw\" means mage will receive the best values, then thief and finally warrior.", "vanilla").setOnUpdateConverter( [](){strPreferedRoleplayClassOrder = platform::EnvVarHandler::getEVH(id)->getS();} ).createNewInstanceAndCopyMeToIt().getS();  }();
 	ARX_PLAYER_RandomizeRoleplayClass(18.f, 18.f, strPreferedRoleplayClassOrder);
 	
 	player.level = 0;

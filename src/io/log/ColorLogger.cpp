@@ -36,7 +36,8 @@ void ColorConsole::log(const Source & file, int line, Logger::LogLevel level, st
 	
 	size_t length = 0;
 	
-	static std::string logDateTimeFormat = [](){std::string strValue; platform::getEnvironmentVariableValueString(logDateTimeFormat, "ARX_LogDateTimeFormat", strValue, Logger::LogLevel::None, ""); return strValue;}(); // being static logs only once. ex.: export ARX_LogDateTimeFormat="h:m:s"
+	static std::string logDateTimeFormat = [](){  platform::EVHLogOff o; static const char* id = "ARX_LogDateTimeFormat"; return platform::EnvVarHandler(nullptr, id, "simplified date/time format \"Y:M:D-h:m:s\"", "Y/h:m:s").setOnUpdateConverter( [](){logDateTimeFormat = platform::EnvVarHandler::getEVH(id)->getS();} ).createNewInstanceAndCopyMeToIt().getS();  }();
+	
 	if(logDateTimeFormat.size() > 0) {
 		std::cout << util::getDateTimeString(logDateTimeFormat);
 		length = logDateTimeFormat.size();
