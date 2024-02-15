@@ -225,7 +225,6 @@ private:
 	}
 	void copyFrom(const EnvVarHandler & evCopyFrom);
 	
-	//inline static EnvVarHandler * targetCopyToStaticHolderTMP = nullptr;
 	inline static std::map<std::string, EnvVarHandler*> vEVH;
 	
 	void initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom);
@@ -279,7 +278,6 @@ public:
 	~EnvVarHandler() { }
 	
 	EnvVarHandler & operator=(const EnvVarHandler & evCopyFrom);
-	//EnvVarHandler & operator=(EnvVarHandler & evCopyFrom) { Genesis(this, &evCopyFrom); return *this; }
 	
 	std::string id() { return strId; }
 	

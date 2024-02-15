@@ -842,9 +842,6 @@ void EnvVarHandler::copyFrom(const EnvVarHandler & evCopyFrom) {
 		
 		this->copyRawFrom(evCopyFrom);
 		vEVH[this->strId] = this; // TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
-		//if(this == targetCopyToStaticHolderTMP) { // release
-			//targetCopyToStaticHolderTMP = nullptr;
-		//}
 		
 		LogDebug(static_cast<const void*>(this) << " = " << static_cast<const void*>(&evCopyFrom));
 		LogInfo << "[EnvVar] " << this->strId << " = \"" << vEVH[this->strId]->toString() << "\"";
@@ -926,14 +923,6 @@ EnvVarHandler & EnvVarHandler::createNewInstanceAndCopyMeToIt() {
 
 void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom) {
 	
-	//bool bCopyToNow = false;
-	//if(_targetCopyTo) {
-		//targetCopyTo = _targetCopyTo;
-	//} else {
-		//targetCopyTo = new EnvVarHandler();
-		//bCopyToNow = true;
-	//}
-	
 	evbMax.evtD = evbMin.evtD = evbOld.evtD = evbCurrent.evtD = evtH = _evtH;
 	evbMax.strIdD = evbMin.strIdD = evbOld.strIdD = evbCurrent.strIdD = strId = _strId;
 	
@@ -946,17 +935,6 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, 
 	
 	LogDebugIf(!_targetCopyTo, "targetCopyTo was not set. This requires using createNewInstanceAndCopyMeToIt().");
 	targetCopyTo = _targetCopyTo;
-	//targetCopyTo = _targetCopyTo ? _targetCopyTo : new EnvVarHandler();
-	//bool bCopyToNow = false;
-	//if(_targetCopyTo) {
-		//targetCopyTo = _targetCopyTo;
-	//} else {
-		//targetCopyTo = new EnvVarHandler();
-		//targetCopyTo->copyFrom(*this);
-		//bCopyToNow = true;
-		//(new EnvVarHandler())->copyFrom(*this);
-		//targetCopyToStaticHolderTMP = new EnvVarHandler();
-	//}
 	
 	const char * pcVal = getenv(strId.c_str());
 	if(pcVal) {
@@ -971,17 +949,6 @@ void EnvVarHandler::initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, 
 	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
 	RawDebug("id=" << _strId << ", this=" << static_cast<const void*>(this) << ", targetCopyTo=" << static_cast<const void*>(_targetCopyTo)); // Do not use LogDebug() here, crashes w/o hints
 	
-	//if(_targetCopyTo) {
-		//targetCopyTo = _targetCopyTo;
-	//} else {
-		//arx_assert(targetCopyToStaticHolderTMP == nullptr);
-		//targetCopyToStaticHolderTMP = new EnvVarHandler();
-		//targetCopyTo = targetCopyToStaticHolderTMP;
-		//(new EnvVarHandler())->copyFrom(*this);
-	//}
-	//if(bCopyToNow) {
-		//targetCopyTo->copyFrom(*this);
-	//}
 }
 void EnvVarHandler::fixMinMax() {
 	switch(evtH) {
