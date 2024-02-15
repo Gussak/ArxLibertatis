@@ -20,6 +20,7 @@
 #ifndef ARX_IO_LOG_LOGGER_H
 #define ARX_IO_LOG_LOGGER_H
 
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -37,9 +38,11 @@
 		ARX_LOG_FORCED(::Logger::Debug) << __VA_ARGS__ << " @" << __PRETTY_FUNCTION__
 #define LogDebugIf(condition, ...)    \
 	if(condition) { LogDebug(__VA_ARGS__); }
+#define RawDebug(x) std::cout << " [D] " << __PRETTY_FUNCTION__ << ":" << __LINE__ << ": " << x << "\n" // use only if unable to use LogDebug
 #else
 #define LogDebug(...)               ARX_DISCARD(__VA_ARGS__)
 #define LogDebugIf(condition, ...)  ARX_DISCARD(__VA_ARGS__)
+#define RawDebug(x)
 #endif
 
 //! Log an Info message. Arguments are always evaluated.

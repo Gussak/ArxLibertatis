@@ -223,12 +223,12 @@ private:
 		
 		return *this;
 	}
-	bool copyFrom(const EnvVarHandler & evCopyFrom);
-	void copyFrom2(const EnvVarHandler & evCopyFrom);
+	void copyFrom(const EnvVarHandler & evCopyFrom);
 	
+	//inline static EnvVarHandler * targetCopyToStaticHolderTMP = nullptr;
 	inline static std::map<std::string, EnvVarHandler*> vEVH;
 	
-	void initTmpInstanceAndReadEnvVar(EnvVarHandler & _targetCopyTo, char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom);
+	void initTmpInstanceAndReadEnvVar(EnvVarHandler * _targetCopyTo, char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter, bool _bJustToCopyFrom);
 	void fixMinMax();
 	
 	EnvVarHandler & setCommon();
@@ -236,11 +236,17 @@ private:
 	static bool addToList(std::string strId, EnvVarHandler * evh);
 	
 	void Genesis(EnvVarHandler * evAdam, EnvVarHandler * evEve);
-	void Genesis2(EnvVarHandler * evAdam, EnvVarHandler * evEve);
 	
 public:
 	
-	EnvVarHandler & setOnUpdateConverter(auto func) { funcConvert = std::move(func); hasInternalConverter = true; return *this; } // funcConvert();
+	EnvVarHandler & createNewInstanceAndCopyMeToIt();
+	
+	EnvVarHandler & setOnUpdateConverter(auto func) {
+		funcConvert = std::move(func);
+		// funcConvert();
+		hasInternalConverter = true;
+		return *this;
+	}
 	
 	bool isModified() { return evbCurrent != evbOld; }
 	EnvVarHandler & clearModified() { evbOld = evbCurrent; return *this; }
@@ -248,7 +254,7 @@ public:
 	EnvVarHandler() { evtH=('.'); bJustToCopyFrom=(false); hasInternalConverter=(false); targetCopyTo=(nullptr); }
 	// constructors for base types. only used by temporary objects. here also: get.() and set.(val)
 	#define EnvVarHandlerEasySimpleCode(TYPE,SUFFIX,MIN,MAX) \
-		EnvVarHandler(EnvVarHandler & _targetCopyTo, std::string _strId, std::string _msg, TYPE val, TYPE min = MIN, TYPE max = MAX) { \
+		EnvVarHandler(EnvVarHandler * _targetCopyTo, std::string _strId, std::string _msg, TYPE val, TYPE min = MIN, TYPE max = MAX) { \
 			EnvVarHandler(); \
 			evbCurrent.ev##SUFFIX = val; \
 			evbOld.ev##SUFFIX = val; \
@@ -269,7 +275,7 @@ public:
 	EnvVarHandlerEasySimpleCode(float       , F, std::numeric_limits<float>::min(), std::numeric_limits<float>::max())
 	EnvVarHandlerEasySimpleCode(bool        , B, false, false)
 	EnvVarHandler(EnvVarHandler & evCopyFrom);
-	EnvVarHandler(EnvVarHandler & _targetCopyTo, std::string _strId, std::string _msg, const char * val) : EnvVarHandler(_targetCopyTo, _strId, _msg, std::string(val)) { } // this is important! otherwise a const char val would call the boolean overload!!
+	EnvVarHandler(EnvVarHandler * _targetCopyTo, std::string _strId, std::string _msg, const char * val) : EnvVarHandler(_targetCopyTo, _strId, _msg, std::string(val)) { } // this is important! otherwise a const char val would call the boolean overload!!
 	~EnvVarHandler() { }
 	
 	EnvVarHandler & operator=(const EnvVarHandler & evCopyFrom);
