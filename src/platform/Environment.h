@@ -203,7 +203,7 @@ private:
 	bool bJustToCopyFrom = false; // no copyRawFrom
 	EnvVarHandler * targetCopyTo; // no copyRawFrom
 	
-	EnvVarHandler & copyRawFrom(const EnvVarHandler & evCopyFrom) { // keep here, keep close to vars
+	EnvVarHandler & copyRawFrom(const EnvVarHandler & evCopyFrom) { // keep here, keep close to vars, keep 100% simple
 		evtH = evCopyFrom.evtH;
 		strId = evCopyFrom.strId;
 		
@@ -224,6 +224,7 @@ private:
 		return *this;
 	}
 	bool copyFrom(const EnvVarHandler & evCopyFrom);
+	void copyFrom2(const EnvVarHandler & evCopyFrom);
 	
 	inline static std::map<std::string, EnvVarHandler*> vEVH;
 	
@@ -235,6 +236,7 @@ private:
 	static bool addToList(std::string strId, EnvVarHandler * evh);
 	
 	void Genesis(EnvVarHandler * evAdam, EnvVarHandler * evEve);
+	void Genesis2(EnvVarHandler * evAdam, EnvVarHandler * evEve);
 	
 public:
 	

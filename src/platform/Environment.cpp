@@ -877,6 +877,9 @@ bool EnvVarHandler::addToList(std::string _strId, EnvVarHandler * evh) { // stat
 }
 void EnvVarHandler::Genesis(EnvVarHandler * evAdam, EnvVarHandler * evEve) {
 	//LogDebug("evAdam, typeid=" << typeid(evAdam).name() << "; evEve, typeid=" << typeid(evEve).name());
+	arx_assert_msg(evAdam->strId.size() > 0 && evEve->strId.size() > 0,
+		"Unexpected, both Adam (%p %s) and Eve (%p %s) have ID...", static_cast<const void*>(evAdam), evAdam->strId.c_str(), static_cast<const void*>(evEve), evEve->strId.c_str());
+	
 	if(evAdam->targetCopyTo == evEve) {
 		addToList(evAdam->strId, evEve);
 		evEve->copyFrom(*evAdam);
@@ -888,15 +891,46 @@ void EnvVarHandler::Genesis(EnvVarHandler * evAdam, EnvVarHandler * evEve) {
 		//LogDebug(boost::stacktrace::stacktrace());
 		LogDebug("Adam and Eve didn't match:\n"
 			<< " evAdam " << static_cast<const void*>(evAdam) << " " << evAdam->strId << ", tgt=" << static_cast<const void*>(evAdam->targetCopyTo)
-			//<< ", typeid=" << typeid(evAdam).name());
-			<< " evEve  " << static_cast<const void*>(evEve ) << " " << evEve ->strId << ", tgt=" << static_cast<const void*>(evEve ->targetCopyTo));
-			//<< ", typeid=" << typeid(evAdam).name());
-		//arx_assert_msg(false, "Adam %p and Eve %p didn't match...", static_cast<const void*>(evAdam), static_cast<const void*>(evEve));
+			<< " evEve  " << static_cast<const void*>(evEve ) << " " << evEve ->strId << ", tgt=" << static_cast<const void*>(evEve ->targetCopyTo)
+		);
+		
+		//LogDebug("Fallback by just copying from configured to not configured...");
+		//if(evAdam->strId.size() > 0) {
+			//evEve->copyFrom(*evAdam);
+		//} else
+		//if(evEve->strId.size() > 0) {
+			//evAdam->copyFrom(*evEve);
+		//}
+		
+		LogDebug("Fallback by just copying from configured to it's target...");
+		
+		if(evAdam->targetCopyTo) {
+			evAdam->targetCopyTo->copyFrom(*evAdam);
+		}
+		
+		if(evEve->targetCopyTo) {
+			evEve->targetCopyTo->copyFrom(*evEve);
+		}
+	}
+}
+void EnvVarHandler::Genesis2(EnvVarHandler * evAdam, EnvVarHandler * evEve) {
+	if(evAdam->targetCopyTo) {
+		//evAdam->targetCopyTo->copyRawFrom(*evAdam);
+		//vEVH[evAdam->strId] = evAdam->targetCopyTo;
+		evAdam->targetCopyTo->copyFrom2(*evAdam);
+		//return;
+	}
+	
+	if(evEve->targetCopyTo) {
+		//evEve->targetCopyTo->copyRawFrom(*evEve);
+		//vEVH[evEve->strId] = evEve->targetCopyTo;
+		evEve->targetCopyTo->copyFrom2(*evEve);
+		//return;
 	}
 }
 EnvVarHandler::EnvVarHandler(EnvVarHandler & evCopyFrom) {
 	EnvVarHandler();
-	Genesis(this, &evCopyFrom);
+	Genesis2(this, &evCopyFrom);
 	////if(evCopyFrom.strId.size() == 0) {
 	 ////LogDebug("Discarding " << static_cast<const void*>(&evCopyFrom) << ", stacktrace: " << boost::stacktrace::stacktrace());
 	 ////return;
@@ -906,13 +940,29 @@ EnvVarHandler::EnvVarHandler(EnvVarHandler & evCopyFrom) {
 	//copyFrom(evCopyFrom);
 	//getEnvVarHandlerList();
 }
+void EnvVarHandler::copyFrom2(const EnvVarHandler & evCopyFrom) {
+	if(evCopyFrom.strId.size() > 0) {
+		LogDebugIf(this->strId.size() > 0, "Overwriting: (" << this->strId << ")" << static_cast<const void*>(this) << " = (" << evCopyFrom.strId << ")" << static_cast<const void*>(&evCopyFrom));
+		
+		this->copyRawFrom(evCopyFrom);
+		vEVH[this->strId] = this;
+		
+		LogDebug(static_cast<const void*>(this) << " = " << static_cast<const void*>(&evCopyFrom));
+		LogInfo << "[EnvVar] " << this->strId << " = \"" << vEVH[this->strId]->toString() << "\"";
+	}
+}
 //EnvVarHandler & EnvVarHandler::operator=(EnvVarHandler & evCopyFrom) {Genesis(this, &evCopyFrom);return *this;}
 EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
-	LogCritical << "this[" << static_cast<const void*>(this) << "]::operator=(" << static_cast<const void*>(&evCopyFrom) << ")";
-	addToList(evCopyFrom.strId, this);
-	copyFrom(evCopyFrom);
-	arx_assert_msg(false,"should not be used");
-	//Genesis(this, &evCopyFrom);
+	//LogCritical << "this[" << static_cast<const void*>(this) << "]::operator=(" << static_cast<const void*>(&evCopyFrom) << ")";
+	//addToList(evCopyFrom.strId, this);
+	//copyFrom(evCopyFrom);
+	//arx_assert_msg(false,"should not be used");
+	////Genesis(this, &evCopyFrom);
+	//if(evCopyFrom.strId.size() > 0) {
+		//this->copyRawFrom(*evCopyFrom);
+		//vEVH[this->strId] = this;
+	//}
+	copyFrom2(evCopyFrom);
 	return *this;
 }
 /*
