@@ -818,7 +818,7 @@ bool EnvVar::getBoolean() {
 EnvVarHandler & EnvVarHandler::copyFrom(const EnvVarHandler & evCopyFrom) {
 	if(evCopyFrom.strId.size() > 0) {
 		this->copyRawFrom(evCopyFrom);
-		if(EVHLogOff::allowLog) LogDebug(static_cast<const void*>(this) << " = " << static_cast<const void*>(&evCopyFrom));
+		if(EVHnoLog::allowLog) LogDebug(static_cast<const void*>(this) << " = " << static_cast<const void*>(&evCopyFrom));
 	}
 	return *this;
 }
@@ -854,7 +854,7 @@ EnvVarHandler * EnvVarHandler::addToList(std::string _id, EnvVarHandler * evh) {
 	arx_assert(evh);
 	EnvVarHandler * evhExisting = vEVH[_id];
 	if(evhExisting) {
-		LogDebugIf( EVHLogOff::allowLog && evhExisting->strId.size() > 0, "Overwriting: "
+		LogDebugIf( EVHnoLog::allowLog && evhExisting->strId.size() > 0, "Overwriting: "
 			<< "(" << evhExisting->strId << ")" << static_cast<const void*>(evhExisting)
 			<< " = (" << evh->strId << ")" << static_cast<const void*>(evh)
 		);
@@ -862,7 +862,7 @@ EnvVarHandler * EnvVarHandler::addToList(std::string _id, EnvVarHandler * evh) {
 		delete evh;
 	} else {
 		vEVH[_id] = evh; // TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
-		if(EVHLogOff::allowLog) LogInfo << "[EnvVar] Created: " << evh->strId << " = \"" << vEVH[evh->strId]->toString() << "\"";
+		if(EVHnoLog::allowLog) LogInfo << "[EnvVar] Created: " << evh->strId << " = \"" << vEVH[evh->strId]->toString() << "\"";
 		evhExisting = vEVH[_id];
 	}
 	return evhExisting;
@@ -874,7 +874,7 @@ EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
 		if(vEVH.contains(_id)) {
 			return vEVH[_id];
 		} else {
-			if(EVHLogOff::allowLog) LogWarning << _id << " is not a recognized env var";
+			if(EVHnoLog::allowLog) LogWarning << _id << " is not a recognized env var";
 		}
 	}
 	
@@ -888,7 +888,7 @@ std::string EnvVarHandler::getEnvVarHandlerList() { // static
 		if(it.second->strId == it.first) {
 			strAsAslScriptCommands = "env -s " + it.first + " \"" + it.second->toString() + "\" ";
 			str2 =             it.first + "=\"" + it.second->toString() + "\";";
-			if(EVHLogOff::allowLog) LogInfo << "[EnvVar] " << str2;
+			if(EVHnoLog::allowLog) LogInfo << "[EnvVar] " << str2;
 			strListAsAslScriptCommands += strAsAslScriptCommands + " //" + str2 + "\n";
 		} else {
 			LogCritical << "invalid var at list for " << it.first;
@@ -918,7 +918,7 @@ void EnvVarHandler::initEnvVar(char _evtH, std::string _strId, std::string _msg,
 	
 	const char * pcVal = getenv(strId.c_str());
 	if(pcVal) {
-		if(EVHLogOff::allowLog) LogInfo << "[EnvVar] " << strId << " = \"" << pcVal << "\"";
+		if(EVHnoLog::allowLog) LogInfo << "[EnvVar] " << strId << " = \"" << pcVal << "\"";
 		setAuto(pcVal); // this may call funcConvert() if configured to
 	} else {
 		strEVB = toString().c_str(); // the default will just be converted to string here
@@ -928,8 +928,8 @@ void EnvVarHandler::initEnvVar(char _evtH, std::string _strId, std::string _msg,
 	arx_assert(evtH=='S' || evtH=='B' || evtH=='F' || evtH=='I');
 	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
 	
-	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << ", this=" << static_cast<const void*>(this) << "\n" << boost::stacktrace::stacktrace();
-	if(EVHLogOff::allowLog) { LogDebug(ssDbgMsg.str()); } else { RawDebug(ssDbgMsg.str()); }
+	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << ", this=" << static_cast<const void*>(this); // << "\n" << boost::stacktrace::stacktrace();
+	if(EVHnoLog::allowLog) { LogDebug(ssDbgMsg.str()); } else { RawDebug(ssDbgMsg.str()); } // TODO move equivalent to Logger.h/cpp ?
 }
 void EnvVarHandler::fixMinMax() {
 	switch(evtH) {

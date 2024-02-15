@@ -160,15 +160,19 @@ public:
 	std::string getMsg() {return strMsg;}
 };
 
-class EVHLogOff { // prevents __gnu_cxx::recursive_init_error when false
+class EVHnoLog { // prevents __gnu_cxx::recursive_init_error when using ex.: LogDebug LogInfo .., while still being able to create log msgs from here.
 	friend class EnvVarHandler;
 	inline static bool allowLog = true;
 public:
-	EVHLogOff() { allowLog = false; }
-	~EVHLogOff() { allowLog = true; } // off until lambda returns
-	EVHLogOff & set(bool b) { allowLog = b; return *this; }
+	EVHnoLog() { allowLog = false; }
+	~EVHnoLog() { allowLog = true; } // off until lambda returns
+	EVHnoLog & set(bool b) { allowLog = b; return *this; }
 };
-class EnvVarHandler { // useful to take action only when the envvar is modified dinamically
+
+#define evh_Create static platform::EnvVarHandler * evh = platform::EnvVarHandler::create
+#define evh_CreateNoLog platform::EVHnoLog evhTurnOffLogMessagesForEnvVarsTilReturn; evh_Create
+
+class EnvVarHandler {
 private:
 	class EnvVarData {
 	public:
