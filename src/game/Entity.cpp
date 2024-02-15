@@ -486,9 +486,9 @@ bool Entity::setLOD(const LODFlag lodRequest) {
 	static LODFlag evLODMin = LOD_ICON;
 	
 	{ // config and fix after updating if necessary
-		static platform::EnvVarHandler * evStrLODMax = [](){  evh_Create("ARX_LODMax", "set max LOD allowed", LODtoStr(evLODMax))->setConverter( [](){evLODMax = strToLOD(evStrLODMax->getS());} ); return evh; }();
+		static platform::EnvVarHandler * evStrLODMax = evh_Create("ARX_LODMax", "set max LOD allowed", LODtoStr(evLODMax))->setConverter( [](){evLODMax = strToLOD(evStrLODMax->getS());} );
 		
-		static platform::EnvVarHandler * evStrLODMin = [](){  evh_Create("ARX_LODMin", "set min LOD allowed", LODtoStr(evLODMin))->setConverter( [](){evLODMin = strToLOD(evStrLODMin->getS());} ); return evh; }();
+		static platform::EnvVarHandler * evStrLODMin = evh_Create("ARX_LODMin", "set min LOD allowed", LODtoStr(evLODMin))->setConverter( [](){evLODMin = strToLOD(evStrLODMin->getS());} );
 		
 		if(evLODMin < evLODMax) {
 			evStrLODMin->setAuto(LODtoStr(evLODMin = evLODMax));

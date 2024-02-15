@@ -1987,8 +1987,8 @@ void UpdateInter() {
 	
 	for(Entity & entity : entities.inScene()) {
 		
-		static f32 detectMoveDist = [](){return platform::getEnvironmentVariableValueFloat(detectMoveDist, "ARX_MovementDetectedDistance", Logger::LogLevel::Info, "", 3.0f, 0.5f).getFloat();}();  // warns only once. set ARX_MovementDetectedDistance=3.0; // TODO this could be configurable per entity, thru a script command: DetectMove -e <entityID> <floatDist>
-		if((entity.pos != entity.detectMovePos) && (fdist(entity.pos, entity.detectMovePos) >= detectMoveDist)) {
+		static platform::EnvVarHandler * detectMoveDist = evh_Create("ARX_MovementDetectedDistance", "", 3.0f, 0.5f); // TODO this could be configurable per entity, thru a script command: DetectMove -e <entityID> <floatDist>
+		if((entity.pos != entity.detectMovePos) && (fdist(entity.pos, entity.detectMovePos) >= detectMoveDist->getF())) {
 			SendIOScriptEvent(&entity == g_draggedEntity ? entities.player() : nullptr, &entity, SM_MOVEMENTDETECTED);
 			entity.detectMovePos = entity.pos;
 		}

@@ -1616,15 +1616,14 @@ class LODarxGame {
 	PlatformInstant lodUpdateCalc;
 	
 	// env vars cfg
-	int nearHighQualityAmount;
-	int distBetweenLODs;
-	int minFPS;
-	int deltaFPS;
+	platform::EnvVarHandler * nearHighQualityAmount;
+	platform::EnvVarHandler * distBetweenLODs;
+	platform::EnvVarHandler * minFPS;
+	platform::EnvVarHandler * deltaFPS;
 	FpsCounter evFPS;
-	//platform::EnvVarHandler evFloatFPS; //(std::string("DUMMY"), false);
-	float playerMovedRecalcLODmoveMinDist;
-	float lodRecalcDelay;
-	float lodUpdateDelay;
+	platform::EnvVarHandler * playerMovedRecalcLODmoveMinDist;
+	platform::EnvVarHandler * lodRecalcDelay;
+	platform::EnvVarHandler * lodUpdateDelay;
 	
 public:
 	
@@ -1634,21 +1633,21 @@ public:
 		entityChangedLODthisTime = nullptr;
 		
 		// init env vars
-		nearHighQualityAmount = [this](){return platform::getEnvironmentVariableValueInteger(nearHighQualityAmount, "ARX_LODNearHighQualityAmount", Logger::LogLevel::Info, "how many nearby entities will be granted high LOD quality", 1, 0).getInteger();}();
+		nearHighQualityAmount = evh_Create("ARX_LODNearHighQualityAmount", "how many nearby entities will be granted high LOD quality", 1, 0);
 		
-		distBetweenLODs = [this](){return platform::getEnvironmentVariableValueInteger(distBetweenLODs, "ARX_LODDistStep", Logger::LogLevel::Info, "this is the distance between each LOD activation", 300, 1).getInteger();}();
+		distBetweenLODs = evh_Create("ARX_LODDistStep", "this is the distance between each LOD activation", 300, 1);
 		
-		minFPS = [this](){return platform::getEnvironmentVariableValueInteger(minFPS, "ARX_LODMinimumFPS", Logger::LogLevel::Info, "this is the minimum FPS you think is acceptable to play the game at any time", 15, 1).getInteger();}();
+		minFPS = evh_Create("ARX_LODMinimumFPS", "this is the minimum FPS you think is acceptable to play the game at any time", 15, 1);
 		
-		deltaFPS = [this](){return platform::getEnvironmentVariableValueInteger(deltaFPS, "ARX_LODDeltaFPS", Logger::LogLevel::Info, "this is how much FPS above the minimum that will allow LOD to be improved for one item per iteration and for the distant LOD levels thru ARX_LODDistStep", 10, 1).getInteger();}();
+		deltaFPS = evh_Create("ARX_LODDeltaFPS", "this is how much FPS above the minimum that will allow LOD to be improved for one item per iteration and for the distant LOD levels thru ARX_LODDistStep", 10, 1);
 		
-		evFPS = [this](){  evh_Create("ARX_LODFPSdelay", "a more responsive FPS check (less than 1s), so LOD can change faster", 0.33f, 0.1f, 1.f)->setConverter( [this](){this->evFPS.setDelay(evh->getF());} ); return evh->getF();  }();
+		evFPS = [this](){  evh_CreateSH("ARX_LODFPSdelay", "a more responsive FPS check (less than 1s), so LOD can change faster", 0.33f, 0.1f, 1.f)->setConverter( [this](){this->evFPS.setDelay(evh->getF());} ); return evh->getF();  }();
 		
-		playerMovedRecalcLODmoveMinDist = [this](){return platform::getEnvironmentVariableValueFloat(playerMovedRecalcLODmoveMinDist, "ARX_LODPlayerMoveDistToRecalcLOD", Logger::LogLevel::Info, "recalculate LOD after player moves this distance", 25.f, 10.f).getFloat();}(); // how far shall player move
+		playerMovedRecalcLODmoveMinDist = evh_Create("ARX_LODPlayerMoveDistToRecalcLOD", "how far shall player move to recalculate LOD after player moves this distance", 25.f, 10.f);
 		
-		lodRecalcDelay = [this](){return platform::getEnvironmentVariableValueFloat(lodRecalcDelay, "ARX_LODRecalcDelay", Logger::LogLevel::Info, "after this delay in seconds, LOD distance will be recalculated", 0.5f, 0.1f).getFloat();}();
+		lodRecalcDelay = evh_Create("ARX_LODRecalcDelay", "after this delay in seconds, LOD distance will be recalculated", 0.5f, 0.1f);
 		
-		lodUpdateDelay = [this](){return platform::getEnvironmentVariableValueFloat(lodUpdateDelay, "ARX_LODFullUpdateDelay", Logger::LogLevel::Info, "instead of every frame, LOD will be computed after this delay in seconds", 0.25f, 0.f).getFloat();}();
+		lodUpdateDelay = evh_Create("ARX_LODFullUpdateDelay", "instead of every frame, LOD will be computed after this delay in seconds", 0.25f, 0.f);
 	}
 	
 	bool BeforeAllEntitiesLoop() {
@@ -1656,13 +1655,13 @@ public:
 		
 		// tweak worst LOD dist based on performance
 		if(evFPS.CalcFPS(false)) {
-			if(evFPS.FPS < minFPS) {
+			if(evFPS.FPS < minFPS->getI()) {
 				if(useWorstFromLOD > LOD_HIGH) {
 					useWorstFromLOD = static_cast<LODFlag>(useWorstFromLOD >> 1);
 					LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD));
 				}
 			} else
-			if(evFPS.FPS >= (minFPS+deltaFPS)) {
+			if(evFPS.FPS >= (minFPS->getI() + deltaFPS->getI())) {
 				if(useWorstFromLOD < LOD_ICON) {
 					useWorstFromLOD = static_cast<LODFlag>(useWorstFromLOD << 1);
 					LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD));
@@ -1676,8 +1675,8 @@ public:
 		
 		// recalc LOD by delay or dist
 		bool lodCalcNow = frameTimeNow > lodDelayCalc;
-		if(lodCalcNow) lodDelayCalc += PlatformDuration(1s * lodRecalcDelay); // TODO cast lodRecalcDelay to duration or DurationType?
-		if(lodCalcNow || fdist(player.pos, playerMovedRecalcLODposPrevious) > playerMovedRecalcLODmoveMinDist) {
+		if(lodCalcNow) lodDelayCalc += PlatformDuration(1s * lodRecalcDelay->getF()); // TODO cast lodRecalcDelay->getF() to duration or DurationType?
+		if(lodCalcNow || fdist(player.pos, playerMovedRecalcLODposPrevious) > playerMovedRecalcLODmoveMinDist->getF()) {
 			for(Entity & entity : entities.inScene(IO_ITEM)) {
 				sortedEntitiesByPlayerProximity.push_back(&entity);
 				entity.playerDistLastCalcLOD = fdist(player.pos, entity.pos);
@@ -1690,7 +1689,7 @@ public:
 		}
 		
 		bool lodUpdateNow = frameTimeNow > lodUpdateCalc;
-		if(lodUpdateNow) lodUpdateCalc += PlatformDuration(1s * lodUpdateDelay); // TODO cast lodUpdateDelay to duration or DurationType?
+		if(lodUpdateNow) lodUpdateCalc += PlatformDuration(1s * lodUpdateDelay->getF()); // TODO cast lodUpdateDelay->getF() to duration or DurationType?
 		return lodUpdateNow;
 	}
 	
@@ -1762,7 +1761,7 @@ public:
 		}
 		
 		// only the nearest
-		if( entity.playerDistLastCalcLOD < distBetweenLODs && nearIndex <= static_cast<size_t>(nearHighQualityAmount - ( FlyingOverIO ? 1 : 0)) ) { // only the ones really near the player are within first distBetweenLODs best quality for LODs
+		if( entity.playerDistLastCalcLOD < distBetweenLODs->getI() && nearIndex <= static_cast<size_t>(nearHighQualityAmount->getI() - ( FlyingOverIO ? 1 : 0)) ) { // only the ones really near the player are within first distBetweenLODs->getI() best quality for LODs
 			entity.setLOD(LOD_PERFECT);
 			return;
 		}
@@ -1770,7 +1769,7 @@ public:
 		///////////////////////// dynamic LODs
 		
 		// this is the specific LOD based on distance
-		int iModLOD = static_cast<int>(entity.playerDistLastCalcLOD / distBetweenLODs) + 1; // begins at LOD_HIGH
+		int iModLOD = static_cast<int>(entity.playerDistLastCalcLOD / distBetweenLODs->getI()) + 1; // begins at LOD_HIGH
 		LODFlag requestLOD = static_cast<LODFlag>(1 << iModLOD);
 		
 		// by FPS performance, tweaks the request
@@ -1783,7 +1782,7 @@ public:
 			entity.setLOD(requestLOD); // can always lower quality 
 		} else
 		if(requestLOD < entity.currentLOD) { // can only carefully increase quality
-			if(!entityChangedLODthisTime && evFPS.FPS >= (minFPS+deltaFPS)) {
+			if(!entityChangedLODthisTime && evFPS.FPS >= (minFPS->getI() + deltaFPS->getI())) {
 				LogDebug("improve LOD from " << LODtoStr(entity.currentLOD) << " to " << LODtoStr(requestLOD) << " for " << entity.idString());
 				entity.setLOD(requestLOD);
 				entityChangedLODthisTime = &entity;

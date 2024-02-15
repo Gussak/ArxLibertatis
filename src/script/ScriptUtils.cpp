@@ -150,8 +150,8 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 		posID = 2;
 	}
 	if(cSeparator == '_') {
-		static bool warnLocalScopeParams = [](){return platform::getEnvironmentVariableValueBoolean(warnLocalScopeParams, "ARX_WarnGoSubWithLocalScopeParams").getBoolean();}();
-		if(warnLocalScopeParams) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
+		static platform::EnvVarHandler * warnLocalScopeParams = evh_Create("ARX_WarnGoSubWithLocalScopeParams", "", false);
+		if(warnLocalScopeParams->getB()) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
 			LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
 		}
 	}
@@ -370,8 +370,8 @@ void Context::seekToPosition(size_t pos) {
  * TODO convert all \n to ' '
  */
 bool Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount) { //std::string word, PreCompileReference & ref) { //std::string reference) {
-	static bool allowPreCompilation = [](){return platform::getEnvironmentVariableValueBoolean(allowPreCompilation, "ARX_AllowScriptPreCompilation").getInteger();}();
-	if(!allowPreCompilation) return false;
+	static platform::EnvVarHandler * allowPreCompilation = evh_Create("ARX_AllowScriptPreCompilation", "", false);
+	if(!allowPreCompilation->getB()) return false;
 	
 	//arx_assert_msg(!(word.size() < reference.size()),"pre-compiled reference=%s needs to be at most word=%s size", reference.c_str(), word.c_str());
 	//m_script->data[pos] = PreCompiled::REFERENCE;

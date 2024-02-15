@@ -596,26 +596,6 @@ EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * na
 	return varRegex;
 }
 
-EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode, const char * strMsg, bool defaultValue) {
-	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
-	std::string ev = pc ? pc : "";
-	return getEnvVar(name)->initVar(nullptr, nullptr, nullptr, &varBool, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, strMsg, defaultValue ? "true" : "false");
-}
-
-EnvVar & getEnvironmentVariableValueFloat(float & varFloat, const char * name, const Logger::LogLevel logMode, const char * strMsg, f32 defaultValue, f32 min, f32 max) {
-	// sync with almost identical integer code below if possible
-	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
-	std::string ev = pc ? pc : "";
-	return getEnvVar(name)->initVar(nullptr, nullptr, &varFloat, nullptr, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
-}
-
-EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, const Logger::LogLevel logMode, const char * strMsg, s32 defaultValue, s32 min, s32 max) {
-	// sync with almost identical float code above if possible
-	const char * pc = getEnvironmentVariableValueBase(name, logMode, strMsg);
-	std::string ev = pc ? pc : "";
-	return getEnvVar(name)->initVar(nullptr, &varInt, nullptr, nullptr, nullptr).setValAuto(ev, logMode != Logger::LogLevel::None, strMsg, std::to_string(defaultValue), std::to_string(min), std::to_string(max));
-}
-
 EnvVar & EnvVar::initVar(std::string * _varString, s32 * _varInt, f32 * _varFloat, bool * _varBool, EnvRegex * _varRegex) {
 	arx_assert_msg(!varString && !varInt && !varFloat && !varRegex, "this ID was already initialized: id=%s s=%d i=%d f=%d b=%d r=%d", id.c_str(), varString != nullptr, varInt != nullptr, _varFloat != nullptr, varBool != nullptr, varRegex != nullptr); // this will happen on env var name clash
 	
@@ -852,20 +832,12 @@ EnvVarHandler * EnvVarHandler::setAuto(std::string _strEVB) {
 }
 EnvVarHandler * EnvVarHandler::addToList(std::string _id, EnvVarHandler * evh) { // static
 	arx_assert(evh);
-	EnvVarHandler * evhExisting = vEVH[_id];
-	if(evhExisting) {
-		LogDebugIf( EVHnoLog::allowLog && evhExisting->strId.size() > 0, "Overwriting: "
-			<< "(" << evhExisting->strId << ")" << static_cast<const void*>(evhExisting)
-			<< " = (" << evh->strId << ")" << static_cast<const void*>(evh)
-		);
-		evhExisting->copyFrom(*evh);
-		delete evh;
-	} else {
-		vEVH[_id] = evh; // TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
-		if(EVHnoLog::allowLog) LogInfo << "[EnvVar] Created: " << evh->strId << " = \"" << vEVH[evh->strId]->toString() << "\"";
-		evhExisting = vEVH[_id];
-	}
-	return evhExisting;
+	arx_assert_msg(!vEVH.contains(_id), "Already configured (%s)%p ! new (%s)%p", _id.c_str(), static_cast<const void*>(vEVH[_id]), evh->strId.c_str(), static_cast<const void*>(evh));
+	
+	vEVH[_id] = evh; // TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
+	if(EVHnoLog::allowLog) LogInfo << "[EnvVar] Created: " << evh->strId << " = \"" << vEVH[evh->strId]->toString() << "\"";
+	
+	return vEVH[_id];
 }
 EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
 	if(_id.find_first_not_of(validIdChars) != std::string::npos) {
@@ -886,14 +858,15 @@ std::string EnvVarHandler::getEnvVarHandlerList() { // static
 	std::string strAsAslScriptCommands;
 	for(auto it : vEVH) {
 		if(it.second->strId == it.first) {
-			strAsAslScriptCommands = "env -s " + it.first + " \"" + it.second->toString() + "\" ";
-			str2 =             it.first + "=\"" + it.second->toString() + "\";";
-			if(EVHnoLog::allowLog) LogInfo << "[EnvVar] " << str2;
-			strListAsAslScriptCommands += strAsAslScriptCommands + " //" + str2 + "\n";
+			strAsAslScriptCommands = "\tenv -s " + it.first + " \"" + it.second->toString() + "\" ";
+			str2 = "export " + it.first + "=\"" + it.second->toString() + "\"; // " + it.second->getDescription();
+			//if(EVHnoLog::allowLog) LogInfo << "[EnvVar] " << str2;
+			strListAsAslScriptCommands += strAsAslScriptCommands + " // " + str2 + "\n";
 		} else {
 			LogCritical << "invalid var at list for " << it.first;
 		}
 	}
+	if(EVHnoLog::allowLog) LogInfo << "[EnvVar] to reuse in console and scripts:\n" << strListAsAslScriptCommands;
 	return strListAsAslScriptCommands;
 }
 EnvVarHandler & EnvVarHandler::setCommon() {

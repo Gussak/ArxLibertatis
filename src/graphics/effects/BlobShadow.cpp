@@ -107,9 +107,9 @@ void ARXDRAW_DrawInterShadows() {
 				addShadowBlob(entity, entity.obj->vertexWorldPositions[group.origin].v, group.m_blobShadowSize, true);
 			}
 		} else {
-			static int limitShadowBlobsTo = [](){return platform::getEnvironmentVariableValueInteger(limitShadowBlobsTo, "ARX_LimitShadowBlobsForVertexes", Logger::LogLevel::Info, "", 9, 0).getInteger();}();
-			if(limitShadowBlobsTo > 0) { // it won't show more blob shadows than the available vertexWorldPositions
-				int iStride = limitShadowBlobsTo <= static_cast<int>(entity.obj->vertexWorldPositions.size()) ? entity.obj->vertexWorldPositions.size() / limitShadowBlobsTo : 1;
+			static platform::EnvVarHandler * limitShadowBlobsTo = evh_Create("ARX_LimitShadowBlobsForVertexes", "", 9, 0);
+			if(limitShadowBlobsTo->getI() > 0) { // it won't show more blob shadows than the available vertexWorldPositions
+				int iStride = limitShadowBlobsTo->getI() <= static_cast<int>(entity.obj->vertexWorldPositions.size()) ? entity.obj->vertexWorldPositions.size() / limitShadowBlobsTo->getI() : 1;
 				for(const EERIE_VERTEX & vertex : entity.obj->vertexWorldPositions | boost::adaptors::strided(iStride)) {
 					addShadowBlob(entity, vertex.v, entity.scale, false);
 				}

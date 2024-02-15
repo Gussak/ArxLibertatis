@@ -502,7 +502,7 @@ bool askOkCancel(const std::string & question, const std::string & title) {
  * 		TODO
  */
 bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, size_t lineAtFileToEdit) {
-	static platform::EnvVarHandler * systemPopupCmd = [](){ evh_Create("ARX_ScriptErrorPopupCommand", "Attention: custom user command!", ""); return evh; }();
+	static platform::EnvVarHandler * systemPopupCmd = evh_Create("ARX_ScriptErrorPopupCommand", "Attention: custom user command!", "");
 	
 	static time_t ignoreTo = time(0);time_t now = time(0); // TODO? static PlatformInstant ignoreTo = platform::getTime();PlatformInstant now = platform::getTime(); // See LOD code about PlatformDuration(1s * float)
 	if(systemPopupCmd->getS().size() && now >= ignoreTo) {
@@ -519,7 +519,7 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 			ssMsg << " [FileToEdit] '" << strFileToEdit << ":" << lineAtFileToEdit << "'\n";
 		}
 		
-		static platform::EnvVarHandler * codeEditorCmd = [](){ evh_Create("ARX_ScriptCodeEditorCommand", "Attention: custom user command!", ""); return evh; }();
+		static platform::EnvVarHandler * codeEditorCmd = evh_Create("ARX_ScriptCodeEditorCommand", "Attention: custom user command!", "");
 		if(codeEditorCmd->getS().size() > 0) {
 			ssMsg << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
 		}

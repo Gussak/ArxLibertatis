@@ -169,8 +169,9 @@ public:
 	EVHnoLog & set(bool b) { allowLog = b; return *this; }
 };
 
-#define evh_Create static platform::EnvVarHandler * evh = platform::EnvVarHandler::create
-#define evh_CreateNoLog platform::EVHnoLog evhTurnOffLogMessagesForEnvVarsTilReturn; evh_Create
+#define evh_CreateSH static platform::EnvVarHandler * evh = platform::EnvVarHandler::create // create static var and function header
+#define evh_CreateNoLog platform::EVHnoLog evhTurnOffLogMessagesForEnvVarsTilReturn; evh_CreateSH
+#define evh_Create(...) platform::EnvVarHandler::create( __VA_ARGS__ )
 
 class EnvVarHandler {
 private:
@@ -299,6 +300,7 @@ public:
 	
 	std::string toString();
 	EnvVarHandler * setAuto(std::string _strEVB);
+	std::string getDescription() { return msg; }
 	
 	static EnvVarHandler * getEVH(std::string _id);
 	static std::string getEnvVarHandlerList();
@@ -358,9 +360,6 @@ std::string getEnvVarList();
 
 const char * getEnvironmentVariableValueBase(const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = nullptr, const char * pcOverrideValue = nullptr);
 EnvRegex & getEnvironmentVariableValueRegex(EnvRegex & varRegex, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const char * defaultValue = ".*");
-EnvVar & getEnvironmentVariableValueBoolean(bool & varBool, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", bool defaultValue = false);
-EnvVar & getEnvironmentVariableValueFloat(f32 & varFloat, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", f32 defaultValue = 0.f, f32 min = std::numeric_limits<f32>::min(), f32 max = std::numeric_limits<f32>::max());
-EnvVar & getEnvironmentVariableValueInteger(s32 & varInt, const char * name, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", s32 defaultValue = 0, s32 min = std::numeric_limits<s32>::min(), s32 max = std::numeric_limits<s32>::max());
 
 template <typename T>
 EnvVar & getEnvironmentVariableValueCustom(const T & var, const char * name, T & val, const Logger::LogLevel logMode = Logger::LogLevel::Info, const char * strMsg = "", const T min = std::numeric_limits<T>::min(), const T max = std::numeric_limits<T>::max());

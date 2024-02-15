@@ -504,15 +504,15 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 		
 		if(!objLoad && ltCfgLOD == LOD_ICON) { // LOD_ICON may be customized by mod developer
 			// otherwise it shall always exist
-			fileChkLOD = "graph/obj3d/interactive/system/lod/arx_icon_lod_32x32.ftl";
+			fileChkLOD = "graph/obj3d/interactive/system/lod/arx_icon_lod_32x32.ftl"; // TODO other sizes matching icons and models on floor (needs "rotate" 90o, just chose the equivalent ex 32x96 would use 96x32)
 			objLoad = loadObject(fileChkLOD, pbox).release();
 			LODIconAsSkin(objLoad, io.m_icon);
 		}
 		
 		if(!objLoad) { // re-uses lower quality LOD in higher ones if they are not available
 			LODFlag ltReuseLOD = static_cast<LODFlag>(ltCfgLOD << 1);
-			static bool allowPerfectOnHighLOD = [](){return platform::getEnvironmentVariableValueBoolean(allowPerfectOnHighLOD, "ARX_LODallowPerfectOnHigh", Logger::LogLevel::Info, "", true).getBoolean();}();
-			if(io.objLOD[LOD_PERFECT]->facelist.size() <= static_cast<size_t>(facesChk*1.25f) || (allowPerfectOnHighLOD && ltCfgLOD == LOD_HIGH)) { // TODOA faces multiplier as envvar
+			static platform::EnvVarHandler * allowPerfectOnHighLOD = evh_Create("ARX_LODallowPerfectOnHigh", "", true);
+			if(io.objLOD[LOD_PERFECT]->facelist.size() <= static_cast<size_t>(facesChk*1.25f) || (allowPerfectOnHighLOD->getB() && ltCfgLOD == LOD_HIGH)) { // TODOA faces multiplier as envvar
 				ltReuseLOD = LOD_PERFECT; // As all vanilla items are very low poly, this suffices for now. TODOA another loop with all LODs, just after this loop, to reuse nearest better LOD into lower ones, based on faces count. 
 			}
 			arx_assert_msg(io.objLOD[ltReuseLOD], "LOD to reuse %s is not set", LODtoStr(ltReuseLOD).c_str());

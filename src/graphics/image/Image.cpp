@@ -147,18 +147,18 @@ bool Image::load(const char * data, size_t size, const char * file) {
 	// Release resources
 	stbi::stbi_image_free(pixels);
 	
-	static s32 iMax = [](){return platform::getEnvironmentVariableValueInteger(iMax, "ARX_MaxTextureSize", Logger::LogLevel::Info, "", 0, 0).getInteger();}();  // being static warns only once. TODO Experimental (still too glitchy results), so default is 0 = disabled
-	if(iMax > 0 && (width > iMax || height > iMax)) {
+	static platform::EnvVarHandler * max = evh_Create("ARX_MaxTextureSize", "", 0, 0); // Experimental (still too glitchy results), so default is 0 = disabled
+	if(max->getI() > 0 && (width > max->getI() || height > max->getI())) {
 		if(!boost::contains(file, "interface")) { // TODO filter out everything that glitches, or convert them (dinamically if possible) to a format that do not glitch.
 			int widthNew = 0;
 			int heightNew = 0;
 			if(width >= height) {
-				float fRatio = width/static_cast<float>(iMax);
-				widthNew = iMax;
+				float fRatio = width/static_cast<float>(max->getI());
+				widthNew = max->getI();
 				heightNew = static_cast<int>(height/(fRatio));
 			} else {
-				float fRatio = height/static_cast<float>(iMax);
-				heightNew = iMax;
+				float fRatio = height/static_cast<float>(max->getI());
+				heightNew = max->getI();
 				widthNew = static_cast<int>(width/(fRatio));
 			}
 			LogWarning << "resizing image '" << file << "' from " << width << "x" << height << " to " << widthNew << "x" << heightNew;

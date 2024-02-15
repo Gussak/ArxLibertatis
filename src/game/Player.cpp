@@ -805,7 +805,7 @@ void ARX_PLAYER_QuickGeneration() {
 	
 	ARX_PLAYER_ResetAttributesAndSkills(1.f,0.f);
 	
-	static platform::EnvVarHandler * preferedRoleplayClassOrder = [](){ evh_Create("ARX_ScriptCodeEditorCommand", "use 3 letters: w t m. warrior, thief and mage. ex.: \"mtw\" means mage will receive the best values, then thief and finally warrior.", "vanilla"); return evh; }();
+	static platform::EnvVarHandler * preferedRoleplayClassOrder = evh_Create("ARX_ScriptCodeEditorCommand", "use 3 letters: w t m. warrior, thief and mage. ex.: \"mtw\" means mage will receive the best values, then thief and finally warrior.", "vanilla");
 	ARX_PLAYER_RandomizeRoleplayClass(18.f, 18.f, preferedRoleplayClassOrder->getS());
 	
 	player.level = 0;
@@ -971,8 +971,9 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 	
 	float sr = static_cast<int>(player.Skill_Redistribute_TotalEarn);
 	if(maxSkill > 0) {
-		static f32 fPercSkillVanillaRandom = [](){return platform::getEnvironmentVariableValueFloat(fPercSkillVanillaRandom, "ARX_VanillaRandomSkillCalcMaxPercentAllowed", Logger::LogLevel::Info, "The less you set, it will probably get slower to calc, but less remaining points will be allowed to use the vanilla randomizer. And instead of too high, just use \"vanilla\" rebirth option (instead of class choice like \"wmt\"). ", 0.35f, 0.10f, 0.75f).getFloat();}(); 
-		float fMaxRemaining = sr * fPercSkillVanillaRandom;
+		static platform::EnvVarHandler * percSkillVanillaRandom = evh_Create("ARX_VanillaRandomSkillCalcMaxPercentAllowed", "The less you set, it will probably get slower to calc, but less remaining points will be allowed to use the vanilla randomizer. And instead of too high, just use \"vanilla\" rebirth option (instead of class choice like \"wmt\"). ", 0.35f, 0.10f, 0.75f);
+		
+		float fMaxRemaining = sr * percSkillVanillaRandom->getF();
 		
 		float fMaxDistToMaxRemain = sr - fMaxRemaining;
 		float fMaxRandomDistribSum = iTotSkills * maxSkill;
@@ -1021,7 +1022,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 				fRemaining = sr - sumChk;
 			}
 			
-			if(fRemaining > fMaxRemaining) { // (sr >= iTotSkills/fPercSkillVanillaRandom) && 
+			if(fRemaining > fMaxRemaining) { // (sr >= iTotSkills/percSkillVanillaRandom->getF()) && 
 				iRetryCount++;
 				LogWarning << "Retrying (" << iRetryCount << ") random rolls (skills sum remaining " << fRemaining << " is above the limit of " << fMaxRemaining << ")";
 				continue;
@@ -1112,8 +1113,8 @@ bool ARX_PLAYER_RandomizeRoleplayClass(float maxAttribute, float maxSkill, std::
 	
 	int iAR = static_cast<int>(player.Attribute_Redistribute_TotalEarn);
 	if(maxAttribute > 0) {
-		static f32 fPercAttrVanillaRandom = [](){return platform::getEnvironmentVariableValueFloat(fPercAttrVanillaRandom, "ARX_VanillaRandomAttributeCalcMaxPercentAllowed", Logger::LogLevel::Info, "The less you set, less remaining points will be allowed to use the vanilla randomizer. And instead of too high, just use \"vanilla\" rebirth option (instead of class choice like \"wmt\"). ", 0.35f, 0.10f, 0.75f).getFloat();}(); 
-		float fMaxAttrRemaining = iAR * fPercAttrVanillaRandom;
+		static platform::EnvVarHandler * percAttrVanillaRandom = evh_Create("ARX_VanillaRandomAttributeCalcMaxPercentAllowed", "The less you set, less remaining points will be allowed to use the vanilla randomizer. And instead of too high, just use \"vanilla\" rebirth option (instead of class choice like \"wmt\"). ", 0.35f, 0.10f, 0.75f);
+		float fMaxAttrRemaining = iAR * percAttrVanillaRandom->getF();
 		
 		int iRetryCount = 0;
 		std::deque<float> rndAttrs;

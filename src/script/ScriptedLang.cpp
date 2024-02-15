@@ -108,8 +108,8 @@ public:
 			// ex.: Set \xA3\xABtest "dummy" // becomes \xA3FUNCwork\xABtest if used inside FUNCwork
 			var = context.autoVarNameForScope(false, var, label, true);
 		} else {
-			static bool goToWithParams = [](){return platform::getEnvironmentVariableValueBoolean(goToWithParams, "ARX_WarnGoToWithParams").getBoolean();}();  // being static warns only once. export ARX_WarnGoToWithParams=true
-			if(goToWithParams) {
+			static platform::EnvVarHandler * goToWithParams = evh_Create("ARX_WarnGoToWithParams", "", false);
+			if(goToWithParams->getB()) {
 				ScriptWarning << "pseudo private scope variable creation \"" << var[0] << "\" at \"" << var << "=" << val << "\", only GoSub (that create a call stack) should create them.";
 			}
 		}
