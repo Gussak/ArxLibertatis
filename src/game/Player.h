@@ -167,6 +167,13 @@ struct PlayerAttribute {
 		constitution += other.constitution;
 		mind += other.mind;
 	}
+	
+	float sum() {
+		return strength +
+			mind +
+			dexterity +
+			constitution;
+	}
 };
 
 struct PlayerSkill {
@@ -206,6 +213,18 @@ struct PlayerSkill {
 		projectile += other.projectile;
 		closeCombat += other.closeCombat;
 		defense += other.defense;
+	}
+	
+	float sum() {
+		return stealth +
+			mecanism +
+			intuition +
+			etheralLink +
+			objectKnowledge +
+			casting +
+			projectile +
+			closeCombat +
+			defense;
 	}
 };
 

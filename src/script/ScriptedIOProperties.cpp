@@ -553,8 +553,16 @@ public:
 		}
 		
 		if(ent == entities.player()) {
-			ARX_PLAYER_ResetAttributesAndSkills(minA, minS);
-			if(bRandomize) ARX_PLAYER_RandomizeRoleplayClass(maxA, maxS, rpg);
+			if(!ARX_PLAYER_ResetAttributesAndSkills(minA, minS)){
+				LogError << "failed to reset attributes and skills";
+				return Failed;
+			}
+			if(bRandomize) {
+				if(!ARX_PLAYER_RandomizeRoleplayClass(maxA, maxS, rpg)) {
+					LogError << "failed to randomize roleplay class";
+					return Failed;
+				}
+			}
 		} else {
 			ScriptError << "rebirth can only be used at player entity";
 			return Failed;
