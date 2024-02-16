@@ -88,4 +88,29 @@ void applyTokenAt(std::string & strAt, const std::string strToken, const std::st
 	strAt.replace(strAt.find(strToken), strToken.size(), strText);
 }
 
+std::regex * prepareRegex(std::regex * re, std::string strRegex) {
+	try
+	{
+		if(!re) {
+			std::regex * reNew = new std::regex(strRegex.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
+			re = reNew;
+		} else {
+			*re = std::regex(strRegex.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
+		}
+		
+		return re;
+	} catch (const std::regex_error& e) {
+		std::cerr << "ERROR: regex_error caught: " << e.what() << "\n"; // TODO log
+		//RawDebug("regex_error caught: " << e.what());
+		//if(EVHnoLog::isAllowLog()) LogError << "regex_error caught: " << e.what(); // TODO queue if !allowLog ?
+		
+		if(re) {
+			delete re;
+			re = nullptr;
+		}
+	}
+	
+	return nullptr;
+}
+
 } // namespace util

@@ -2225,15 +2225,36 @@ static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, std::string &
 }
 
 size_t detectAndFixGoToGoSubParam(std::string & line) { // transform goto/gosub param var=value into var value (replace '=' with space)
-	std::regex reSearch("_*g_*o_*(t_*o|s_*u_*b)_*", std::regex_constants::ECMAScript | std::regex_constants::icase);
-	if (std::regex_search(line, reSearch)) {
-		std::regex reReplace("([ \t][@\xA3\xA7][\xBB]{0,1}[a-z0-9_]*)=([^ \t])", std::regex_constants::ECMAScript | std::regex_constants::icase); // create a strict/precise match as possible. For \xBB read ScriptedLand.cpp GotoCommand::createParamVar() (\xAB is never on the left side), also \xBB{0,1} means that a GoSub param can also set a normal var using it's full name (instead of an auto var name based on a short name).
+	static std::string strSearchRegex = "_*g_*o_*(t_*o|s_*u_*b)_*";
+	static std::regex * reSearch = nullptr;
+	reSearch = util::prepareRegex(reSearch, strSearchRegex.c_str());
+	if(!reSearch) {
+		LogCritical << "invalid regex: " << strSearchRegex;
+		return 0;
+	}
+	
+	if (std::regex_search(line, *reSearch)) {
+		/**
+		 * create a strict/precise match as possible.
+		 * For \xBB read ScriptedLand.cpp GotoCommand::createParamVar() (\xAB is never on the left side),
+		 * also \xBB{0,1} means that a GoSub param can also set a normal var using it's full name
+		 * (instead of an auto var name based on a short name).
+		 */
+		static std::string strReplaceRegex = "([ \t][@\xA3\xA7][\xBB]{0,1}[a-z0-9_]*)=([^ \t])";
+		static std::regex * reReplace = nullptr;
+		reReplace = util::prepareRegex(reReplace, strReplaceRegex.c_str());
+		if(!reReplace) {
+			LogCritical << "invalid regex: " << strReplaceRegex;
+			return 0;
+		}
+		
 		std::string strLineBefore = line;
-		line = std::regex_replace(line, reReplace, "$1 $2");
+		line = std::regex_replace(line, *reReplace, "$1 $2");
 		if(strLineBefore != line) {
 			return 1; // TODO count diff chars?
 		}
 	}
+	
 	return 0;
 }
 size_t adaptScriptCode(std::string & line) {

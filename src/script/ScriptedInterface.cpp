@@ -62,6 +62,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
 #include "util/Cast.h"
+#include "util/String.h"
 
 
 namespace script {
@@ -366,9 +367,15 @@ struct PrintGlobalVariables {
 std::ostream & operator<<(std::ostream & os, const PrintGlobalVariables & data) {
 	
 	if(data.m_filter.size() > 0) {
-		std::regex re(data.m_filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
+		static std::regex * re = nullptr;
+		re = util::prepareRegex(re, data.m_filter);
+		if(!re) {
+			LogError << "invalid regex: " << data.m_filter;
+			return os;
+		}
+		
 		for(const SCRIPT_VAR & var : svar) {
-			if (std::regex_search(var.name, re)) {
+			if (std::regex_search(var.name, *re)) {
 				os << var << '\n';
 			}
 		}
@@ -412,9 +419,15 @@ struct PrintLocalVariables {
 std::ostream & operator<<(std::ostream & os, const PrintLocalVariables & data) {
 	
 	if(data.m_filter.size() > 0) {
-		std::regex re(data.m_filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
+		static std::regex * re = nullptr;
+		re = util::prepareRegex(re, data.m_filter);
+		if(!re) {
+			LogError << "invalid regex: " << data.m_filter;
+			return os;
+		}
+		
 		for(const SCRIPT_VAR & var : data.m_entity->m_variables) {
-			if (std::regex_search(var.name, re)) {
+			if (std::regex_search(var.name, *re)) {
 				os << var << '\n';
 			}
 		}

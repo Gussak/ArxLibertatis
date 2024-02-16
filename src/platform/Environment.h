@@ -149,6 +149,7 @@ public:
 	EVHnoLog() { allowLog = false; }
 	~EVHnoLog() { allowLog = true; } // off until lambda returns
 	EVHnoLog & set(bool b) { allowLog = b; return *this; }
+	static bool isAllowLog() { return allowLog; }
 };
 
 #define evh_Create(...) platform::EnvVarHandler::create(__VA_ARGS__)
@@ -307,15 +308,16 @@ public:
 
 class EnvRegex {
 	std::regex * re;
+	EnvVarHandler * evhLink;
+	
 	std::string strRegex;
 	std::string strMsg;
-	EnvVarHandler * evhLink;
 	
 public:
 
-	EnvRegex() { }
-	EnvRegex(std::string _strRegex) { setRegex(_strRegex); }
-	EnvRegex(EnvVarHandler * evh) { evhLink = evh; setRegex(evhLink->getS()); }
+	EnvRegex() : re(nullptr), evhLink(nullptr) { }
+	EnvRegex(std::string _strRegex) : re(nullptr), evhLink(nullptr) { setRegex(_strRegex); }
+	EnvRegex(EnvVarHandler * evh) : re(nullptr) { evhLink = evh; setRegex(evhLink->getS()); }
 	
 	bool isSet();
 	bool matchRegex(std::string data);

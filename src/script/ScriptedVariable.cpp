@@ -283,8 +283,14 @@ public:
 				
 				DebugScript(' ' << strRegexMatch << ' ' << strReplace << ' ' << val);
 				
-				std::regex reRegexMatch(strRegexMatch.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
-				val = std::regex_replace(val, reRegexMatch, strReplace.c_str());
+				static std::regex * re = nullptr;
+				re = util::prepareRegex(re, strRegexMatch);
+				if(!re) {
+					ScriptError << "invalid regex: " << strRegexMatch;
+					return Failed;
+				}
+				
+				val = std::regex_replace(val, *re, strReplace.c_str());
 			}; break;
 			
 			default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;

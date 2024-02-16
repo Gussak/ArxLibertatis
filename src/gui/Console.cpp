@@ -439,11 +439,17 @@ Entity * ScriptConsole::contextEntity() {
 }
 
 int ScriptConsole::list(std::string filter, bool execOnSingleMatch) {
-	std::regex re(filter, std::regex_constants::ECMAScript | std::regex_constants::icase);
+	static std::regex * re = nullptr;
+	re = util::prepareRegex(re, filter);
+	if(!re) {
+		LogError << "invalid regex: " << filter;
+		return 0;
+	}
+	
 	int iCount = 0;
 	std::string strCmd;
 	for(std::string cmd: m_history) {
-		if (std::regex_search(cmd, re)) {
+		if (std::regex_search(cmd, *re)) {
 			if(strCmd != cmd) {
 				iCount++; // ignoring dups
 				strCmd = cmd;

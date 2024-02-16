@@ -18,6 +18,7 @@
  */
 
 #include "platform/Environment.h"
+#include "util/String.h"
 
 #include <cctype>
 #include <algorithm>
@@ -550,22 +551,15 @@ bool EnvRegex::matchRegex(std::string data) {
 	return re && strRegex.size() && std::regex_search(data.c_str(), *re);
 }
 bool EnvRegex::setRegex(std::string strRE, bool bUpdateEVHlink) {
-	try
-	{
-		if(!re) {
-			re = new std::regex(strRE.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
-		} else {
-			*re = std::regex(strRE.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
-		}
+	re = util::prepareRegex(re, strRE);
+	if(re) {
 		strRegex = strRE;
 		if(bUpdateEVHlink && evhLink) {
 			evhLink->setS(strRegex);
 		}
 		return true;
-	} catch (const std::regex_error& e) {
-		RawDebug("regex_error caught: " << e.what());
-		if(EVHnoLog::allowLog) LogError << "regex_error caught: " << e.what(); // TODO queue if !allowLog ?
 	}
+	
 	return false;
 }
 
