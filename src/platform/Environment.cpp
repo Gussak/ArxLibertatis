@@ -668,19 +668,24 @@ std::string EnvVarHandler::getMinMaxInfo() {
 	return "";
 }
 void EnvVarHandler::getEnvVarHandlerList(bool bListAsEnvVar, bool bListShowDescription) { // static
-	std::string strEnvVar;
+	std::string str;
+	std::string strEnvVarList;
 	for(auto it : vEVH) {
 		if(bListAsEnvVar) {
-			strEnvVar = "\texport " + it.first + "=\"" + it.second->toString() + "\";"; // TODO windows/mac too ?
+			str = "	export " + it.first + "=\"" + it.second->toString() + "\";"; // TODO windows/mac too ? but how?
+			strEnvVarList += str + "\n";
 		} else { // as script var to re-use in console
-			strEnvVar = "\tenv -s " + it.first + " \"" + it.second->toString() + "\" ";
+			str = "	env -s " + it.first + " \"" + it.second->toString() + "\" ";
 		}
 		
 		if(bListShowDescription) {
-			strEnvVar += " // " + it.second->getDescription() + ". " + it.second->getMinMaxInfo();
+			str += " // " + it.second->getDescription() + ". " + it.second->getMinMaxInfo();
 		}
-		if(EVHnoLog::allowLog) LogInfo << "[EnvVar] " << strEnvVar;
+		
+		if(EVHnoLog::allowLog && !bListAsEnvVar) LogInfo << "[EnvVar] " << str;
 	}
+	
+	if(EVHnoLog::allowLog && bListAsEnvVar) LogInfo << "[EnvVar] " << "\n" << strEnvVarList; // reusable as config shell script
 }
 EnvVarHandler & EnvVarHandler::setCommon() {
 	fixMinMax(); 

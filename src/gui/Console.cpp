@@ -393,7 +393,16 @@ void ScriptConsole::open() {
 				bool b = this->m_enabled; 
 				if(b)this->close(); 
 				ScrollbackLines = evhLines->getI(); 
-				this->m_buffer.resize(ScrollbackLines); 
+				this->m_buffer.resize(ScrollbackLines, ScrollbackColumns); 
+				if(b)this->open();
+			}
+		);
+	evh_CreateSHnm(evhColumns, "ARX_ConsoleColumns", "how many text lines shall the console show", 100, 50)->
+		setConverter( [this](){
+				bool b = this->m_enabled; 
+				if(b)this->close(); 
+				ScrollbackColumns = evhColumns->getI(); 
+				this->m_buffer.resize(ScrollbackLines, ScrollbackColumns); 
 				if(b)this->open();
 			}
 		);
