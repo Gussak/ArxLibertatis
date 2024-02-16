@@ -747,9 +747,9 @@ static bool ARX_CHANGELEVEL_Push_Player(AreaId area) {
 	
 	asp->pos = player.pos;
 	asp->Attribute_Redistribute = player.Attribute_Redistribute;
-	//asp->Attribute_TotalEarnt = player.Attribute_TotalEarnt;
+	asp->Attribute_TotalEarnt = player.Attribute_TotalEarnt;
 	asp->Skill_Redistribute = player.Skill_Redistribute;
-	//asp->Skill_TotalEarnt = player.Skill_TotalEarnt;
+	asp->Skill_TotalEarnt = player.Skill_TotalEarnt;
 	asp->rune_flags = player.rune_flags;
 	asp->size = player.size;
 	asp->Skill_Stealth = player.m_skill.stealth;

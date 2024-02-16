@@ -602,7 +602,6 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 		LogWarning << "At entity '" << io->idString() << "', io->usemesh '" << io->usemesh.string() << "' differs from mesh file io->obj->file '" << io->obj->file.string() << "' ! (requested change to '" << temp.string() << "')";
 	}
 	
-	std::stringstream ssMsg;
 	res::path usemesh;
 	if(io->ioflags & IO_NPC) {
 		usemesh = "graph/obj3d/interactive/npc" / temp;
@@ -611,6 +610,7 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 	} else if(io->ioflags & IO_ITEM) {
 		usemesh = "graph/obj3d/interactive/items" / temp;
 	} else {
+		std::stringstream ssMsg;
 		ssMsg << "Ivalid entity '" << io->idString() << "', has not the required flags (" << io->ioflags << ")."; // TODO use flagNames(EntityFlagNames, io->ioflags) #include "gui/debug/DebugPanel.h", EntityFlagNames -> debughud.h
 		if(io->obj) {
 			ssMsg << " Has mesh '" << io->obj->file.string() << "' that will be kept.";
@@ -623,24 +623,26 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 	
 	bool pbox = (!(io->ioflags & IO_FIX) && !(io->ioflags & IO_NPC));
 	EERIE_3DOBJ * obj = loadObject(usemesh, pbox).release();
-	if(obj) {
-		delete io->obj, io->obj = nullptr;
-		io->resetLOD(true);
-		
-		io->usemesh = usemesh;
-		io->obj = obj;
-		EERIE_COLLISION_Cylinder_Create(io);
-		
-		load3DModelAndLOD(*io, usemesh, pbox);
-		
-		return true;
+	if(!obj) {
+		std::stringstream ssMsg;
+		ssMsg << "Failed to load new mesh file '" << usemesh.string() << "' for entity '" << io->idString() << "'. Existing usemesh path '" << io->usemesh.string() << "' kept.";
+		if(io->obj) {
+			ssMsg << " Keeping existing mesh obj '" << io->obj->file.string() << "'."; // io->usemesh == io->obj->file.string()
+		}
+		LogError << ssMsg.str();
+		return false;
 	}
 	
-	ssMsg << "Failed to load new mesh file '" << usemesh.string() << "' for entity '" << io->idString() << "'. Existing usemesh '" << io->usemesh.string() << "' kept.";
-	if(io->obj) {
-		ssMsg << " Keeping existing mesh obj '" << io->obj->file.string() << "'."; // io->usemesh == io->obj->file.string()
-	}
-	return false;
+	delete io->obj, io->obj = nullptr;
+	io->resetLOD(true);
+	
+	io->usemesh = usemesh;
+	io->obj = obj;
+	EERIE_COLLISION_Cylinder_Create(io);
+	
+	load3DModelAndLOD(*io, usemesh, pbox);
+	
+	return true;
 }
 
 void ARX_INTERACTIVE_MEMO_TWEAK(Entity * io, TweakType type, const res::path & param1, const res::path & param2) {

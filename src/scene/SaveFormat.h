@@ -423,7 +423,6 @@ struct ARX_CHANGELEVEL_PLAYER {
 	SavedVec3 LAST_VALID_POS;
 	char draggedEntity[SIZE_ID];
 	s32 padding[237];
-	
 };
 
 struct ARX_CHANGELEVEL_INVENTORY_DATA_SAVE {

@@ -451,6 +451,9 @@ void LODIconAsSkin(EERIE_3DOBJ * obj, TextureContainer * tex) {
 }
 
 bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
+	static platform::EnvVarHandler * allowLOD = evh_Create("ARX_LODenabled", "", false); // TODO set to true after FixReloadSavegame
+	if(!allowLOD->getB()) return false;
+	
 	// TODO substitute everywhere using loadObject() for items at least ? but only where the returned unique_ptr is release() ! but... this is lazy load and will work anytime anyway.
 	arx_assert_msg(io.obj, "This lazy LOD initializer shall only be called after the entity 3D model is initialized elsewhere.");
 	arx_assert_msg(!io.objLOD[LOD_PERFECT] && !io.objLOD[LOD_HIGH] && !io.objLOD[LOD_MEDIUM] && !io.objLOD[LOD_LOW] && !io.objLOD[LOD_BAD] && !io.objLOD[LOD_FLAT] && !io.objLOD[LOD_ICON], "Some LOD was incorrectly initialized elsewhere.");
@@ -547,22 +550,30 @@ std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
 	
 	std::string id = res::path(file).remove_ext().string();
 	if(!fltCache[id]) {
-		EERIE_3DOBJ* obj = ARX_FTL_Load(file).release();
-		if(obj && pbox) {
-			EERIE_PHYSICS_BOX_Create(obj);
+		std::unique_ptr<EERIE_3DOBJ> objUniquePtr = ARX_FTL_Load(file);
+		if(objUniquePtr && pbox) {
+			EERIE_PHYSICS_BOX_Create(objUniquePtr.get());
 		}
 		
-		LogDebugIf(obj, "faces=" << obj->facelist.size() << ", pbox.radius=" << (pbox ? obj->pbox->radius : 0.f) << ", file=" << obj->fileUniqueRelativePathName );
+		LogDebugIf(objUniquePtr, "faces=" << objUniquePtr->facelist.size() << ", pbox.radius=" << (pbox ? objUniquePtr->pbox->radius : 0.f) << ", file=" << objUniquePtr->fileUniqueRelativePathName );
 		
-		if(obj) fltCache[id] = obj;
+		if(objUniquePtr) {
+			static platform::EnvVarHandler * allowModelCache = evh_Create("ARX_Allow3DModelsCache", "", false); // TODO set to true after FixReloadSavegame
+			if(allowModelCache->getB()) {
+				fltCache[id] = objUniquePtr.get(); //release();
+			} else {
+				return objUniquePtr;
+			}
+		}
 	}
 	
 	if(fltCache[id]) {
-		std::unique_ptr<EERIE_3DOBJ> object = std::make_unique<EERIE_3DOBJ>();
-		Eerie_CopyTo(fltCache[id], object.get());
-		return object;
+		std::unique_ptr<EERIE_3DOBJ> objCopyFromCache = std::make_unique<EERIE_3DOBJ>();
+		Eerie_CopyTo(fltCache[id], objCopyFromCache.get());
+		return objCopyFromCache;
 	}
 	
+	LogError << "failed to load 3D model: " << id;
 	return { };
 }
 
