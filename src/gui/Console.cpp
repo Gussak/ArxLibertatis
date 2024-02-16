@@ -450,7 +450,7 @@ int ScriptConsole::list(std::string filter, bool execOnSingleMatch) {
 	std::string strCmd;
 	for(std::string cmd: m_history) {
 		if (std::regex_search(cmd, *re)) {
-			if(strCmd != cmd && !boost::starts_with(strCmd, "hist ")) { // TODO get history command string properly
+			if(cmd != strCmd && !boost::starts_with(cmd, "hist ")) { // TODO get history command string properly
 				iCount++; // ignoring dups
 				strCmd = cmd;
 				LogInfo << cmd;
