@@ -451,7 +451,7 @@ void LODIconAsSkin(EERIE_3DOBJ * obj, TextureContainer * tex) {
 }
 
 bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
-	static platform::EnvVarHandler * allowLOD = evh_Create("ARX_LODenabled", "", false); // TODO set to true after FixReloadSavegame
+	static platform::EnvVarHandler * allowLOD = evh_Create("ARX_LODenabled", "", true);
 	if(!allowLOD->getB()) return false;
 	
 	// TODO substitute everywhere using loadObject() for items at least ? but only where the returned unique_ptr is release() ! but... this is lazy load and will work anytime anyway.
