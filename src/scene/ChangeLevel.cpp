@@ -747,9 +747,9 @@ static bool ARX_CHANGELEVEL_Push_Player(AreaId area) {
 	
 	asp->pos = player.pos;
 	asp->Attribute_Redistribute = player.Attribute_Redistribute;
-	asp->Attribute_Redistribute_TotalEarn = player.Attribute_Redistribute_TotalEarn;
+	//asp->Attribute_TotalEarnt = player.Attribute_TotalEarnt;
 	asp->Skill_Redistribute = player.Skill_Redistribute;
-	asp->Skill_Redistribute_TotalEarn = player.Skill_Redistribute_TotalEarn;
+	//asp->Skill_TotalEarnt = player.Skill_TotalEarnt;
 	asp->rune_flags = player.rune_flags;
 	asp->size = player.size;
 	asp->Skill_Stealth = player.m_skill.stealth;
@@ -1546,9 +1546,9 @@ static bool ARX_CHANGELEVEL_Pop_Player(std::string_view target, float angle) {
 	cur_sos = (asp->sp_flags & SP_SOS) ? CHEAT_ENABLED : 0;
 	
 	player.Attribute_Redistribute = glm::clamp(asp->Attribute_Redistribute, s16(0), s16(std::numeric_limits<unsigned char>::max()));
-	player.Attribute_Redistribute_TotalEarn = glm::clamp(asp->Attribute_Redistribute_TotalEarn, s16(0), s16(std::numeric_limits<unsigned char>::max()));
+	player.Attribute_TotalEarnt = glm::clamp(asp->Attribute_TotalEarnt, s16(0), s16(std::numeric_limits<unsigned char>::max()));
 	player.Skill_Redistribute = glm::clamp(asp->Skill_Redistribute, s16(0), s16(std::numeric_limits<unsigned char>::max()));
-	player.Skill_Redistribute_TotalEarn = glm::clamp(asp->Skill_Redistribute_TotalEarn, s16(0), s16(std::numeric_limits<unsigned char>::max()));
+	player.Skill_TotalEarnt = glm::clamp(asp->Skill_TotalEarnt, s16(0), s16(std::numeric_limits<unsigned char>::max()));
 	
 	player.rune_flags = RuneFlags::load(asp->rune_flags); // TODO save/load flags
 	player.size = asp->size.toVec3();

@@ -508,10 +508,10 @@ public:
 		std::string strEntId;
 		
 		bool bRandomize = false;
-		float minA =  0.f;
-		float minS =  0.f;
-		float maxA = 18.f;
-		float maxS = 18.f;
+		int minA =  0.f;
+		int minS =  0.f;
+		int maxA = 18.f;
+		int maxS = 18.f;
 		std::string rpg = "vanilla";
 		HandleFlags("her") {
 			if(flg & flag('h')) {
@@ -529,6 +529,8 @@ public:
 		then run this to apply attributes:
 		 rebirth -r 1 -1 50 -1 wmt  // (-1=do not reset attr; -1=do not reset skills; 20=max attr value; -1=do not change skills)
 		where last param 'w', 't', 'm' or '.' is the roleplay class prefered option from most to least, or the vanilla calc
+		or run try:
+		 rebirth -r 1 0 50 85 wmt
 )");
 				return Success;
 			}
@@ -537,10 +539,10 @@ public:
 			}
 			if(flg & flag('r')) {
 				bRandomize = true;
-				minA = context.getFloatVar(context.getWord());
-				minS = context.getFloatVar(context.getWord());
-				maxA = context.getFloatVar(context.getWord());
-				maxS = context.getFloatVar(context.getWord());
+				minA = static_cast<int>(context.getFloatVar(context.getWord()));
+				minS = static_cast<int>(context.getFloatVar(context.getWord()));
+				maxA = static_cast<int>(context.getFloatVar(context.getWord()));
+				maxS = static_cast<int>(context.getFloatVar(context.getWord()));
 				rpg = context.getStringVar(context.getWord());
 			}
 		}
