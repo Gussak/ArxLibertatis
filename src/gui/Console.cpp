@@ -388,7 +388,7 @@ void ScriptConsole::paste(std::string_view text) {
 }
 
 void ScriptConsole::open() {
-	evh_CreateSHnm(evhLines, "ARX_ConsoleLines", "how many text lines shall the console show", 10, 10, 50)->
+	evh_CreateSNm(evhLines, "ARX_ConsoleLines", "how many text lines shall the console show", 10, 10, 50)->
 		setConverter( [this](){
 				bool b = this->m_enabled; 
 				if(b)this->close(); 
@@ -397,7 +397,7 @@ void ScriptConsole::open() {
 				if(b)this->open();
 			}
 		);
-	evh_CreateSHnm(evhColumns, "ARX_ConsoleColumns", "how many text lines shall the console show", 100, 50)->
+	evh_CreateSNm(evhColumns, "ARX_ConsoleColumns", "how many text lines shall the console show", 100, 50)->
 		setConverter( [this](){
 				bool b = this->m_enabled; 
 				if(b)this->close(); 

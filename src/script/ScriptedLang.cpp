@@ -163,12 +163,12 @@ public:
 		DebugScript(' ' << label);
 		
 		if(warnUglyCoding && context.isCheckTimerIdVsGoToLabelOnce()) {
-			static platform::EnvRegex erWarnTimerCallingGoSubScriptName = [](){ evh_CreateSH("ARX_TimerCallingGoSubWarn", "(coding style suggestion) Timers should only call GoTo. This regex filters what scripts will show the warning.", "")->setConverter( [](){erWarnTimerCallingGoSubScriptName.setRegex(evh->getS());} ); return evh->getS(); }();
+			static platform::EnvRegex erWarnTimerCallingGoSubScriptName = [](){ evh_CreateS("ARX_TimerCallingGoSubWarn", "(coding style suggestion) Timers should only call GoTo. This regex filters what scripts will show the warning.", "")->setConverter( [](){erWarnTimerCallingGoSubScriptName.setRegex(evh->getS());} ); return evh->getS(); }();
 			if(erWarnTimerCallingGoSubScriptName.isSet() && sub && erWarnTimerCallingGoSubScriptName.matchRegex(context.getScript()->file)) {
 				ScriptWarning << erWarnTimerCallingGoSubScriptName.getMsg() << "ExtraInfo: timer '" << context.getTimerName() << "', first target label '" << label << "'";
 			}
 			
-			static platform::EnvRegex erWarnTimerIdMismatchCallLabel = [](){ evh_CreateSH("ARX_TimerLabelMismatchWarn", "(coding style suggestion) Timer label should match the begin of GoTo label. This regex filters what scripts will show the warning.", "")->setConverter( [](){erWarnTimerCallingGoSubScriptName.setRegex(evh->getS());} ); return evh->getS(); }();
+			static platform::EnvRegex erWarnTimerIdMismatchCallLabel = [](){ evh_CreateS("ARX_TimerLabelMismatchWarn", "(coding style suggestion) Timer label should match the begin of GoTo label. This regex filters what scripts will show the warning.", "")->setConverter( [](){erWarnTimerCallingGoSubScriptName.setRegex(evh->getS());} ); return evh->getS(); }();
 			if(erWarnTimerIdMismatchCallLabel.isSet() && erWarnTimerIdMismatchCallLabel.matchRegex(context.getScript()->file)) {
 				std::string labelChk = label;
 				labelChk.resize(std::remove(labelChk.begin(), labelChk.end(), '_') - labelChk.begin());

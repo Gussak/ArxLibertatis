@@ -161,12 +161,12 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 	if(source->level <= level) {
 		#ifdef ARX_DEBUG
 		// prepare filters
-		static platform::EnvRegex erFile = [](){ evh_CreateSHnoLog("ARX_DebugFile", "", ".*")->setConverter( [](){erFile.setRegex(evh->getS());} ); return evh->getS(); }();
-		static platform::EnvRegex erFunc = [](){ evh_CreateSHnoLog("ARX_DebugFunc", "", ".*")->setConverter( [](){erFunc.setRegex(evh->getS());} ); return evh->getS(); }();
-		static platform::EnvRegex erLine = [](){ evh_CreateSHnoLog("ARX_DebugLine", "", ".*")->setConverter( [](){erLine.setRegex(evh->getS());} ); return evh->getS(); }();
+		static platform::EnvRegex erFile = [](){ evh_CreateSNoLog("ARX_DebugFile", "", ".*")->setConverter( [](){erFile.setRegex(evh->getS());} ); return evh; }();
+		static platform::EnvRegex erFunc = [](){ evh_CreateSNoLog("ARX_DebugFunc", "", ".*")->setConverter( [](){erFunc.setRegex(evh->getS());} ); return evh; }();
+		static platform::EnvRegex erLine = [](){ evh_CreateSNoLog("ARX_DebugLine", "", ".*")->setConverter( [](){erLine.setRegex(evh->getS());} ); return evh; }();
 		if(level == Logger::Debug) {
 			// multi regex ex.: "/someFileRegex/someFuncRegex/someLineRegex"
-			static platform::EnvVarHandler * evStrFileFuncLineSplitRegex = [](){ evh_CreateSHnoLog("ARX_Debug", "ex.: \";ArxGame;LOD;.*\"", ";.*;.*;.*"); return evh; }();
+			static platform::EnvVarHandler * evStrFileFuncLineSplitRegex = [](){ evh_CreateSNoLog("ARX_Debug", "ex.: \";ArxGame;LOD;.*\"", ";.*;.*;.*"); return evh; }();
 			if(evStrFileFuncLineSplitRegex->isModified()) {
 				std::string strMultiRegex = evStrFileFuncLineSplitRegex->getS();
 				if(strMultiRegex.size() > 1) {
@@ -177,9 +177,9 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 					boost::split(vRegex, strMultiRegexTmp, boost::is_any_of(strToken));
 					
 					platform::EVHnoLog disableLogTilDestructor;
-					if(vRegex.size() > 0) erFile.setRegex(vRegex[0]);
-					if(vRegex.size() > 1) erFunc.setRegex(vRegex[1]);
-					if(vRegex.size() > 2) erLine.setRegex(vRegex[2]);
+					if(vRegex.size() > 0) erFile.setRegex(vRegex[0], true);
+					if(vRegex.size() > 1) erFunc.setRegex(vRegex[1], true);
+					if(vRegex.size() > 2) erLine.setRegex(vRegex[2], true);
 				} else {
 					LogError << "invalid split regex \"" << evStrFileFuncLineSplitRegex->getS() << "\" for " << evStrFileFuncLineSplitRegex->id();
 				}

@@ -1641,7 +1641,7 @@ public:
 		
 		deltaFPS = evh_Create("ARX_LODDeltaFPS", "this is how much FPS above the minimum that will allow LOD to be improved for one item per iteration and for the distant LOD levels thru ARX_LODDistStep", 10, 1);
 		
-		evFPS = [this](){  evh_CreateSH("ARX_LODFPSdelay", "a more responsive FPS check (less than 1s), so LOD can change faster", 0.33f, 0.1f, 1.f)->setConverter( [this](){this->evFPS.setDelay(evh->getF());} ); return evh->getF();  }();
+		evFPS = [this](){  evh_CreateS("ARX_LODFPSdelay", "a more responsive FPS check (less than 1s), so LOD can change faster", 0.33f, 0.1f, 1.f)->setConverter( [this](){this->evFPS.setDelay(evh->getF());} ); return evh->getF();  }();
 		
 		playerMovedRecalcLODmoveMinDist = evh_Create("ARX_LODPlayerMoveDistToRecalcLOD", "how far shall player move to recalculate LOD after player moves this distance", 25.f, 10.f);
 		

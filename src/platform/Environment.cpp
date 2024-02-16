@@ -549,7 +549,7 @@ bool EnvRegex::isSet() {
 bool EnvRegex::matchRegex(std::string data) {
 	return re && strRegex.size() && std::regex_search(data.c_str(), *re);
 }
-bool EnvRegex::setRegex(std::string strRE) {
+bool EnvRegex::setRegex(std::string strRE, bool bUpdateEVHlink) {
 	try
 	{
 		if(!re) {
@@ -558,6 +558,9 @@ bool EnvRegex::setRegex(std::string strRE) {
 			*re = std::regex(strRE.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
 		}
 		strRegex = strRE;
+		if(bUpdateEVHlink && evhLink) {
+			evhLink->setS(strRegex);
+		}
 		return true;
 	} catch (const std::regex_error& e) {
 		RawDebug("regex_error caught: " << e.what());

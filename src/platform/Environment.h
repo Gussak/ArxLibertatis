@@ -141,26 +141,6 @@ void setEnvironmentVariable(const char * name, const char * value);
 //! Unset an environment variable
 void unsetEnvironmentVariable(const char * name);
 
-class EnvRegex {
-	
-	friend class EnvVar;
-	
-	std::regex * re;
-	std::string strRegex;
-	std::string strMsg;
-	
-public:
-
-	EnvRegex() { }
-	EnvRegex(std::string _strRegex) { setRegex(_strRegex); } // no log is safer as default
-	
-	bool isSet();
-	bool matchRegex(std::string data);
-	bool setRegex(std::string strRE);
-	std::string getRegex() { return strRegex; }
-	std::string getMsg() {return strMsg;}
-};
-
 class EVHnoLog { // prevents __gnu_cxx::recursive_init_error when using ex.: LogDebug LogInfo .., while still being able to create log msgs from here.
 	friend class EnvVarHandler;
 	friend class EnvRegex;
@@ -171,10 +151,12 @@ public:
 	EVHnoLog & set(bool b) { allowLog = b; return *this; }
 };
 
-#define evh_CreateSHnm(NAME, ...) static platform::EnvVarHandler * NAME = platform::EnvVarHandler::create(__VA_ARGS__)
-#define evh_CreateSH(...) evh_CreateSHnm(evh, __VA_ARGS__) // create static var and function header, easy to use inside lambda
-#define evh_CreateSHnoLog(...) platform::EVHnoLog evhTurnOffLogMessagesForEnvVarsTilReturn; evh_CreateSH(__VA_ARGS__)
 #define evh_Create(...) platform::EnvVarHandler::create(__VA_ARGS__)
+// create named static var
+#define evh_CreateSNm(NAME, ...) static platform::EnvVarHandler * NAME = evh_Create(__VA_ARGS__)
+// easy to use inside lambda with converter
+#define evh_CreateS(...) evh_CreateSNm(evh, __VA_ARGS__)
+#define evh_CreateSNoLog(...) platform::EVHnoLog evhTurnOffLogMessagesForEnvVarsTilReturn; evh_CreateS(__VA_ARGS__) // use if it freezes
 
 class EnvVarHandler {
 private:
@@ -321,6 +303,25 @@ public:
 	static EnvVarHandler * getEVH(std::string _id);
 	static void getEnvVarHandlerList(bool bListAsEnvVar, bool bListShowDescription);
 	inline static const char* validIdChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789";
+};
+
+class EnvRegex {
+	std::regex * re;
+	std::string strRegex;
+	std::string strMsg;
+	EnvVarHandler * evhLink;
+	
+public:
+
+	EnvRegex() { }
+	EnvRegex(std::string _strRegex) { setRegex(_strRegex); }
+	EnvRegex(EnvVarHandler * evh) { evhLink = evh; setRegex(evhLink->getS()); }
+	
+	bool isSet();
+	bool matchRegex(std::string data);
+	bool setRegex(std::string strRE, bool bUpdateEVHlink = false);
+	std::string getRegex() { return strRegex; }
+	std::string getMsg() {return strMsg;}
 };
 
 struct EnvironmentOverride {
