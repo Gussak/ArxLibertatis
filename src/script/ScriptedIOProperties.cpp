@@ -504,11 +504,6 @@ public:
 	
 	RebirthCommand() : Command("rebirth", AnyEntity) { }
 	
-	// rebirth [-er] <e?player> <r?minAttr minSkill maxAttributeValue maxSkillValue charRoleplayClass>
-	// r=randomRoll
-	// if fMinAttrs < 1 will not reset, fMinSkills < 0 wont reset
-	// if maxAttributeValue maxSkillValue <= 0, wont randomize
-	// charRoleplayClass m=mage t=thief w=warrior, use only one letter
 	Result execute(Context & context) override {
 		std::string strEntId;
 		
@@ -518,7 +513,25 @@ public:
 		float maxA = 18.f;
 		float maxS = 18.f;
 		std::string rpg = "vanilla";
-		HandleFlags("er") {
+		HandleFlags("her") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	rebirth [-er] <e?player> <r?minAttr minSkill maxAttributeValue maxSkillValue charRoleplayClass>
+		r=randomRoll
+		if minAttr < 1 will not reset, minSkill < 0 wont reset
+		if maxAttributeValue maxSkillValue <= 0, wont randomize
+		charRoleplayClass m=mage t=thief w=warrior, use all the letters in the prefered order or "vanilla"
+		
+	Usage:
+		Optional roleplay class attribute and skills randomizer for mage, thief and warrior thru rebirth command
+		run this several times to see raw skills applied ex.: this test is better understood at max level, so addxp 1000000
+		 rebirth -r 1  0 -1 85 wmt  // (1=reset attributes to minimum 1; 0=reset skills to minimum 0; 1=max attribute value; 50=max skill value)
+		then run this to apply attributes:
+		 rebirth -r 1 -1 50 -1 wmt  // (-1=do not reset attr; -1=do not reset skills; 20=max attr value; -1=do not change skills)
+		where last param 'w', 't', 'm' or '.' is the roleplay class prefered option from most to least, or the vanilla calc
+)");
+				return Success;
+			}
 			if(flg & flag('e')) {
 				strEntId = context.getStringVar(context.getWord());
 			}
