@@ -171,16 +171,15 @@ public:
 	EVHnoLog & set(bool b) { allowLog = b; return *this; }
 };
 
-#define evh_CreateSH static platform::EnvVarHandler * evh = platform::EnvVarHandler::create // create static var and function header
-#define evh_CreateSHnoLog platform::EVHnoLog evhTurnOffLogMessagesForEnvVarsTilReturn; evh_CreateSH
-#define evh_Create(...) platform::EnvVarHandler::create( __VA_ARGS__ )
+#define evh_CreateSHnm(NAME, ...) static platform::EnvVarHandler * NAME = platform::EnvVarHandler::create(__VA_ARGS__)
+#define evh_CreateSH(...) evh_CreateSHnm(evh, __VA_ARGS__) // create static var and function header, easy to use inside lambda
+#define evh_CreateSHnoLog(...) platform::EVHnoLog evhTurnOffLogMessagesForEnvVarsTilReturn; evh_CreateSH(__VA_ARGS__)
+#define evh_Create(...) platform::EnvVarHandler::create(__VA_ARGS__)
 
 class EnvVarHandler {
 private:
 	class EnvVarData {
 	public:
-		EnvVarData() { evtD=('.'); evS=(""); evI=(0); evF=(0.f); evB=(false); }
-		
 		char evtD = '.';
 		std::string strIdD;
 		
@@ -188,6 +187,9 @@ private:
 		int evI;
 		float evF;
 		bool evB;
+		
+		EnvVarData() : evtD('.'), strIdD(""), evS(""), evI(0), evF(0.f), evB(false) { }
+		//EnvVarData(const EnvVarData & o) : evtD(o.evtD), strIdD(o.strIdD), evS(o.evS), evI(o.evI), evF(o.evF), evB(o.evB) { }
 		
 		bool operator!=(EnvVarData & other) {
 			//arx_assert_msg(evtD != '~' && other.evtD != '~', "invalid this %c, other %c", evtD, other.evtD);
@@ -204,6 +206,7 @@ private:
 	char evtH = '.';
 	std::string strId;
 	
+	EnvVarData evbDefault;
 	EnvVarData evbCurrent;
 	EnvVarData evbOld;
 	EnvVarData evbMin;
@@ -219,6 +222,7 @@ private:
 		evtH = evCopyFrom.evtH;
 		strId = evCopyFrom.strId;
 		
+		evbDefault = evCopyFrom.evbDefault;
 		evbCurrent = evCopyFrom.evbCurrent;
 		evbOld = evCopyFrom.evbOld;
 		evbMin = evCopyFrom.evbMin;
@@ -274,6 +278,7 @@ public:
 		static EnvVarHandler * create(std::string _strId, std::string _msg, TYPE val, TYPE min = MIN, TYPE max = MAX) { \
 			if(vEVH.contains(_strId)) return nullptr; \
 			EnvVarHandler * evh = new EnvVarHandler(); \
+			evh->evbDefault.ev##SUFFIX = val; \
 			evh->evbCurrent.ev##SUFFIX = val; \
 			evh->evbOld.ev##SUFFIX = val; \
 			evh->evbMin.ev##SUFFIX = min; \
@@ -306,6 +311,12 @@ public:
 	float toFloat();
 	EnvVarHandler * setAuto(std::string _strEVB);
 	std::string getDescription() { return msg; }
+	EnvVarHandler * reset() {
+		if(EVHnoLog::allowLog) LogInfo << strId << " reset to " << toString();
+		evbCurrent = evbDefault;
+		return this;
+	}
+	std::string getMinMaxInfo();
 	
 	static EnvVarHandler * getEVH(std::string _id);
 	static void getEnvVarHandlerList(bool bListAsEnvVar, bool bListShowDescription);

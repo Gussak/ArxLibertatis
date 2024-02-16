@@ -653,6 +653,20 @@ EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
 	
 	return nullptr;
 }
+std::string EnvVarHandler::getMinMaxInfo() {
+	switch(evtH) {
+		case 'S':break;
+		case 'I':
+			return "min=" + std::to_string(evbMin.evI) + ";max=" + std::to_string(evbMax.evI) + ";";
+			break;
+		case 'F':
+			return "min=" + std::to_string(evbMin.evF) + ";max=" + std::to_string(evbMax.evF) + ";";
+			break;
+		case 'B':break;
+		default: arx_assert(false);
+	}
+	return "";
+}
 void EnvVarHandler::getEnvVarHandlerList(bool bListAsEnvVar, bool bListShowDescription) { // static
 	std::string strEnvVar;
 	for(auto it : vEVH) {
@@ -662,7 +676,9 @@ void EnvVarHandler::getEnvVarHandlerList(bool bListAsEnvVar, bool bListShowDescr
 			strEnvVar = "\tenv -s " + it.first + " \"" + it.second->toString() + "\" ";
 		}
 		
-		if(bListShowDescription) strEnvVar += " // " + it.second->getDescription();
+		if(bListShowDescription) {
+			strEnvVar += " // " + it.second->getDescription() + ". " + it.second->getMinMaxInfo();
+		}
 		if(EVHnoLog::allowLog) LogInfo << "[EnvVar] " << strEnvVar;
 	}
 }
@@ -698,21 +714,33 @@ void EnvVarHandler::initEnvVar(char _evtH, std::string _strId, std::string _msg,
 	arx_assert(evtH=='S' || evtH=='B' || evtH=='F' || evtH=='I');
 	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
 	
-	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << " value=\"" << toString() << "\", this=" << static_cast<const void*>(this); // << "\n" << boost::stacktrace::stacktrace();
+	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << " value=\"" << toString() << "\" " << getMinMaxInfo() << ", this=" << static_cast<const void*>(this); // << "\n" << boost::stacktrace::stacktrace();
 	if(EVHnoLog::allowLog) { LogDebug(ssDbgMsg.str()); } else { RawDebug(ssDbgMsg.str()); } // TODO move equivalent to Logger.h/cpp ?
 }
 void EnvVarHandler::fixMinMax() {
 	switch(evtH) {
 		case 'S':break;
 		case 'I':
-			if(evbCurrent.evI < evbMin.evI) evbCurrent.evI = evbMin.evI;
+			if(evbCurrent.evI < evbMin.evI) {
+				if(EVHnoLog::allowLog) LogWarning << "fixing " << strId << " from " << evbCurrent.evI << " to " << evbMin.evI;
+				evbCurrent.evI = evbMin.evI;
+			}
 			else
-			if(evbCurrent.evI > evbMax.evI) evbCurrent.evI = evbMax.evI;
+			if(evbCurrent.evI > evbMax.evI) {
+				if(EVHnoLog::allowLog) LogWarning << "fixing " << strId << " from " << evbCurrent.evI << " to " << evbMax.evI;
+				evbCurrent.evI = evbMax.evI;
+			}
 			break;
 		case 'F':
-			if(evbCurrent.evF < evbMin.evF) evbCurrent.evF = evbMin.evF;
+			if(evbCurrent.evF < evbMin.evF) {
+				if(EVHnoLog::allowLog) LogWarning << "fixing " << strId << " from " << evbCurrent.evF << " to " << evbMin.evF;
+				evbCurrent.evF = evbMin.evF;
+			}
 			else
-			if(evbCurrent.evF > evbMax.evF) evbCurrent.evF = evbMax.evF;
+			if(evbCurrent.evF > evbMax.evF) {
+				if(EVHnoLog::allowLog) LogWarning << "fixing " << strId << " from " << evbCurrent.evF << " to " << evbMax.evF;
+				evbCurrent.evF = evbMax.evF;
+			}
 			break;
 		case 'B':break;
 		default: arx_assert(false);

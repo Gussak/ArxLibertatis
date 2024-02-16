@@ -43,6 +43,7 @@
 #include "io/fs/SystemPaths.h"
 #include "io/log/Logger.h"
 #include "math/Rectangle.h"
+#include "platform/Environment.h"
 #include "script/ScriptEvent.h"
 #include "util/Unicode.h"
 #include "window/RenderWindow.h"
@@ -387,6 +388,16 @@ void ScriptConsole::paste(std::string_view text) {
 }
 
 void ScriptConsole::open() {
+	evh_CreateSHnm(evhLines, "ARX_ConsoleLines", "how many text lines shall the console show", 10, 10, 50)->
+		setConverter( [this](){
+				bool b = this->m_enabled; 
+				if(b)this->close(); 
+				ScrollbackLines = evhLines->getI(); 
+				this->m_buffer.resize(ScrollbackLines); 
+				if(b)this->open();
+			}
+		);
+	
 	if(!m_enabled) {
 		if(historyFile.string().size() == 0)loadHistoryFile();
 		config.input.allowConsole = true;

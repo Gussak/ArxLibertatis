@@ -345,33 +345,43 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		bool bSet = false;
-		bool bGet = false;
+		enum EnvMode{
+			NONE,
+			SET,
+			GET,
+			RESET,
+			LIST,
+		};
+		EnvMode em = NONE;
 		
-		bool bList = false;
 		bool bListAsEnvVar = false;
 		bool bListShowDescription = false;
 		
-		HandleFlags("hsglvd") {
+		HandleFlags("hrsglvd") {
 			if(flg & flag('h')) {
 				LogHelp("command " << getName(), R"(
 	This is intended to tweak env vars in memory to avoid having to restart the game.
 	This is currently not intended to set permanent env vars on the system nor to prepare the environment for sub proccesses.
 	This should be 100% safe as checks performed during normal env var initialization shall be performed again like limits, conversions and proper timing to allow these vars to be modified.
 		env -l[vd]  // list all in console log: v: as environment variable, d: show description
+		env -r <envVarId>  // reset it to default value
 		env -s <envVarId> <value>  // set EnvVar to <value>
 		env -g <envVarId> <scriptVariable>  // get EnvVar value into <scriptVariable>
+		env -h  // show this help
 )");
 				return Success;
 			}
+			if(flg & flag('r')) {
+				em = RESET;
+			}
 			if(flg & flag('s')) {
-				bSet = true;
+				em = SET;
 			}
 			if(flg & flag('g')) {
-				bGet = true;
+				em = GET;
 			}
 			if(flg & flag('l')) {
-				bList = true;
+				em = LIST;
 			}
 			if(flg & flag('v')) {
 				bListAsEnvVar = true;
@@ -381,68 +391,78 @@ public:
 			}
 		}
 		
-		if(bList) {
-			platform::EnvVarHandler::getEnvVarHandlerList(bListAsEnvVar, bListShowDescription);
-			return Success;
+		std::string envVar;
+		platform::EnvVarHandler * ev = nullptr;
+		switch(em) {
+			case SET: case GET: case RESET:
+				ev = platform::EnvVarHandler::getEVH( context.getStringVar(context.getWord()) );
+				break;
+			case LIST: case NONE: break;
 		}
 		
-		std::string envVar = context.getStringVar(context.getWord());
-		
-		if(bSet) {
-			std::string val = context.getStringVar(context.getWord());
-			
-			platform::EnvVarHandler * ev = platform::EnvVarHandler::getEVH(envVar);
-			if(!ev) return Failed;
-			ev->setAuto(val);
-			
-			return Success;
-		}
-		
-		if(bGet) {
-			std::string var = context.autoVarNameForScope(true, context.getWord());
-			
-			platform::EnvVarHandler * ev = platform::EnvVarHandler::getEVH(envVar);
-			if(!ev) return Failed;
-			
-			std::string val = ev->toString();
-			
-			Entity * entWriteTo = context.getEntity();
-			Entity * entReadFrom = context.getEntity();
-			
-			SCRIPT_VARIABLES & variablesWriteTo = isLocalVariable(var) ? entWriteTo->m_variables : svar;
-			
-			SCRIPT_VAR * sv = nullptr;
-			switch(var[0]) {
-				case '$':      // global text
-				case '\xA3': { // local text
-					sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val, entReadFrom));
-					break;
+		switch(em) {
+			case SET: {
+				std::string val = context.getStringVar(context.getWord());
+				
+				if(!ev) return Failed;
+				ev->setAuto(val);
+				
+				return Success;
+			}
+			case GET: {
+				std::string var = context.autoVarNameForScope(true, context.getWord());
+				
+				if(!ev) return Failed;
+				
+				std::string val = ev->toString();
+				
+				Entity * entWriteTo = context.getEntity();
+				Entity * entReadFrom = context.getEntity();
+				
+				SCRIPT_VARIABLES & variablesWriteTo = isLocalVariable(var) ? entWriteTo->m_variables : svar;
+				
+				SCRIPT_VAR * sv = nullptr;
+				switch(var[0]) {
+					case '$':      // global text
+					case '\xA3': { // local text
+						sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val, entReadFrom));
+						break;
+					}
+					
+					case '#':      // global long
+					case '\xA7': { // local long
+						sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val, entReadFrom)));
+						break;
+					}
+					
+					case '&':      // global float
+					case '@': {    // local float
+						sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val, entReadFrom));
+						break;
+					}
+					
+					default: {
+						ScriptWarning << "Unknown variable type: " << var;
+						return Failed;
+					}
 				}
 				
-				case '#':      // global long
-				case '\xA7': { // local long
-					sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val, entReadFrom)));
-					break;
-				}
-				
-				case '&':      // global float
-				case '@': {    // local float
-					sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val, entReadFrom));
-					break;
-				}
-				
-				default: {
-					ScriptWarning << "Unknown variable type: " << var;
+				if(!sv) {
+					ScriptWarning << "Unable to set variable " << var;
 					return Failed;
 				}
+				
+				return Success;
 			}
-			
-			if(!sv) {
-				ScriptWarning << "Unable to set variable " << var;
-				return Failed;
+			case RESET: {
+				ev->reset();
+				break;
 			}
-			
-			return Success;
+			case LIST: {
+				platform::EnvVarHandler::getEnvVarHandlerList(bListAsEnvVar, bListShowDescription);
+				return Success;
+			}
+			case NONE: return Failed;
 		}
 		
 		return Failed;

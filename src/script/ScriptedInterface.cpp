@@ -148,6 +148,135 @@ class TextInputCommand : public Command { // TODOA not working yet
 			g_gameTime.pause(GameTime::PauseUser);
 			
 			//TODOA see how ScriptConsole::draw() works ! it pauses the game and receives the input focus, try to not pause the game and make inscribing (hand writing) speed depend on objectknowledge 1s-5s skill 100-20  =  (1+((100-skill)/20))s. Inscribing will then fail if player moves or enter combat mode. Sound hand writing when finished. Sound dammit if fails. Store a history to not require re-typing everything.
+/*
+			if(!m_enabled) {
+				return;
+			}
+			
+			UseRenderState state(render2D());
+			
+			Color background = Color::black;
+			background.a = 150;
+			Color line = Color::gray(0.8f);
+			Color selection = Color::yellow;
+			selection.a = 40;
+			
+			{
+				Rectf box = Rectf(g_size);
+				box.bottom = box.top + float((m_buffer.lines() + 1) * hFontDebug->getLineHeight()) + 4.f;
+				EERIEDrawBitmap(box, 0.f, nullptr, background);
+			}
+			
+			Vec2i pos(0);
+			for(size_t i = 0; i < m_buffer.lines(); i++) {
+				hFontDebug->draw(pos, m_buffer.line(i), Color::white);
+				pos.y += hFontDebug->getLineHeight();
+			}
+			
+			pos.y += 1;
+			
+			drawLine(Vec2f(0, pos.y), Vec2f(g_size.width(), pos.y), 0.f, line);
+			
+			pos.y += 2;
+			
+			pos.x += hFontDebug->draw(pos, "> ", Color::green).advance();
+			
+			std::string_view displayText = text();
+			std::string buffer;
+			if(!strVal.empty()) {
+				buffer = displayText;
+				buffer.insert(cursorPos(), strVal);
+				displayText = buffer;
+			}
+			size_t displayCursorPos = cursorPos() + editCursorPos();
+			
+			// Highlight edit area
+			if(!strVal.empty()) {
+				int left = hFontDebug->getTextSize(displayText.substr(0, cursorPos())).advance();
+				int right = hFontDebug->getTextSize(displayText.substr(0, cursorPos() + strVal.size())).advance();
+				int height = hFontDebug->getLineHeight();
+				Rectf box = Rectf(Rect(pos + Vec2i(left, 0), right - left, height));
+				EERIEDrawBitmap(box, 0.f, nullptr, selection);
+			}
+			
+			// Draw text
+			s32 x = hFontDebug->draw(pos.x, pos.y, displayText, Color::white).next();
+			
+			// Preview autocomplete
+			std::string_view completion = m_completion.second;
+			if(cursorPos() == text().size() && cursorPos() < completion.size()) {
+				hFontDebug->draw(x, pos.y, completion.substr(cursorPos()), Color::gray(0.5f));
+			}
+			
+			// Draw cursor
+			bool blink = true;
+			if(mainApp->getWindow()->hasFocus()) {
+				blink = timeWaveSquare(g_platformTime.frameStart(), 1200ms);
+			}
+			if(blink) {
+				int cursor = x;
+				if(cursorPos() != displayText.size()) {
+					cursor = pos.x + hFontDebug->getTextSize(displayText.substr(0, displayCursorPos)).next();
+				}
+				drawLine(Vec2f(cursor, pos.y), Vec2f(cursor, pos.y + hFontDebug->getLineHeight()), 0.f, line);
+				if(editCursorLength() > 0) {
+					int endX = pos.x + hFontDebug->getTextSize(displayText.substr(0, displayCursorPos + editCursorLength())).next();
+					drawLine(Vec2f(endX, pos.y), Vec2f(endX, pos.y + hFontDebug->getLineHeight()), 0.f, line);
+				}
+			}
+			
+			pos.y += hFontDebug->getLineHeight();
+			
+			pos.y += 1;
+			
+			drawLine(Vec2f(0, pos.y), Vec2f(g_size.width(), pos.y), 0.f, line);
+			
+			pos.y += 2;
+			
+			// Draw error message and suggestions
+			if(!m_error.second.empty()) {
+				Vec2i errorPos = pos;
+				errorPos.x += hFontDebug->getTextSize(std::string_view(text()).substr(0, m_error.first)).advance();
+				hFontDebug->draw(errorPos + Vec2i(1), m_error.second, Color::black);
+				hFontDebug->draw(errorPos, m_error.second, Color::red);
+			} else if(!m_suggestions.empty()) {
+				Vec2i suggestionPos = pos;
+				size_t position = 0;
+				size_t start = 0;
+				if(m_selection >= int(MaxVisibleSuggestions)) {
+					start = m_selection - MaxVisibleSuggestions + 1;
+				}
+				for(size_t i = start; i < m_suggestions.size(); i++) {
+					if(i == start + MaxVisibleSuggestions - (start != 0)) {
+						std::ostringstream oss;
+						oss << "... " << (start + 1) << " - " << (start + MaxVisibleSuggestions - (start != 0))
+								<< " / " << m_suggestions.size();
+						hFontDebug->draw(suggestionPos + Vec2i(1), oss.str(), Color::black);
+						hFontDebug->draw(suggestionPos, oss.str(), Color::red);
+						break;
+					}
+					if(m_suggestions[i].first != position) {
+						position = m_suggestions[i].first;
+						suggestionPos.x = pos.x + hFontDebug->getTextSize(std::string_view(text()).substr(0, position)).advance();
+					}
+					if(start != 0 && i == start) {
+						hFontDebug->draw(suggestionPos + Vec2i(1), "...", Color::black);
+						hFontDebug->draw(suggestionPos, "...", Color::red);
+						suggestionPos.y += hFontDebug->getLineHeight();
+					}
+					if(int(i) + 1 == m_selection) {
+						int width = hFontDebug->getTextSize(m_suggestions[i].second).width();
+						int height = hFontDebug->getLineHeight();
+						Rectf highlight = Rectf(Rect(suggestionPos - Vec2i(2, 1), width + 3, height + 2));
+						EERIEDrawBitmap(highlight, 0.f, nullptr, selection);
+						drawLineRectangle(highlight, 0.f, background);
+					}
+					hFontDebug->draw(suggestionPos + Vec2i(1), m_suggestions[i].second, Color::black);
+					hFontDebug->draw(suggestionPos, m_suggestions[i].second, Color::white);
+					suggestionPos.y += hFontDebug->getLineHeight();
+				}
+			}
+//*/			
 			
 			ARX_UNICODE_DrawTextInRect(hFontMenu, Vec2f(200,200), 999999, strQuestion, Color(232, 204, 142));
 			
