@@ -676,13 +676,15 @@ void EnvVarHandler::getEnvVarHandlerList(bool bListAsEnvVar, bool bListShowDescr
 	for(auto it : vEVH) {
 		if(bListAsEnvVar) {
 			str = "	export " + it.first + "=\"" + it.second->toString() + "\";"; // TODO windows/mac too ? but how?
-			strEnvVarList += str + "\n";
+			strEnvVarList += "\n" + str;
 		} else { // as script var to re-use in console
 			str = "	env -s " + it.first + " \"" + it.second->toString() + "\" ";
 		}
 		
 		if(bListShowDescription) {
-			str += " // " + it.second->getDescription() + ". " + it.second->getMinMaxInfo();
+			std::string strDesc = it.second->getDescription() + ". " + it.second->getMinMaxInfo();
+			str           += " // " + strDesc;
+			strEnvVarList += " # "  + strDesc;
 		}
 		
 		if(EVHnoLog::allowLog && !bListAsEnvVar) LogInfo << "[EnvVar] " << str;
