@@ -60,6 +60,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "game/Entity.h"
 #include "game/EntityManager.h"
 
+#include "gui/Cursor.h"
+
 #include "graphics/GraphicsTypes.h"
 #include "graphics/Math.h"
 #include "graphics/data/FTL.h"
@@ -440,14 +442,17 @@ res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // tr
 }
 
 void LODIconAsSkin(EERIE_3DOBJ * obj, TextureContainer * tex) {
-	res::path skintochange = "graph/obj3d/textures/arx_icon_lod";
+	res::path skintochange = "graph/obj3d/textures/arx_icon_lod"; // TODO load arx_icon_lod_debug if in debug mode as it calls a lot of attention to missing icons.
 	
 	//if(!tex) LogError << "icon not set";
 	arx_assert(tex);
 	
-	ReplaceTexture(obj, tex, skintochange);
+	if(tex->m_texName != cursorMovable->m_texName) {
+		ReplaceTexture(obj, tex, skintochange);
+		LogDebug("icon skin " << tex->m_texName);
+	}
 	
-	LogDebug("icon skin " << tex->m_texName);
+	LogDebugIf(tex->m_texName == cursorMovable->m_texName, "icon skin not changed as is red cross cursorMovable");
 }
 
 bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
