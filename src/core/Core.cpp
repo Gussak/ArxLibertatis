@@ -148,6 +148,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "physics/Projectile.h"
 
 #include "platform/CrashHandler.h"
+#include "platform/Environment.h"
 #include "platform/Platform.h"
 #include "platform/ProgramOptions.h"
 
@@ -218,6 +219,8 @@ static long LAST_WEAPON_TYPE = -1;
 
 float PULSATE;
 
+platform::EnvVarHandler * g_allowExperiments = nullptr;
+
 bool AdjustUI() {
 	
 	// Sets Danae Screen size depending on windowed/full-screen state
@@ -238,6 +241,7 @@ bool AdjustUI() {
 }
 
 void runGame() {
+	if(!g_allowExperiments) g_allowExperiments = evh_Create("ARX_DeveloperModeExperiments_IKnowWhatIAmDoing", "this will allow experimental code that may break the game and the savegame", false);
 	
 	mainApp = new ArxGame();
 	if(mainApp->initialize()) {

@@ -696,6 +696,7 @@ EnvVarHandler & EnvVarHandler::setCommon() {
 }
 
 void EnvVarHandler::initEnvVar(char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter) {
+	// TODO check the callstack, if not called from inside a class, the instance may have happened in global static scope and will crash! SIGFPE, why?
 	
 	evbMax.evtD = evbMin.evtD = evbOld.evtD = evbCurrent.evtD = evtH = _evtH;
 	evbMax.strIdD = evbMin.strIdD = evbOld.strIdD = evbCurrent.strIdD = strId = _strId;

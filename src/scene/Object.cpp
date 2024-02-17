@@ -448,6 +448,26 @@ void LODIconAsSkin(EERIE_3DOBJ * obj, TextureContainer * tex) {
 	arx_assert(tex);
 	
 	if(tex->m_texName != cursorMovable->m_texName) {
+		static platform::EnvVarHandler * allowUpscaledIconsAsLODtexture = evh_Create("ARX_LODallowUpscaledIcons", "upscaled icons can be placed at graph/obj3d/textures/ and will be used instead of normal icons", true);
+		if(allowUpscaledIconsAsLODtexture->getB()) { // tries upscaled icons as textures
+			res::path flTex = std::string("graph/obj3d/textures/") + std::string(tex->m_texName.basename());
+			LogDebug("Try load icon texture upscaled for LOD_ICON: " << flTex);
+			//std::ifstream fileValidate;
+			//fileValidate.open(flTex.string().c_str(), std::ifstream::in);
+			//char cCheck = fileValidate.get();
+			//if(fileValidate.good()) {
+			TextureContainer * texAlt = TextureContainer::Load(flTex);
+			if(texAlt) {
+				tex = texAlt;
+				LogDebug("Loaded upscaled icon image to use as texture for LOD_ICON: " << tex->m_texName);
+			} else {
+				//fileValidate.close(); cCheck = cCheck;
+			//} else {
+				LogDebug("FAILED to load icon texture upscaled for LOD_ICON: " << flTex);
+			}
+		}
+		
+		// change texture to requested
 		ReplaceTexture(obj, tex, skintochange);
 		LogDebug("icon skin " << tex->m_texName);
 	}
@@ -563,7 +583,12 @@ std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox, Logge
 		LogDebugIf(objUniquePtr, "faces=" << objUniquePtr->facelist.size() << ", pbox.radius=" << (pbox ? objUniquePtr->pbox->radius : 0.f) << ", file=" << objUniquePtr->fileUniqueRelativePathName );
 		
 		if(objUniquePtr) {
-			static platform::EnvVarHandler * allowModelCache = evh_Create("ARX_Allow3DModelsCache", "", false); // TODO set to true after FixReloadSavegame
+			static platform::EnvVarHandler * allowModelCache = evh_Create("ARX_Allow3DModelsCache", "all 3D models will be in a cache to duplicate from speeding up entity spawning", false); // TODO set to true after it is working w/o breaking the game
+			if(allowModelCache->getB() && !g_allowExperiments->getB()) { // TODO RM after it is working w/o breaking the game
+				LogCritical << allowModelCache->id() << " is experimental. It currently breaks reloading the game.";
+				allowModelCache->setB(false); // protects players from messing the savegame
+			}
+			
 			if(allowModelCache->getB()) {
 				fltCache[id] = objUniquePtr.get(); //release();
 			} else {
