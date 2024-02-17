@@ -500,7 +500,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 		if(ltCfgLOD == LOD_PERFECT) { // LOD_PERFECT (original/vanilla/main) must be initialized elsewhere
 			objLoad = io.obj;
 		} else {
-			objLoad = loadObject(fileChkLOD, pbox).release();
+			objLoad = loadObject(fileChkLOD, pbox, Logger::LogLevel::None).release();
 			LogDebugIf(objLoad, "LOD file loaded: " << fileChkLOD);
 			LogDebugIf(!objLoad, "LOD file not found: " << fileChkLOD);
 		}
@@ -544,7 +544,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 	return true;
 }
 
-std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
+std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox, Logger::LogLevel log) {
 	
 	static std::map<std::string, EERIE_3DOBJ*> fltCache; // TODO check if meshes accept unique dynamic tweaks that could be saved, but anyway the initial load can still re-use the original mesh.
 	
@@ -573,7 +573,15 @@ std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
 		return objCopyFromCache;
 	}
 	
-	LogError << "failed to load 3D model: " << id;
+	std::string strMsg = "failed to load 3D model: " + id;
+	switch(log) {
+		case Logger::LogLevel::Info: LogInfo << strMsg; break;
+		case Logger::LogLevel::Warning: LogWarning << strMsg; break;
+		case Logger::LogLevel::Error: LogError << strMsg; break;
+		case Logger::LogLevel::Critical: LogCritical << strMsg; break;
+		case Logger::LogLevel::Debug: case Logger::LogLevel::Console: case Logger::LogLevel::None: break;
+	}
+	
 	return { };
 }
 

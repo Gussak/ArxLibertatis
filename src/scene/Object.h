@@ -64,7 +64,7 @@ VertexGroupId getGroupForVertex(const EERIE_3DOBJ * eobj, VertexId vertex);
  * 
  * \param pbox true if the object should have a physics box.
  */
-std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox = true);
+std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox = true, Logger::LogLevel log = Logger::LogLevel::Critical);
 
 EERIE_3DOBJ * Eerie_Copy(const EERIE_3DOBJ * obj);
 EERIE_3DOBJ * Eerie_CopyTo(const EERIE_3DOBJ * obj, EERIE_3DOBJ * nouvo);
