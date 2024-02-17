@@ -452,17 +452,11 @@ void LODIconAsSkin(EERIE_3DOBJ * obj, TextureContainer * tex) {
 		if(allowUpscaledIconsAsLODtexture->getB()) { // tries upscaled icons as textures
 			res::path flTex = std::string("graph/obj3d/textures/") + std::string(tex->m_texName.basename());
 			LogDebug("Try load icon texture upscaled for LOD_ICON: " << flTex);
-			//std::ifstream fileValidate;
-			//fileValidate.open(flTex.string().c_str(), std::ifstream::in);
-			//char cCheck = fileValidate.get();
-			//if(fileValidate.good()) {
 			TextureContainer * texAlt = TextureContainer::Load(flTex);
 			if(texAlt) {
 				tex = texAlt;
 				LogDebug("Loaded upscaled icon image to use as texture for LOD_ICON: " << tex->m_texName);
 			} else {
-				//fileValidate.close(); cCheck = cCheck;
-			//} else {
 				LogDebug("FAILED to load icon texture upscaled for LOD_ICON: " << flTex);
 			}
 		}
