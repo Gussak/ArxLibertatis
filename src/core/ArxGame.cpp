@@ -557,36 +557,48 @@ GameFlow::Transition GameFlow::s_currentTransition = GameFlow::FirstLogo;
 
 static AreaId g_areaToLoad = AreaId(10);
 static bool g_initialPlayerCollision = true;
+static bool g_skipStartupIntroCinematics = false;
 
 static void skipLogo() {
 	if(GameFlow::getTransition() != GameFlow::LoadingScreen) {
 		GameFlow::setTransition(GameFlow::LoadingScreen);
+		LogInfo << "Skiping Logos";
 	}
 }
 ARX_PROGRAM_OPTION("skiplogo", "", "Skip logos at startup", &skipLogo)
 
 static void startWithNoclip() {
 	g_initialPlayerCollision = false;
+	LogInfo << "NoClipping enabled";
 }
 ARX_PROGRAM_OPTION("noclip", "", "Start the game with noclipping enabled", &startWithNoclip)
 
 static void loadLevel(u32 level) {
 	g_areaToLoad = AreaId(level);
+	LogInfo << "Loading level area: " + level;
 	skipLogo();
 }
 ARX_PROGRAM_OPTION_ARG("loadlevel", "", "Load a specific level", &loadLevel, "LEVELID")
 
 static void loadSlot(u32 saveSlot) {
 	LOADQUEST_SLOT = SavegameHandle(saveSlot);
+	LogInfo << "Loading savegame slot: " + saveSlot;
 	GameFlow::setTransition(GameFlow::InGame);
 }
 ARX_PROGRAM_OPTION_ARG("loadslot", "", "Load a specific savegame slot", &loadSlot, "SAVESLOT")
 
 static void loadSave(const std::string & saveFile) {
 	g_saveToLoad = saveFile;
+	LogInfo << "Loading savegame file: " + saveFile;
 	GameFlow::setTransition(GameFlow::InGame);
 }
 ARX_PROGRAM_OPTION_ARG("loadsave", "", "Load a specific savegame file", &loadSave, "SAVEFILE")
+
+static void skipStartupIntroCinematics() {
+	LogInfo << "Skip intro cinematics.";
+	g_skipStartupIntroCinematics = true;
+}
+ARX_PROGRAM_OPTION("skipintro", "", "Skip startup intro cinematics", &skipStartupIntroCinematics)
 
 static bool HandleGameFlowTransitions() {
 	
@@ -597,10 +609,11 @@ static bool HandleGameFlowTransitions() {
 		return false;
 	}
 
-	if(GInput->isAnyKeyPressed()) {
+	if(GInput->isAnyKeyPressed() || g_skipStartupIntroCinematics) {
 		ARXmenu.requestMode(Mode_MainMenu);
 		ARX_MENU_Launch(false);
 		GameFlow::setTransition(GameFlow::InGame);
+		g_skipStartupIntroCinematics = false;
 	}
 		
 	if(GameFlow::getTransition() == GameFlow::FirstLogo) {
