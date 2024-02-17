@@ -161,12 +161,12 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 	if(source->level <= level) {
 		#ifdef ARX_DEBUG
 		// prepare filters
-		static platform::EnvRegex erFile = [](){ evh_CreateSNoLog("ARX_DebugFile", "", ".*")->setConverter( [](){erFile.setRegex(evh->getS());} ); return evh; }();
-		static platform::EnvRegex erFunc = [](){ evh_CreateSNoLog("ARX_DebugFunc", "", ".*")->setConverter( [](){erFunc.setRegex(evh->getS());} ); return evh; }();
-		static platform::EnvRegex erLine = [](){ evh_CreateSNoLog("ARX_DebugLine", "", ".*")->setConverter( [](){erLine.setRegex(evh->getS());} ); return evh; }();
+		static platform::EnvRegex erFile = [](){ evh_CreateSNoLog("ARX_DebugFile", "regex for file names", ".*")->setConverter( [](){erFile.setRegex(evh->getS());} ); return evh; }();
+		static platform::EnvRegex erFunc = [](){ evh_CreateSNoLog("ARX_DebugFunc", "regex for pretty function names", ".*")->setConverter( [](){erFunc.setRegex(evh->getS());} ); return evh; }();
+		static platform::EnvRegex erLine = [](){ evh_CreateSNoLog("ARX_DebugLine", "regex for line numbers. tip: to ignore specific lines use ex.: ^(?!.*(1856|1863)).* ", ".*")->setConverter( [](){erLine.setRegex(evh->getS());} ); return evh; }();
 		if(level == Logger::Debug) {
 			// multi regex ex.: "/someFileRegex/someFuncRegex/someLineRegex"
-			static platform::EnvVarHandler * evStrFileFuncLineSplitRegex = [](){ evh_CreateSNoLog("ARX_Debug", "ex.: \";ArxGame;LOD;.*\"", ";.*;.*;.*"); return evh; }();
+			static platform::EnvVarHandler * evStrFileFuncLineSplitRegex = [](){ evh_CreateSNoLog("ARX_Debug", "the first custom char is the section token for @File@Func@Line ex.: \";ArxGame;LOD;.*\"", ";.*;.*;.*"); return evh; }();
 			if(evStrFileFuncLineSplitRegex->isModified()) {
 				std::string strMultiRegex = evStrFileFuncLineSplitRegex->getS();
 				if(strMultiRegex.size() > 1) {
