@@ -39,6 +39,7 @@
 #include "math/Vector.h"
 #include "physics/Collisions.h"
 #include "physics/Physics.h"
+#include "platform/Environment.h"
 #include "platform/Platform.h"
 #include "platform/profiler/Profiler.h"
 #include "scene/GameSound.h"
@@ -83,12 +84,14 @@ void setDraggedEntity(Entity * entity) {
 			}
 		}
 		entity->show = g_draggedItemPreviousPosition ? SHOW_FLAG_ON_PLAYER : SHOW_FLAG_IN_SCENE;
+		LogDebug("drag init " << entity->idString());
 	} else {
 		g_draggedItemPreviousPosition = InventoryPos();
 		g_draggedIconOffset = Vec2f(0.f);
 		g_draggedObjectOffset = Vec2f(0.f);
 	}
 	
+	if(!entity && g_draggedEntity) LogDebug("drag end " << g_draggedEntity->idString());
 	g_draggedEntity = entity;
 	
 	if(entity && entity->obj && entity->obj->pbox) {
@@ -206,12 +209,14 @@ void updateDraggedEntity() {
 	if(g_secondaryInventoryHud.containsPos(Vec2s(mouse))) {
 		if(drop) {
 			g_secondaryInventoryHud.dropEntity();
+			entity->pos = Vec3f();
 		}
 		return;
 	}
 	if(g_playerInventoryHud.containsPos(Vec2s(mouse))) {
 		if(drop) {
 			g_playerInventoryHud.dropEntity();
+			entity->pos = Vec3f();
 		}
 		return;
 	}
@@ -264,6 +269,10 @@ void updateDraggedEntity() {
 		g_dragStatus = EntityDragStatus_Invalid;
 		return;
 	}
+	
+	#define LogXY(VEC) #VEC << ".xy=(" << VEC.x << ", " << VEC.y << "); "
+	#define LogXYZ(VEC) #VEC << ".xyz=(" << VEC.x << ", " << VEC.y << ", " << VEC.z << "); "
+	LogDebug("drag result: " << LogXY(g_draggedObjectOffset) << LogXYZ(origin) << LogXYZ(dir) << LogXYZ(dest) << LogXYZ(g_playerCameraStablePos) << LogXYZ(result.pos) << LogXYZ(result.offset));
 	
 	Vec3f pos = result.pos;
 	
