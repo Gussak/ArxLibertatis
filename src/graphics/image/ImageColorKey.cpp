@@ -297,7 +297,7 @@ static bool sampleColorKey(const u8 * src, size_t w, size_t h, int x, int y, u8 
 
 void Image::applyColorKeyToAlpha(Color key, bool antialias) {
 	
-	if(getFormat() != Format_R8G8B8 && getFormat() != Format_B8G8R8) {
+	if(!canApplyColorKey()) {
 		arx_assert_msg(false, "applyColorKeyToAlpha() not supported for format %d", int(getFormat()));
 		return;
 	}

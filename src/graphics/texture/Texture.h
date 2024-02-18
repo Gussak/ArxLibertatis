@@ -35,6 +35,7 @@ public:
 		HasMipmaps    = 1 << 0,
 		ApplyColorKey = 1 << 1,
 		Intensity     = 1 << 2,
+		ForceColorKey = 1 << 3, // only if possible
 	};
 	DECLARE_FLAGS(TextureFlag, TextureFlags)
 	
