@@ -2202,8 +2202,8 @@ void ManageCasseDArme(Entity * io) {
 	
 }
 
-static bool writeScriptAtModDumpFolder(res::path & pathModdedDump, std::string & esdatPatched, std::string & esdatOriginal) {
-	if(esdatOriginal == esdatPatched) {
+bool writeScriptAtModDumpFolder(const res::path & pathModdedDump, const std::string & esdatPatched, const std::string & esdatOriginal) {
+	if(esdatOriginal.size() == esdatPatched.size() && esdatOriginal == esdatPatched) { // because testing the size first, allows just passing an empty esdatOriginal to force writing esdatPatched
 		return true; // ok, nothing changed
 	}
 	

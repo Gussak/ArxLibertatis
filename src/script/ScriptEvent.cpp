@@ -299,7 +299,7 @@ static const char * toString(ScriptResult ret) {
 }
 #endif
 
-
+/*
 class ScriptEventPreCompiledCommands { //TODO after it works, do some performance test. I guess the way it is now may not be worth the complexity to implement it...
 	//static std::vector<script::Command*> vCmd = {nullptr}; // lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data
 	//static std::vector<std::map<std::string_view, std::unique_ptr<script::Command>>::iterator*> vItCmd = {nullptr}; // lazily filled as commands are accessed. skip index 0, goes from 1 to 255, prevents \x00 to be written in the string data
@@ -421,7 +421,6 @@ public:
 	std::string getCmdStr() { return strCmd; }
 };
 
-#ifdef ARX_PRECOMPILED_SCRIPT
 //this is still broken concerning PreCompiledScripts
 ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
                                ScriptEventName event, ScriptParameters parameters,
@@ -597,7 +596,8 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	
 	return ret;
 }
-#else
+*/
+
 ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
                                ScriptEventName event, ScriptParameters parameters,
                                size_t position, const SCR_TIMER * timer) {
@@ -756,7 +756,6 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	
 	return ret;
 }
-#endif
 
 void ScriptEvent::registerCommand(std::unique_ptr<script::Command> command) {
 	std::string_view name = command->getName();
