@@ -299,6 +299,7 @@ void ARX_PLAYER_ClickedOnTorch(Entity * io) {
 		player.torch_loop = ARX_SOUND_PlaySFX_loop(g_snd.TORCH_LOOP, nullptr, 1.f);
 		
 		player.torch = io;
+		player.torch->pos = Vec3f(); // fixes the dragging out displacement
 		io->setOwner(entities.player());
 		
 	}

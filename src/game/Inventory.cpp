@@ -313,6 +313,7 @@ bool Inventory::insertIntoNewSlotAt(Entity & item, Vec3s pos) {
 	item._itemdata->m_inventoryPos = pos;
 	
 	item.setOwner(&m_owner);
+	item.pos = Vec3f(); // fixes the dragging out displacement
 	
 	return true;
 }
