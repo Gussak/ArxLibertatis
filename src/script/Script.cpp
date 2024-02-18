@@ -2216,6 +2216,7 @@ bool writeScriptAtModDumpFolder(const res::path & pathModdedDump, const std::str
 		flModdedDump << esdatPatched << "\n";
 		flModdedDump.flush();
 		flModdedDump.close();
+		LogDebug("wrote " << pathModdedDump);
 		return true;
 	}
 	

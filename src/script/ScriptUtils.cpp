@@ -41,6 +41,8 @@ namespace script {
 static bool isWhitespace(char c) {
 	return (
 		static_cast<unsigned char>(c) != PreCompiled::PrecHintWord ||
+		static_cast<unsigned char>(c) != PreCompiled::PrecHintCommand ||
+		static_cast<unsigned char>(c) != PreCompiled::PrecHintSkipLoop ||
 		static_cast<unsigned char>(c) <= 32 ||
 		c == '(' ||
 		c == ')'
@@ -398,7 +400,7 @@ bool Context::PrecDecompileWord(std::string & word) {
 	
 	static platform::EnvVarHandler * evhWrite = evh_Create("ARX_PrecompileDump", "dump pre-compiled scripts, you will need an hex editor. obs.: they may not have been fully pre-compiled as this happens lazily on demand.", false);
 	if(evhWrite->getB() && preCompilationUpdatedCanWriteNow) {
-		res::path fl = m_script->file + ".precompiled";
+		res::path fl = "precompiled/" + m_script->file + ".precompiled";
 		writeScriptAtModDumpFolder(fl, m_prec, std::string());
 		preCompilationUpdatedCanWriteNow = false;
 	}
