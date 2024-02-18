@@ -337,7 +337,7 @@ void updateDraggedEntity() {
 		Vec3f start = player.pos + Vec3f(0.f, 80.f, 0.f) - toXZ(result.offset);
 		Vec3f direction = glm::normalize(entity->pos - start);
 		entity->pos = start;
-		EERIE_PHYSICS_BOX_Launch(entity->obj, entity->pos, entity->angle, direction);
+		EERIE_PHYSICS_BOX_Launch(entity->obj, entity->pos, entity->angle, direction * (1.f + player.m_attribute.strength/10.f));
 		ARX_SOUND_PlaySFX(g_snd.WHOOSH, &entity->pos);
 		
 	} else if(glm::abs(result.offsetY) > threshold) {
