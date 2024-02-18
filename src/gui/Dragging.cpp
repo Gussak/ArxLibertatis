@@ -209,14 +209,14 @@ void updateDraggedEntity() {
 	if(g_secondaryInventoryHud.containsPos(Vec2s(mouse))) {
 		if(drop) {
 			g_secondaryInventoryHud.dropEntity();
-			entity->pos = Vec3f();
+			//entity->pos = Vec3f();
 		}
 		return;
 	}
 	if(g_playerInventoryHud.containsPos(Vec2s(mouse))) {
 		if(drop) {
 			g_playerInventoryHud.dropEntity();
-			entity->pos = Vec3f();
+			//entity->pos = Vec3f();
 		}
 		return;
 	}
