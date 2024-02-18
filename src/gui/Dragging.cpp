@@ -91,7 +91,7 @@ void setDraggedEntity(Entity * entity) {
 		g_draggedObjectOffset = Vec2f(0.f);
 	}
 	
-	if(!entity && g_draggedEntity) LogDebug("drag end " << g_draggedEntity->idString());
+	LogDebugIf(!entity && g_draggedEntity, "drag end " << g_draggedEntity->idString());
 	g_draggedEntity = entity;
 	
 	if(entity && entity->obj && entity->obj->pbox) {
