@@ -43,6 +43,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/ScriptedIOProperties.h"
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -56,6 +58,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "scene/Light.h"
 #include "scene/Interactive.h"
 #include "script/ScriptUtils.h"
+#include "util/Number.h"
 
 
 namespace script {
@@ -508,42 +511,88 @@ public:
 		std::string strEntId;
 		
 		bool bRandomize = false;
-		int minA =  0.f;
-		int minS =  0.f;
-		int maxA = 18.f;
-		int maxS = 18.f;
-		std::string rpg = "vanilla";
-		HandleFlags("her") {
+		int minA =  0;
+		int minS = -1;
+		int maxA =  0;
+		int maxS =  0;
+		std::string rpgClass;
+		HandleFlags("hevars") {
 			if(flg & flag('h')) {
 				LogHelp("command " << getName(), R"(
 	rebirth [-er] <e?player> <r?minAttr minSkill maxAttributeValue maxSkillValue charRoleplayClass>
-		r=randomRoll
-		if minAttr < 1 will not reset, minSkill < 0 wont reset
-		if maxAttributeValue maxSkillValue <= 0, wont randomize
-		charRoleplayClass m=mage t=thief w=warrior, use all the letters in the prefered order or "vanilla"
+		-v use random from vanilla code
+		-s just reset all
+		-a <charRoleplayClass> randomRoll roleplay class with suggested max values
+		-r <minAttr minSkill maxAttributeValue maxSkillValue charRoleplayClass> custom randomRoll roleplay class
+			if minAttr  < 1 will not reset
+			if minSkill < 0 will not reset
+			if maxAttributeValue <= 0 will not randomize
+			if maxSkillValue     <= 0 will not randomize
+			charRoleplayClass: m=mage t=thief w=warrior roleplay class. Use all the letters uniquely in the prefered order from most to least, ex "mwt". Or type "vanilla" to use original calc algorithm, will ignore min and max values tho.
+			obs.: max values can be a floating percent (0.0 to 1.0) of the total sum of attributes and skills. only use the dot '.' if you want a percent!
 		
 	Usage:
 		Optional roleplay class attribute and skills randomizer for mage, thief and warrior thru rebirth command
+		run this to just re-roll with vanilla algorithm
+		 rebirth -v
+		run this to just reset all to minimum possible
+		 rebirth -s
+		run this to randomize roleplay class using suggested max values
+		 rebirth -a wmt
 		run this several times to see raw skills applied ex.: this test is better understood at max level, so addxp 1000000
 		 rebirth -r 1  0 -1 85 wmt  // (1=reset attributes to minimum 1; 0=reset skills to minimum 0; 1=max attribute value; 50=max skill value)
+		 rebirth -r 1  0 -1 0.5 wmt
 		then run this to apply attributes:
-		 rebirth -r 1 -1 50 -1 wmt  // (-1=do not reset attr; -1=do not reset skills; 20=max attr value; -1=do not change skills)
-		where last param 'w', 't', 'm' or '.' is the roleplay class prefered option from most to least, or the vanilla calc
-		or run try:
+		 rebirth -r 1 -1 50    -1 wmt  // (-1=do not reset attr; -1=do not reset skills; 20=max attr value; -1=do not change skills)
+		 rebirth -r 1 -1  0.75 -1 wmt
+		try also:
 		 rebirth -r 1 0 50 85 wmt
+		 rebirth -a wmt
 )");
 				return Success;
 			}
 			if(flg & flag('e')) {
 				strEntId = context.getStringVar(context.getWord());
 			}
+			if(flg & flag('v')) {
+				bRandomize = true;
+				minA = 1;
+				minS = 0;
+				rpgClass = "vanilla";
+			}
+			if(flg & flag('a')) {
+				bRandomize = true;
+				minA = 1;
+				minS = 0;
+				maxA = static_cast<int>(player.m_attribute.sum() * 0.50);
+				maxS = static_cast<int>(player.m_skill.sum()     * 0.75);
+				rpgClass = context.getStringVar(context.getWord());
+			}
 			if(flg & flag('r')) {
 				bRandomize = true;
+				
 				minA = static_cast<int>(context.getFloatVar(context.getWord()));
 				minS = static_cast<int>(context.getFloatVar(context.getWord()));
-				maxA = static_cast<int>(context.getFloatVar(context.getWord()));
-				maxS = static_cast<int>(context.getFloatVar(context.getWord()));
-				rpg = context.getStringVar(context.getWord());
+				
+				std::string smA = context.getWord();
+				maxA = static_cast<int>(
+					boost::contains(smA, ".") ?
+						player.m_attribute.sum() * util::parseFloat(smA) :
+						context.getFloatVar(smA)
+				);
+				
+				std::string smS = context.getWord();
+				maxS = static_cast<int>(
+					boost::contains(smS, ".") ?
+						player.m_skill.sum() * util::parseFloat(smS) :
+						context.getFloatVar(smS)
+				);
+				
+				rpgClass = context.getStringVar(context.getWord());
+			}
+			if(flg & flag('s')) {
+				minA = 1;
+				minS = 0;
 			}
 		}
 		
@@ -559,8 +608,9 @@ public:
 				LogError << "failed to reset attributes and skills";
 				return Failed;
 			}
+			
 			if(bRandomize) {
-				if(!ARX_PLAYER_RandomizeRoleplayClass(maxA, maxS, rpg)) {
+				if(!ARX_PLAYER_RandomizeRoleplayClass(maxA, maxS, rpgClass)) {
 					LogError << "failed to randomize roleplay class";
 					return Failed;
 				}

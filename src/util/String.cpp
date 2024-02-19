@@ -19,6 +19,8 @@
 
 #include "util/String.h"
 
+#include "io/log/Logger.h"
+
 #include <utility>
 
 #include <boost/date_time.hpp>
@@ -88,26 +90,30 @@ void applyTokenAt(std::string & strAt, const std::string strToken, const std::st
 	strAt.replace(strAt.find(strToken), strToken.size(), strText);
 }
 
-std::regex * prepareRegex(std::regex * re, std::string strRegex) {
-	try
-	{
-		if(!re) {
-			std::regex * reNew = new std::regex(strRegex.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
-			re = reNew;
-		} else {
-			*re = std::regex(strRegex.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
-		}
-		
-		return re;
-	} catch (const std::regex_error& e) {
-		std::cerr << "ERROR: regex_error caught: " << e.what() << "\n"; // TODO log
-		//RawDebug("regex_error caught: " << e.what());
-		//if(EVHnoLog::isAllowLog()) LogError << "regex_error caught: " << e.what(); // TODO queue if !allowLog ?
+std::regex * prepareRegex(std::regex * re, std::string strRegex, bool allowLog) {
+	std::regex * reNew = nullptr;
+	try {
+		reNew = new std::regex(strRegex.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
 		
 		if(re) {
-			delete re;
-			re = nullptr;
+			*re = *reNew; // copy
+			delete reNew;
+			return re;
+		} else {
+			return reNew;
 		}
+	} catch (const std::regex_error& e) {
+		if(allowLog) {
+			LogError << "regex_error caught: " << e.what();
+		} else {
+			RawDebug(" [E] ERROR: regex_error caught: " << e.what()); 
+		}
+		
+		if(reNew) {
+			delete reNew;
+		}
+		
+		return nullptr;
 	}
 	
 	return nullptr;

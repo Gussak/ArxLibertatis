@@ -312,17 +312,19 @@ class EnvRegex {
 	
 	std::string strRegex;
 	std::string strMsg;
+	std::string strRegexDefault;
 	
 public:
 
 	EnvRegex() : re(nullptr), evhLink(nullptr) { }
 	EnvRegex(std::string _strRegex) : re(nullptr), evhLink(nullptr) { setRegex(_strRegex); }
-	EnvRegex(EnvVarHandler * evh) : re(nullptr) { evhLink = evh; setRegex(evhLink->getS()); }
+	EnvRegex(EnvVarHandler * evh) : re(nullptr) { evhLink = evh; strRegexDefault = evhLink->getS(); setRegex(strRegexDefault); }
 	
 	bool isSet();
 	bool matchRegex(std::string data);
 	bool setRegex(std::string strRE, bool bUpdateEVHlink = false);
 	std::string getRegex() { return strRegex; }
+	std::string getRegexDefault() { return strRegexDefault; }
 	std::string getMsg() {return strMsg;}
 };
 

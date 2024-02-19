@@ -38,7 +38,7 @@
 		ARX_LOG_FORCED(::Logger::Debug) << __VA_ARGS__ << " @" << __PRETTY_FUNCTION__
 #define LogDebugIf(condition, ...)    \
 	if(condition) { LogDebug(__VA_ARGS__); }
-#define RawDebug(x) std::cout << " [D] " << __PRETTY_FUNCTION__ << ":" << __LINE__ << ": " << x << "\n" // use only if unable to use LogDebug
+#define RawDebug(x) std::cout << " [D] " << __PRETTY_FUNCTION__ << ":" << __LINE__ << ": " << x << "\n" // use only if unable to use LogDebug. TODO all other logs could be conditional bAllowLog (because of mutex) and use this as alternative.
 #else
 #define LogDebug(...)               ARX_DISCARD(__VA_ARGS__)
 #define LogDebugIf(condition, ...)  ARX_DISCARD(__VA_ARGS__)

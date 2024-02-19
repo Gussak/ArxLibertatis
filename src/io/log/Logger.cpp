@@ -166,7 +166,13 @@ bool Logger::isEnabled(const char * file, LogLevel level, const char * function,
 		static platform::EnvRegex erLine = [](){ evh_CreateSNoLog("ARX_DebugLine", "regex for line numbers. tip: to ignore specific lines use ex.: ^(?!.*(1856|1863)).* ", ".*")->setConverter( [](){erLine.setRegex(evh->getS());} ); return evh; }();
 		if(level == Logger::Debug) {
 			// multi regex ex.: "/someFileRegex/someFuncRegex/someLineRegex"
-			static platform::EnvVarHandler * evStrFileFuncLineSplitRegex = [](){ evh_CreateSNoLog("ARX_Debug", "the first custom char is the section token for @File@Func@Line ex.: \";ArxGame;LOD;.*\"", ";.*;.*;.*"); return evh; }();
+			static platform::EnvVarHandler * evStrFileFuncLineSplitRegex = [](){
+				evh_CreateSNoLog("ARX_Debug",
+					"the first custom char is the section token for @File@Func@Line ex.: \";ArxGame;LOD;.*\"",
+					";" + erFile.getRegexDefault() + ";" + erFunc.getRegexDefault() + ";" + erLine.getRegexDefault()
+				);
+				return evh;
+			}();
 			if(evStrFileFuncLineSplitRegex->isModified()) {
 				std::string strMultiRegex = evStrFileFuncLineSplitRegex->getS();
 				if(strMultiRegex.size() > 1) {

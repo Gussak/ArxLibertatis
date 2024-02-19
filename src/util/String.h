@@ -140,7 +140,7 @@ inline bool safeGet(T & data, CTYPE * & pos, STYPE & size) {
 
 void applyTokenAt(std::string & strAt, const std::string strToken, const std::string strText);
 
-std::regex * prepareRegex(std::regex * re, std::string strRegex);
+std::regex * prepareRegex(std::regex * re, std::string strRegex, bool allowLog = false);
 
 struct SplitStringSentinel { };
 

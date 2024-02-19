@@ -551,8 +551,10 @@ bool EnvRegex::matchRegex(std::string data) {
 	return re && strRegex.size() && std::regex_search(data.c_str(), *re);
 }
 bool EnvRegex::setRegex(std::string strRE, bool bUpdateEVHlink) {
-	re = util::prepareRegex(re, strRE);
-	if(re) {
+	std::regex * reNew = util::prepareRegex(re, strRE);
+	if(reNew) {
+		re = reNew;
+		if(EVHnoLog::allowLog) LogDebug("regex updated from \"" << strRegex << "\" to \"" << strRE << "\"");
 		strRegex = strRE;
 		if(bUpdateEVHlink && evhLink) {
 			evhLink->setS(strRegex);
@@ -560,6 +562,7 @@ bool EnvRegex::setRegex(std::string strRE, bool bUpdateEVHlink) {
 		return true;
 	}
 	
+	if(EVHnoLog::allowLog) LogError << "regex failed updating from \"" << strRegex << "\" to \"" << strRE << "\"";
 	return false;
 }
 
