@@ -549,6 +549,7 @@ public:
 		 rebirth -r 1 0 50 85 wmt
 		 rebirth -a wmt
 )");
+				LogInfo << "Total Earnt: " << static_cast<int>(player.Attribute_TotalEarnt) << " attribute points, " << static_cast<int>(player.Skill_TotalEarnt) << " skill points";
 				return Success;
 			}
 			if(flg & flag('e')) {
@@ -558,6 +559,8 @@ public:
 				bRandomize = true;
 				minA = 1;
 				minS = 0;
+				maxA = 18;
+				maxS = 18;
 				rpgClass = "vanilla";
 			}
 			if(flg & flag('a')) {

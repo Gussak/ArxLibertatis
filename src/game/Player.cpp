@@ -815,7 +815,7 @@ void ARX_PLAYER_QuickGeneration() {
 		LogError << "failed to reset attributes and skills";
 	}
 	
-	static platform::EnvVarHandler * preferedRoleplayClassOrder = evh_Create("ARX_ScriptCodeEditorCommand", "use 3 letters: w t m. warrior, thief and mage. ex.: \"mtw\" means mage will receive the best values, then thief and finally warrior.", "vanilla");
+	static platform::EnvVarHandler * preferedRoleplayClassOrder = evh_Create("ARX_PreferedRoleplayClassOrder", "use 3 letters uniquely: w t m. warrior, thief and mage. ex.: \"mtw\" means mage will receive the best values, then thief and finally warrior. \"vanilla\" will use vanilla random algorithm for a generic class.", "vanilla");
 	ARX_PLAYER_RandomizeRoleplayClass(18.f, 18.f, preferedRoleplayClassOrder->getS());
 	
 	player.level = 0;
@@ -877,7 +877,7 @@ bool ARX_PLAYER_ResetAttributesAndSkills(int minAttrs, int minSkills) { // minAt
 /*
  * vanilla code, less random, more balanced towards mixed class with not too high nor too low values based on test results and considering the average random that happens (right?)
  */
-bool ARX_PLAYER_Randomize(int maxAttribute, int maxSkill) {
+bool ARX_PLAYER_RandomizeVanilla(int maxAttribute, int maxSkill) {
 	if(maxAttribute >= 1) {
 		while(player.Attribute_Redistribute) {
 			float rn = Random::getf();
@@ -937,7 +937,12 @@ bool ARX_PLAYER_Randomize(int maxAttribute, int maxSkill) {
 		}
 	}
 	
-	return player.Skill_Redistribute > 0 || player.Attribute_Redistribute > 0;
+	if(player.Skill_Redistribute > 0 || player.Attribute_Redistribute > 0) {
+		LogWarning << "remaining to redistribute: skills = " << static_cast<int>(player.Skill_Redistribute) << ", attributes = " << static_cast<int>(player.Attribute_Redistribute);
+		return false;
+	}
+	
+	return true;
 }
 
 bool ARX_PLAYER_RandomizeRoleplayClass(int maxAttribute, int maxSkill, std::string roleplayClassPreferedOrder) {
@@ -946,7 +951,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(int maxAttribute, int maxSkill, std::stri
 	
 	static int iTotSkills = 9;
 	if(roleplayClassPreferedOrder == "vanilla") {
-		return ARX_PLAYER_Randomize(maxAttribute, maxSkill);
+		return ARX_PLAYER_RandomizeVanilla(maxAttribute, maxSkill);
 	}
 	
 	//if(player.Skill_Redistribute > 0 || player.Attribute_Redistribute > 0) {
@@ -1093,7 +1098,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(int maxAttribute, int maxSkill, std::stri
 			player.Skill_Redistribute = player.Skill_TotalEarnt - player.m_skill.sumC();
 			if(player.Skill_Redistribute > 0) {
 				LogInfo << "Distribute remaining skill points " << static_cast<int>(player.Skill_Redistribute) << " with vanilla algorithm."; // this is good to escape the requested class and add some unpredictness
-				ARX_PLAYER_Randomize(0, maxSkill);
+				ARX_PLAYER_RandomizeVanilla(0, maxSkill);
 				LogInfo << "Final skills distribution: " << LOG_SKILLS;
 			}
 		}
@@ -1166,7 +1171,7 @@ bool ARX_PLAYER_RandomizeRoleplayClass(int maxAttribute, int maxSkill, std::stri
 		player.Attribute_Redistribute = player.Attribute_TotalEarnt - player.m_attribute.sumC();
 		if(player.Attribute_Redistribute > 0) {
 			LogInfo << "Distribute remaining attribute points " << static_cast<int>(player.Attribute_Redistribute) << " with vanilla algorithm."; // this is good to escape the requested class and add some unpredictness
-			ARX_PLAYER_Randomize(maxAttribute, 0);
+			ARX_PLAYER_RandomizeVanilla(maxAttribute, 0);
 		}
 		
 		LogInfo << "Final attributes distribution: "
