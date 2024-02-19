@@ -567,8 +567,8 @@ public:
 				bRandomize = true;
 				minA = 1;
 				minS = 0;
-				maxA = static_cast<int>(player.m_attribute.sum() * 0.50);
-				maxS = static_cast<int>(player.m_skill.sum()     * 0.75);
+				maxA = static_cast<int>(player.m_attribute.sum() * 0.50f);
+				maxS = static_cast<int>(player.m_skill.sum()     * 0.75f);
 				rpgClass = context.getStringVar(context.getWord());
 			}
 			if(flg & flag('r')) {

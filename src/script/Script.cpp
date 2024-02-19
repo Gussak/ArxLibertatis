@@ -2208,6 +2208,7 @@ bool writeScriptAtModDumpFolder(const res::path & pathModdedDump, const std::str
 	}
 	
 	res::path folder = pathModdedDump.parent();
+	LogDebug("folder=" << pathModdedDump << ", fl=" << pathModdedDump);
 	std::filesystem::create_directories(folder.string());
 	
 	static std::ofstream flModdedDump;

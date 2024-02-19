@@ -84,6 +84,7 @@ u64 flagsToMask(const char (&flags)[N]) {
 class Context {
 	
 	const EERIE_SCRIPT * m_script;
+	std::string m_prec; // pre-compiled script data
 	size_t m_pos;
 	Entity * m_sender;
 	Entity * m_entity;
@@ -152,7 +153,11 @@ public:
 	
 	void seekToPosition(size_t pos);
 	
-	bool writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount);
+	//bool writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount);
+	std::vector<std::string> precCacheWords;
+	bool PrecompileWord(bool allow, const size_t & precPosBeforeWord, const std::string & word);
+	bool PrecDecompileWord(std::string & word);
+	//bool preCompilationUpdatedCanWriteNow;
 	
 };
 
@@ -221,10 +226,34 @@ bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool ski
 
 struct PreCompiled { // sketch studing script pre-compilation
 	// these shall not be saved, so no need to keep the values unchanged, but they shall not clash, like in an enum.
-	static const unsigned char REFERENCE = 1; // is the hint telling there is a reference to a command
-	static const unsigned char JUSTSKIP = 2; // used in a skip loop that can skip at most 255 chars per time
+	
+	// precompiled data structure/size, type char 0-255, total 3 chars:
+	//  [hint][index in the cache][skip chars]
+	//  [hint][index in the cache][PrecSkipLoopHint]...[PrecSkipLoopHint][skip chars <= PrecSkipMax] // with skip loop
+	// min used that can be overwritten must be at least 3 chars (explained like regex match):
+	//  'if[(]' 'if[ \t]' '""[ \t\n]'
+	inline static const size_t PrecDataSize = 3;
+	
+	// reference hints at PrecPos=0:
+	inline static const unsigned char PrecHintWord = '\x01';
+	inline static const unsigned char PrecHintCommand = '\x02'; // TODO use at ScriptEvent.cpp
+	inline static const unsigned char PrecHintSkipLoop = '\x03'; // TODO use at comments
+	// dont use \t 0x09, \n 0x0A, \r 0x0D (others?)
+	
+	inline static const size_t PrecCacheMaxIndex = 255; // 8bits, char, but max cachable entries is 255, not 256 because index 0 must be ignored.
+	inline static const size_t PrecSkipMax = 254; // 8bits, char, 0xff-1. will never skip 0. there is a minimum skip that is this data size. above this max is a hint for a skip loop!
+	inline static const size_t PrecSkipLoopHint = PrecSkipMax + 1; // 8bits limit 0xff
+	
+	// PrecPos extra data
+	inline static const size_t PrecPosCacheIndex = 1;
+	inline static const size_t PrecPosSkipTo = 2; // comments and white spaces
+	
+	//static const unsigned char JUSTSKIP  = '\x02'; // used in a skip loop that can skip at most 255 chars per time
 	//static const unsigned char WHITESPACE = 3; // is the hint telling to skip up to 255-1=254 chars of comments or white spaces (because \x00 shall not be used in the middle of a string).
 	
+	//// DO_NOT_USE_INDEX_ZERO, the script that is a string, can have no '\x00'
+	//inline static std::vector<std::string> precCacheWords = {"DO_NOT_USE_INDEX_ZERO"};
+	//bool PrecompileWord(const size_t & precPosBeforeWord, const size_t & pos, const std::string & word);
 	// commands
 	//static const unsigned char IF = 5;
 	//static const unsigned char SET = 6;

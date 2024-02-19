@@ -344,9 +344,16 @@ void updateDraggedEntity() {
 	if(g_dragStatus == EntityDragStatus_Throw) {
 		
 		Vec3f start = player.pos + Vec3f(0.f, 80.f, 0.f) - toXZ(result.offset);
-		Vec3f direction = glm::normalize(entity->pos - start);
+		
+		Vec3f direction = entity->pos - start;
+		float fPrecision = 0.2f;
+		direction.x += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
+		direction.y += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
+		direction.z += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
+		direction = glm::normalize(direction);
+		
 		entity->pos = start;
-		EERIE_PHYSICS_BOX_Launch(entity->obj, entity->pos, entity->angle, direction * (1.f + player.m_attribute.strength/10.f));
+		EERIE_PHYSICS_BOX_Launch(entity->obj, entity->pos, entity->angle, direction, (1.f + player.m_attribute.strength/10.f));
 		ARX_SOUND_PlaySFX(g_snd.WHOOSH, &entity->pos);
 		
 	} else if(glm::abs(result.offsetY) > threshold) {

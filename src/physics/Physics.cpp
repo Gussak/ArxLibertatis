@@ -256,7 +256,7 @@ void EERIE_PHYSICS_BOX_Create(EERIE_3DOBJ * obj) {
 
 // Used to launch an object into the physical world...
 void EERIE_PHYSICS_BOX_Launch(EERIE_3DOBJ * obj, const Vec3f & pos,
-                              const Anglef & angle, const Vec3f & vect) {
+                              const Anglef & angle, const Vec3f & vect, const float extraVelocity) {
 	
 	arx_assert(obj);
 	arx_assert(obj->pbox);
@@ -274,7 +274,7 @@ void EERIE_PHYSICS_BOX_Launch(EERIE_3DOBJ * obj, const Vec3f & pos,
 		particle.pos += pos;
 		
 		particle.force = Vec3f(0.f);
-		particle.velocity = vect * (250.f * ratio);
+		particle.velocity = vect * (250.f * ratio) * extraVelocity;
 		particle.mass = 0.4f + ratio * 0.1f;
 		
 	}

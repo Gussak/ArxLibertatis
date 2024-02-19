@@ -24,12 +24,15 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/stacktrace.hpp>
 
+#include "core/Core.h"
 #include "game/Entity.h"
 #include "graphics/data/Mesh.h"
 #include "platform/Dialog.h"
 #include "platform/Environment.h"
 #include "platform/Process.h"
+#include "script/Script.h"
 #include "script/ScriptEvent.h"
 #include "util/Number.h"
 #include "util/String.h"
@@ -38,6 +41,15 @@
 namespace script {
 
 static bool isWhitespace(char c) {
+	if(g_allowExperiments->getB()) {
+		if(	static_cast<unsigned char>(c) == PreCompiled::PrecHintWord ||
+				static_cast<unsigned char>(c) == PreCompiled::PrecHintCommand ||
+				static_cast<unsigned char>(c) == PreCompiled::PrecHintSkipLoop
+		) {
+			return false;
+		}
+	}
+	
 	return (static_cast<unsigned char>(c) <= 32 || c == '(' || c == ')');
 }
 
@@ -63,6 +75,9 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_timer(timer)
 {
 	updateNewLinesList();
+	
+	precCacheWords = {"warning: do not use index zero!"}; // the script that is a string, can have no '\x00' and the index is written to it
+	//preCompilationUpdatedCanWriteNow = false;
 }
 
 void Context::updateNewLinesList() {
@@ -363,12 +378,217 @@ void Context::seekToPosition(size_t pos) {
 	m_pos=pos; 
 }
 
+bool Context::PrecDecompileWord(std::string & word) {
+	if(m_prec.size() == 0) return false;
+	try {
+	if(m_prec[m_pos] != PreCompiled::PrecHintWord) return false;
+	} catch(...) { //TODORM
+	//} catch(const std::exception & e) { //TODORM
+		//LogError << "test callstack dump:" << e.what();
+		LogError << "precsize=" <<m_prec.size() << ",scriptsize="<< m_script->data.size() << ",mpos="<< m_pos << "\n"<<boost::stacktrace::stacktrace();
+		return false;
+	}
+		
+	word = precCacheWords[static_cast<size_t>(m_prec[m_pos + PreCompiled::PrecPosCacheIndex])];
+	
+	//m_pos += static_cast<size_t>(m_prec[m_pos + PreCompiled::PrecPosSkipTo]);
+	#ifdef ARX_DEBUG
+	size_t posIniDebug = m_pos;
+	#endif
+	size_t skip;
+	int iCount = 0;
+	while(true) { // skip chars loop
+		skip = m_prec[m_pos + PreCompiled::PrecPosSkipTo + iCount];
+		if(skip == PreCompiled::PrecSkipLoopHint) {
+			m_pos += PreCompiled::PrecSkipMax;
+			iCount++;
+			continue;
+		}
+		arx_assert(skip > 0);
+		m_pos += skip;
+	}
+	
+	LogDebug("PREC:DECOMPILE: WORD=\"" << word << "\", SKIP=" << m_pos - posIniDebug << ", skipCount=" << iCount);
+	
+	//static platform::EnvVarHandler * evhWrite = evh_Create("ARX_PrecompileDump", "dump pre-compiled scripts, you will need an hex editor. obs.: they may not have been fully pre-compiled as this happens lazily on demand.", true);
+	//if(evhWrite->getB() && preCompilationUpdatedCanWriteNow) {
+		//res::path fl = "precompiled/" + m_script->file + ".precompiled";
+		//writeScriptAtModDumpFolder(fl, m_prec, std::string());
+		//preCompilationUpdatedCanWriteNow = false;
+	//}
+	
+	return true;
+}
+
+enum EPrecStaticStr { EPSSInit, EPSSAllowStatic, EPSSDenyDynamic, EPSSDenyAll };
+std::string Context::getWord(bool evaluateVars) {
+	
+	std::string_view esdat = m_script->data;
+	if(g_allowExperiments->getB() && m_prec.size() > 0) {
+		arx_assert(m_prec.size() == m_script->data.size());
+		esdat = m_prec;
+	}
+	
+	std::string word;
+	
+	if(PrecDecompileWord(word)) {
+		return word;
+	}
+	size_t precPosBeforeWord = m_pos; // before whitespaces' before word
+	bool bPrecompileWord = false;
+	static platform::EnvVarHandler * evhPrecAllowText = evh_Create("ARX_PrecompileAllowStaticText", "allow pre-compilation of words to include static text between \"...\"", false);
+	if(evhPrecAllowText->getB() && !g_allowExperiments->getB()) { // TODO RM after it is working w/o breaking the game
+		LogCritical << evhPrecAllowText->id() << " is experimental. It currently breaks the game.";
+		evhPrecAllowText->setB(false); // protects players
+	}
+	EPrecStaticStr eprecSS = evhPrecAllowText->getB() ? EPrecStaticStr::EPSSInit : EPrecStaticStr::EPSSDenyAll;
+	
+	skipWhitespace(false, true);
+	
+	if(m_pos >= esdat.size()) {
+		return std::string();
+	}
+	
+	bool tilde = false; // number of tildes
+	
+	std::string var;
+	
+	if(esdat[m_pos] == '"') {
+		
+		for(m_pos++; m_pos != esdat.size() && esdat[m_pos] != '"'; m_pos++) {
+			if(esdat[m_pos] == '\n') {
+				if(tilde) {
+					ScriptParserWarning << "unmatched '\"' before end of line";
+				}
+				return word;
+			} else if(esdat[m_pos] == '~') {
+				eprecSS = EPrecStaticStr::EPSSDenyDynamic;
+				if(tilde) {
+					if(evaluateVars) {
+						word += getStringVar(var);
+						var.clear();
+					}
+				}
+				tilde = !tilde;
+			} else if(tilde) {
+				if(evaluateVars) var.push_back(esdat[m_pos]);
+			} else {
+				if(eprecSS == EPrecStaticStr::EPSSInit) eprecSS = EPrecStaticStr::EPSSAllowStatic;
+				word.push_back(esdat[m_pos]);
+			}
+		}
+		
+		if(m_pos != esdat.size()) {
+			m_pos++;
+		} else {
+			ScriptParserWarning << "unmatched '\"'";
+		}
+		
+	} else {
+		
+		// now take chars until it finds a space or unused char
+		for(; m_pos != esdat.size() && !isWhitespace(esdat[m_pos]); m_pos++) {
+			
+			if(esdat[m_pos] == '"') {
+				ScriptParserWarning << "unexpected '\"' inside token";
+			} else if(esdat[m_pos] == '~') {
+				if(tilde) {
+					if(evaluateVars) {
+						word += getStringVar(var);
+						var.clear();
+					}
+				}
+				tilde = !tilde;
+			} else if(tilde) {
+				if(evaluateVars) var.push_back(esdat[m_pos]);
+			} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
+				break;
+			} else {
+				word.push_back(esdat[m_pos]);
+				bPrecompileWord = true;
+			}
+		}
+		
+	}
+	
+	if(tilde) {
+		ScriptParserWarning << "unmatched '~'";
+	}
+	
+	PrecompileWord(bPrecompileWord || eprecSS == EPrecStaticStr::EPSSAllowStatic, precPosBeforeWord, word); // pre-compile only static code
+	
+	return word;
+}
+
+bool Context::PrecompileWord(bool allow, const size_t & precPosBeforeWord, const std::string & word) {
+	static platform::EnvVarHandler * evhAllowWords = evh_Create("ARX_PrecompileAllowWords", "", false);
+	if(evhAllowWords->getB() && !g_allowExperiments->getB()) { // TODO RM after it is working w/o breaking the game
+		LogCritical << evhAllowWords->id() << " is experimental. It currently breaks the game.";
+		evhAllowWords->setB(false); // protects players
+	}
+	if(!allow) return false;
+	if(!evhAllowWords->getB()) return false;
+	if(word.size() < PreCompiled::PrecDataSize) {
+		static platform::EnvVarHandler * evhHintWord = evh_Create("ARX_PrecompileHintWordSize", std::string() + "A word can be pre-compiled if it can have it's size+whiteSpaces increased to at least " + std::to_string(PreCompiled::PrecDataSize), true);
+		if(evhHintWord->getB()) {
+			LogWarning << evhHintWord->getDescription() + ". Word: \"" << word << "\". " << getPositionAndLineNumber(true);
+		}
+		return false;
+	}
+	if(precCacheWords.size() >= PreCompiled::PrecCacheMaxIndex) return false;
+	
+	skipWhitespace(false, true);
+	
+	size_t precIndex = 0;
+	for(size_t i = 0; i < precCacheWords.size(); i++) {
+		if(precCacheWords[i] == word) {
+			precIndex = i;
+			break;
+		}
+	}
+	
+	if(precIndex == 0) {
+		precCacheWords.push_back(word);
+		precIndex = precCacheWords.size() - 1;
+		if(precIndex == PreCompiled::PrecCacheMaxIndex) {
+			LogWarning << "script pre-compilation limit reached for: words. " << getPositionAndLineNumber(true);
+		}
+	}
+	
+	// modify the script with pre-compiled data
+	if(m_prec.size() == 0) m_prec = m_script->data;
+	m_prec[precPosBeforeWord] = PreCompiled::PrecHintWord;
+	m_prec[precPosBeforeWord + PreCompiled::PrecPosCacheIndex] = static_cast<unsigned char>(precIndex);
+	
+	size_t skip = m_pos - precPosBeforeWord;
+	int iCount = 0;
+	while(skip > PreCompiled::PrecSkipMax) { // skip chars loop
+		m_prec[precPosBeforeWord + PreCompiled::PrecPosSkipTo + iCount] =
+			static_cast<unsigned char>(PreCompiled::PrecSkipLoopHint);
+		skip -= PreCompiled::PrecSkipMax;
+		iCount++;
+	}
+	if(skip > 0) {
+		m_prec[precPosBeforeWord + PreCompiled::PrecPosSkipTo + iCount] = static_cast<unsigned char>(skip);
+	}
+	
+	LogDebug("PREC:COMPILE: precPosBeforeWord=" << precPosBeforeWord << ", word=\"" << word << "\", skip=" << (m_pos - precPosBeforeWord) << ", skipCount=" << iCount << ". " << getPositionAndLineNumber(true));
+	
+	static platform::EnvVarHandler * evhWrite = evh_Create("ARX_PrecompileDump", "dump pre-compiled scripts, you will need an hex editor. obs.: they may not have been fully pre-compiled as this happens lazily on demand.", true);
+	if(evhWrite->getB()) {
+		res::path fl = "precompiled/" + m_script->file + ".precompiled";
+		writeScriptAtModDumpFolder(fl, m_prec, std::string());
+	}
+	
+	return true;
+}
 /**
  * // TODOA sketch studing script pre-compilation
  * it is like a pre-compiled script
  * TODO clean all comments
  * TODO convert all \n to ' '
  */
+/*
 bool Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount) { //std::string word, PreCompileReference & ref) { //std::string reference) {
 	static platform::EnvVarHandler * allowPreCompilation = evh_Create("ARX_AllowScriptPreCompilation", "", false);
 	if(!allowPreCompilation->getB()) return false;
@@ -388,86 +608,7 @@ bool Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned cha
 	
 	return true;
 }
-
-std::string Context::getWord(bool evaluateVars) {
-	
-	std::string_view esdat = m_script->data;
-	
-	skipWhitespace(false, true);
-	
-	if(m_pos >= esdat.size()) {
-		return std::string();
-	}
-	
-	bool tilde = false; // number of tildes
-	
-	std::string word;
-	std::string var;
-	
-	if(esdat[m_pos] == '"') {
-		
-		for(m_pos++; m_pos != esdat.size() && esdat[m_pos] != '"'; m_pos++) {
-			if(esdat[m_pos] == '\n') {
-				if(tilde) {
-					ScriptParserWarning << "unmatched '\"' before end of line";
-				}
-				return word;
-			} else if(esdat[m_pos] == '~') {
-				if(tilde) {
-					if(evaluateVars) {
-						word += getStringVar(var);
-						var.clear();
-					}
-				}
-				tilde = !tilde;
-			} else if(tilde) {
-				if(evaluateVars) var.push_back(esdat[m_pos]);
-			} else {
-				word.push_back(esdat[m_pos]);
-			}
-		}
-		
-		if(m_pos != esdat.size()) {
-			m_pos++;
-		} else {
-			ScriptParserWarning << "unmatched '\"'";
-		}
-		
-	} else {
-		
-		// now take chars until it finds a space or unused char
-		for(; m_pos != esdat.size() && !isWhitespace(esdat[m_pos]); m_pos++) {
-			
-			if(esdat[m_pos] == '"') {
-				int i;
-				ScriptParserWarning << "unexpected '\"' inside token";
-				i++;
-				i++;
-			} else if(esdat[m_pos] == '~') {
-				if(tilde) {
-					if(evaluateVars) {
-						word += getStringVar(var);
-						var.clear();
-					}
-				}
-				tilde = !tilde;
-			} else if(tilde) {
-				if(evaluateVars) var.push_back(esdat[m_pos]);
-			} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
-				break;
-			} else {
-				word.push_back(esdat[m_pos]);
-			}
-		}
-		
-	}
-	
-	if(tilde) {
-		ScriptParserWarning << "unmatched '~'";
-	}
-	
-	return word;
-}
+*/
 
 void Context::skipWord() {
 	
