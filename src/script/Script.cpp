@@ -2208,7 +2208,7 @@ bool writeScriptAtModDumpFolder(const res::path & pathModdedDump, const std::str
 	}
 	
 	res::path folder = pathModdedDump.parent();
-	LogDebug("folder=" << pathModdedDump << ", fl=" << pathModdedDump);
+	LogDebug("folder=" << folder << ", fl=" << pathModdedDump);
 	std::filesystem::create_directories(folder.string());
 	
 	static std::ofstream flModdedDump;
@@ -2376,22 +2376,6 @@ std::string fixScriptData(std::string strFilename, std::string strData, char cLi
 	return strData;
 }
 
-/* MultiLineCommentSectionToggleTrick commenting this line will uncomment the block just below it and auto comment the subsequent block!
-void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
-	loadScript(script, g_resources->getFile(pathScript), pathScript);
-}
-void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript) {
-	if(!file) {
-		return;
-	}
-	
-	script.valid = true;
-	
-	script.data = util::toLowercase(file->read());
-	
-	ARX_SCRIPT_ComputeShortcuts(script);
-}
-/*/
 void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
 	loadScript(script, g_resources->getFile(pathScript), pathScript);
 }
@@ -2624,4 +2608,4 @@ void loadScript(EERIE_SCRIPT & script, PakFile * fileInput, res::path & pathScri
 	ARX_SCRIPT_ComputeShortcuts(script);
 	
 }
-//*/
+

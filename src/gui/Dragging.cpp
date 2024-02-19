@@ -187,6 +187,17 @@ EntityDragResult findSpotForDraggedEntity(Vec3f origin, Vec3f dir, Entity * enti
 	return result;
 }
 
+float calcAimAndVelocity(Vec3f * direction, float fPrecision) {
+	if(direction) {
+		direction->x += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
+		direction->y += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
+		direction->z += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
+		*direction = glm::normalize(*direction);
+	}
+	
+	return (1.f + player.m_attribute.strength/10.f)*Random::getf(0.9f,1.1f);
+}
+
 void updateDraggedEntity() {
 	
 	Entity * entity = g_draggedEntity;
@@ -330,8 +341,10 @@ void updateDraggedEntity() {
 			unstackedEntity->show = SHOW_FLAG_IN_SCENE;
 			if(g_dragStatus == EntityDragStatus_Throw) {
 				Vec3f start = player.pos + Vec3f(0.f, 80.f, 0.f) - toXZ(result.offset);
-				Vec3f direction = glm::normalize(unstackedEntity->pos - start + arx::randomVec(-1.f, 1.f) * delta);
 				unstackedEntity->pos = start;
+				Vec3f direction = glm::normalize(unstackedEntity->pos - start + arx::randomVec(-1.f, 1.f) * delta);
+				//float fVelocity = calcAimAndVelocity(&direction); // TODO it is messing the spread too much, why?
+				//LogDebug(unstackedEntity->idString()<<": fVelocity="<<fVelocity<<", direction="<<direction.x<<","<<direction.y<<","<<direction.z);
 				EERIE_PHYSICS_BOX_Launch(unstackedEntity->obj, unstackedEntity->pos, unstackedEntity->angle, direction);
 			} else if(glm::abs(result.offsetY) > threshold) {
 				EERIE_PHYSICS_BOX_Launch(unstackedEntity->obj, unstackedEntity->pos, unstackedEntity->angle, Vec3f(0.f, 0.1f, 0.f));
@@ -344,18 +357,10 @@ void updateDraggedEntity() {
 	if(g_dragStatus == EntityDragStatus_Throw) {
 		
 		Vec3f start = player.pos + Vec3f(0.f, 80.f, 0.f) - toXZ(result.offset);
-		
-		Vec3f direction = entity->pos - start;
-		direction = glm::normalize(direction);
-		float fPrecision = 0.2f;
-		direction.x += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
-		direction.y += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
-		direction.z += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
-		direction = glm::normalize(direction);
-		
+		Vec3f direction = glm::normalize(entity->pos - start);
+		float fVelocity = calcAimAndVelocity(&direction);
 		entity->pos = start;
-		float fVelocity = (1.f + player.m_attribute.strength/10.f);
-		LogDebug("fVelocity="<<fVelocity<<", direction="<<direction.x<<","<<direction.y<<","<<direction.z);
+		LogDebug(entity->idString()<<": fVelocity="<<fVelocity<<", direction="<<direction.x<<","<<direction.y<<","<<direction.z);
 		EERIE_PHYSICS_BOX_Launch(entity->obj, entity->pos, entity->angle, direction, fVelocity);
 		ARX_SOUND_PlaySFX(g_snd.WHOOSH, &entity->pos);
 		

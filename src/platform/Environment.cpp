@@ -547,9 +547,12 @@ void setEnvironmentVariable(const char * name, const char * value) {
 bool EnvRegex::isSet() {
 	return re && strRegex.size(); 
 }
+
 bool EnvRegex::matchRegex(std::string data) {
-	return re && strRegex.size() && std::regex_search(data.c_str(), *re);
+	if(strRegex == ".*") return true; // faster?
+	return re && strRegex.size() && std::regex_search(data.c_str(), *re); // not set or empty will match nothing
 }
+
 bool EnvRegex::setRegex(std::string strRE, bool bUpdateEVHlink) {
 	std::regex * reNew = util::prepareRegex(re, strRE);
 	if(reNew) {

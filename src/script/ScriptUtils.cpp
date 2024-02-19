@@ -41,15 +41,6 @@
 namespace script {
 
 static bool isWhitespace(char c) {
-	if(g_allowExperiments->getB()) {
-		if(	static_cast<unsigned char>(c) == PreCompiled::PrecHintWord ||
-				static_cast<unsigned char>(c) == PreCompiled::PrecHintCommand ||
-				static_cast<unsigned char>(c) == PreCompiled::PrecHintSkipLoop
-		) {
-			return false;
-		}
-	}
-	
 	return (static_cast<unsigned char>(c) <= 32 || c == '(' || c == ')');
 }
 
@@ -67,7 +58,7 @@ std::string_view toLocalizationKey(std::string_view string) {
 Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entity * entity,
                  ScriptMessage msg, ScriptParameters parameters, const SCR_TIMER * timer)
 	: m_script(script)
-	, m_prec(entity->prec_script.data)
+	, precS(precScripts[m_script->file])
 	, m_pos(pos)
 	, m_sender(sender)
 	, m_entity(entity)
@@ -76,8 +67,6 @@ Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entit
 	, m_timer(timer)
 {
 	updateNewLinesList();
-	
-	precCacheWords = {"warning: do not use index zero!"}; // the script that is a string, can have no '\x00' and the index is written to it
 }
 
 void Context::updateNewLinesList() {
@@ -378,76 +367,28 @@ void Context::seekToPosition(size_t pos) {
 	m_pos=pos; 
 }
 
-bool Context::PrecDecompileWord(std::string & word) {
-	if(m_prec.size() == 0) return false;
-	LogDebug("decompile " << m_entity->prec_script.file << ". " << m_entity->idString());
-	LogDebug("scriptsize="<< m_script->data.size() << ", mpos="<< m_pos);
-	LogDebug("precsize=" << m_prec.size());
-	if(m_pos >= m_prec.size() || m_script->data.size() != m_prec.size()) {
-		LogCritical << "precsize=" <<m_prec.size() << ",scriptsize="<< m_script->data.size() << ",mpos="<< m_pos;
-		return false;
+
+void PrecData::updateDbg() {
+	strDebug = "PreCompiledScriptData = { " +
+		(cmd ? ", cmd=" + cmd->getName() + ", " : "") +
+		", posBefore=" + std::to_string(posBefore) +
+		", posAfter=" + std::to_string(posAfter) +
+		", strWord=" + strWord +
+		", skip=" + std::to_string(skip) +
+		", file=" + file +
+		", iTst=" + std::to_string(iTst) +
+		" }";
+}
+
+bool Context::PrecDecompileWord2(std::string & word) {
+	if(getEntity() == entities.player()) return false;
+	if(precS.contains(m_pos)) {
+		LogDebug("DECompile2 " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
+		word = precS[m_pos]->strWord;
+		m_pos = precS[m_pos]->posAfter; // LAST THING!!!
+		return true;
 	}
-	LogDebug("test1");
-	if(m_prec[m_pos] != PreCompiled::PrecHintWord) return false;
-	LogDebug("test2");
-	
-	//size_t pos;
-	//#define UPDATE_m_pos(P) m_pos = m_pos + P;if(pos >= m_prec.size()) { LogCritical << "UB: out of bounds pos=" << pos; return false; LogDebug("test4"); }
-	//UPDATE_pos(PreCompiled::PrecPosCacheIndex);
-	//m_pos += PreCompiled::PrecPosCacheIndex;
-	
-	#define CHK_m_pos if(m_pos >= m_prec.size()) { LogCritical << "UB: out of bounds pos=" << m_pos; return false; }
-	
-	// seek to PreCompiled::PrecPosCacheIndex
-	m_pos++;CHK_m_pos
-	size_t idxw = static_cast<size_t>(m_prec[m_pos]);
-	LogDebug(precCacheWords.size() << ", idxw=" << idxw);
-	arx_assert(idxw < precCacheWords.size());
-	word = precCacheWords[idxw];
-	
-	#ifdef ARX_DEBUG
-	size_t posIniDebugSkipChars = m_pos;
-	#endif
-	size_t skip = 0;
-	size_t skipTot = 0;
-	int iCount = 0;
-	while(true) { // skip chars loop
-		m_pos++;CHK_m_pos
-		skip = m_prec[m_pos];
-		LogDebug("iCount="<<iCount<<", m_pos="<<m_pos<<", skipChk="<<skip);
-		if(skip == PreCompiled::PrecSkipLoopHint) {
-			skipTot += PreCompiled::PrecSkipMax;
-			iCount++;
-			continue;
-		}
-		
-		arx_assert(skip > 0);
-		skipTot += skip;
-		break;
-	}
-	m_pos += skipTot;CHK_m_pos
-	//while(true) { // skip chars loop
-		////UPDATE_pos(PreCompiled::PrecPosSkipTo + iCount);LogDebug("test5");
-		////LogDebug("test3");
-		//m_pos++;CHK_m_pos
-		//skip = m_prec[m_pos];
-		//LogDebug("iCount="<<iCount<<", m_pos="<<m_pos<<", skipChk="<<skip);
-		//if(skip == PreCompiled::PrecSkipLoopHint) {
-			//m_pos += PreCompiled::PrecSkipMax;
-			//iCount++;
-			//continue;
-		//}
-		
-		//arx_assert(skip > 0);
-		////UPDATE_pos(skip);LogDebug("test6");
-		//m_pos += skip;CHK_m_pos
-		////m_pos = pos;
-		//break;
-	//}
-	
-	LogDebug("PREC:DECOMPILE: WORD=\"" << word << "\", SKIP=" << m_pos - posIniDebugSkipChars << ", skipTot=" << skipTot << ", skipCount=" << iCount << ", m_pos=" << m_pos);
-	
-	return true;
+	return false;
 }
 
 enum EPrecStaticStr { EPSSInit, EPSSAllowStatic, EPSSDenyDynamic, EPSSDenyAll };
@@ -469,30 +410,13 @@ public:
 std::string Context::getWord(bool evaluateVars) {
 	
 	std::string_view esdat = m_script->data;
-	if(g_allowExperiments->getB() && m_prec.size() > 0) {
-		if(m_prec.size() != m_script->data.size()) {
-			//arx_assert(false, "differs %s[%d] != %s[%d]", m_entity->prec_script.file, m_prec.size(), m_script->file, m_script->data.size());
-			LogDebug("differs " << m_entity->prec_script.file << "=" << m_prec.size() << ", " << m_script->file << "=" << m_script->data.size());
-			LogWarning << "pre-compiled script will change from \"" << m_entity->prec_script.file << "\" to \"" << m_script->file << "\"";
-			m_entity->prec_script = *m_script; //updated m_prec
-		}
-		esdat = m_prec;
-	}
 	
 	std::string word;
 	
-	if(PrecDecompileWord(word)) {
+	if(PrecDecompileWord2(word)) { //if(PrecDecompileWord(word)) {
 		return word;
 	}
 	PrecWord precw(m_pos);
-	//size_t precPosBeforeWord = m_pos; // before whitespaces' before word
-	//bool bPrecompileWord = false;
-	//static platform::EnvVarHandler * evhPrecAllowText = evh_Create("ARX_PrecompileAllowStaticText", "allow pre-compilation of words to include static text between \"...\"", false);
-	//if(evhPrecAllowText->getB() && !g_allowExperiments->getB()) { // TODO RM after it is working w/o breaking the game
-		//LogCritical << evhPrecAllowText->id() << " is experimental. It currently breaks the game.";
-		//evhPrecAllowText->setB(false); // protects players
-	//}
-	//EPrecStaticStr eprecSS = evhPrecAllowText->getB() ? EPrecStaticStr::EPSSInit : EPrecStaticStr::EPSSDenyAll;
 	
 	skipWhitespace(false, true);
 	
@@ -566,111 +490,41 @@ std::string Context::getWord(bool evaluateVars) {
 		ScriptParserWarning << "unmatched '~'";
 	}
 	
-	PrecompileWord(precw.bPrecompileWord || precw.eprecSS == EPrecStaticStr::EPSSAllowStatic, precw.precPosBeforeWord, word); // pre-compile only static code
+	PrecCompileWord2(precw.bPrecompileWord || precw.eprecSS == EPrecStaticStr::EPSSAllowStatic, precw.precPosBeforeWord, word); // pre-compile only static code
 	
 	return word;
 }
 
-bool Context::PrecompileWord(bool allow, const size_t & precPosBeforeWord, const std::string & word) {
+bool Context::PrecCompileWord2(bool allow, size_t precPosBeforeWord, const std::string & word) {
+	if(!allow) return false;
+	if(getEntity() == entities.player()) return false; // TODO could just deny console commands from ScriptConsole::execute() -> ScriptEvent::resume(&es, entity, pos);
+	if(word.find_first_of("abcdefghijklmnopqrstuvwxyz_0123456789") == std::string_view::npos) return false;
 	static platform::EnvVarHandler * evhAllowWords = evh_Create("ARX_PrecompileAllowWords", "", false);
-	if(evhAllowWords->getB() && !g_allowExperiments->getB()) { // TODO RM after it is working w/o breaking the game
-		LogCritical << evhAllowWords->id() << " is experimental. It currently breaks the game.";
+	if(evhAllowWords->getB() && !g_allowExperiments->getB()) {
+		LogCritical << evhAllowWords->id() << " is experimental, may crash the game!";
 		evhAllowWords->setB(false); // protects players
 	}
-	if(!allow) return false;
 	if(!evhAllowWords->getB()) return false;
-	if(word.size() < PreCompiled::PrecDataSize) {
-		static platform::EnvVarHandler * evhHintWord = evh_Create("ARX_PrecompileHintWordSize", std::string() + "A word can be pre-compiled if it can have it's size+whiteSpaces increased to at least " + std::to_string(PreCompiled::PrecDataSize) + ".", true);
-		if(evhHintWord->getB()) {
-			LogWarning << evhHintWord->getDescription() + " Word: \"" << word << "\". Script: " + m_entity->prec_script.file << ":" << getPositionAndLineNumber(true);
-		}
-		return false;
-	}
-	if(precCacheWords.size() >= PreCompiled::PrecCacheMaxIndex) return false;
 	
-	skipWhitespace(false, true);
-	
-	size_t precIndex = 0;
-	for(size_t i = 0; i < precCacheWords.size(); i++) {
-		if(precCacheWords[i] == word) {
-			precIndex = i;
-			break;
-		}
+	if(precS.contains(precPosBeforeWord)) {
+		LogDebug("updating PrecData from: " << precS[m_pos]->info());
+		delete precS[precPosBeforeWord];
 	}
-	
-	if(precIndex == 0) {
-		precCacheWords.push_back(word);
-		precIndex = precCacheWords.size() - 1;
-		if(precIndex == PreCompiled::PrecCacheMaxIndex) {
-			LogWarning << "script pre-compilation limit reached for: words. " << getPositionAndLineNumber(true);
-		}
-	}
-	
-	LogDebug("modify with pre-compiled data. " << m_script->file << ". " << m_entity->idString());
-	arx_assert(m_script->file.size() > 0);
-	if(m_entity->prec_script.file != m_script->file) {
-		if(m_entity->prec_script.file.size() > 0) {
-			LogWarning << "pre-compiled script will change from \"" << m_entity->prec_script.file << "\" to \"" << m_script->file << "\"";
-			// TODO cache the pre-compiled scripts in a map
-		}
-		m_entity->prec_script = *m_script; // this updates m_prec
-		//m_prec.size() == 0 || 
-		//if(m_entity->prec_script.data.size()
-		//m_prec = m_script->data;
-		//m_entity->prec_script.file = m_script->file;
-	}
-	m_prec[precPosBeforeWord] = PreCompiled::PrecHintWord;
-	m_prec[precPosBeforeWord + PreCompiled::PrecPosCacheIndex] = static_cast<unsigned char>(precIndex);
-	
-	size_t skip = m_pos - precPosBeforeWord;
-	int iCount = 0;
-	while(skip > PreCompiled::PrecSkipMax) { // skip chars loop
-		m_prec[precPosBeforeWord + PreCompiled::PrecPosSkipTo + iCount] =
-			static_cast<unsigned char>(PreCompiled::PrecSkipLoopHint);
-		skip -= PreCompiled::PrecSkipMax;
-		iCount++;
-	}
-	if(skip > 0) {
-		m_prec[precPosBeforeWord + PreCompiled::PrecPosSkipTo + iCount] = static_cast<unsigned char>(skip);
-	}
-	
-	LogDebug("PREC:COMPILE: precPosBeforeWord=" << precPosBeforeWord << ", word=\"" << word << "\", skip=" << (m_pos - precPosBeforeWord) << ", skipCount=" << iCount << ". " << getPositionAndLineNumber(true));
-	
-	static platform::EnvVarHandler * evhWrite = evh_Create("ARX_PrecompileDump", "dump pre-compiled scripts, you will need an hex editor. obs.: they may not have been fully pre-compiled as this happens lazily on demand.", true);
-	if(evhWrite->getB()) {
-		res::path fl = "precompiled/" + m_script->file + ".precompiled";
-		writeScriptAtModDumpFolder(fl, m_prec, std::string());
-	}
+	precS[precPosBeforeWord] = new PrecData(
+		precPosBeforeWord,
+		m_pos,
+		0,
+		m_script->file,
+		
+		nullptr,
+		word,
+		
+		"" // keep last dummy
+	);
+	LogDebug("Compile2 " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[precPosBeforeWord]->info());
 	
 	return true;
 }
-/**
- * // TODOA sketch studing script pre-compilation
- * it is like a pre-compiled script
- * TODO clean all comments
- * TODO convert all \n to ' '
- */
-/*
-bool Context::writePreCompiledData(std::string & esdat, size_t pos, unsigned char cCmd, unsigned char cSkipCharsCount) { //std::string word, PreCompileReference & ref) { //std::string reference) {
-	static platform::EnvVarHandler * allowPreCompilation = evh_Create("ARX_AllowScriptPreCompilation", "", false);
-	if(!allowPreCompilation->getB()) return false;
-	
-	//arx_assert_msg(!(word.size() < reference.size()),"pre-compiled reference=%s needs to be at most word=%s size", reference.c_str(), word.c_str());
-	//m_script->data[pos] = PreCompiled::REFERENCE;
-	//m_script->data[pos+1] = c;
-	//m_script->data[pos+1] = ref;
-	//m_script->data[pos+2] = word.size();
-	esdat[pos] = script::PreCompiled::REFERENCE;
-	//pos++;arx_assert_msg(pos<esdat.size(),"beyond esdat size for cCmd=%d",cCmd);
-	pos++;arx_assert_msg(pos<esdat.size(),"%lu should be < esdat size=%lu for cCmd=%d",pos,esdat.size(),cCmd);
-	esdat[pos] = cCmd;
-	//pos++;arx_assert_msg(pos<esdat.size(),"beyond esdat size for cSkipCharsCount=%d",cSkipCharsCount);
-	pos++;arx_assert_msg(pos<esdat.size(),"%lu should be < esdat size=%lu for cSkipCharsCount=%d",pos,esdat.size(),cSkipCharsCount);
-	esdat[pos] = cSkipCharsCount;
-	
-	return true;
-}
-*/
 
 void Context::skipWord() {
 	

@@ -32,6 +32,9 @@ namespace logger {
 
 void ColorConsole::log(const Source & file, int line, Logger::LogLevel level, std::string_view str) {
 	
+	static platform::EnvRegex erOutputFilter = [](){ evh_CreateSNoLog("ARX_DebugOutput", "regex for output content", ".*")->setConverter( [](){erOutputFilter.setRegex(evh->getS());} ); return evh; }();
+	if(level == Logger::Debug && erOutputFilter.isSet() && !erOutputFilter.matchRegex(std::string(str))) return;
+	
 	std::ostream * os = (level >= Logger::Warning) ? &std::cerr : &std::cout;
 	
 	size_t length = 0;
