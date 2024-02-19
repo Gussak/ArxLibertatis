@@ -84,7 +84,7 @@ u64 flagsToMask(const char (&flags)[N]) {
 class Context {
 	
 	const EERIE_SCRIPT * m_script;
-	std::string m_prec; // pre-compiled script data
+	std::string & m_prec; //pre-compiled script
 	size_t m_pos;
 	Entity * m_sender;
 	Entity * m_entity;
@@ -242,9 +242,10 @@ struct PreCompiled { // sketch studing script pre-compilation
 	
 	inline static const size_t PrecCacheMaxIndex = 255; // 8bits, char, but max cachable entries is 255, not 256 because index 0 must be ignored.
 	inline static const size_t PrecSkipMax = 254; // 8bits, char, 0xff-1. will never skip 0. there is a minimum skip that is this data size. above this max is a hint for a skip loop!
-	inline static const size_t PrecSkipLoopHint = PrecSkipMax + 1; // 8bits limit 0xff
+	inline static const size_t PrecSkipLoopHint = PrecSkipMax + 1; // 8bits limit 0xff. TODO multiply instead of add... needs to convert to integer of 16bits or 24bits or 32bits
 	
 	// PrecPos extra data
+	inline static const size_t PrecPosHint = 0;
 	inline static const size_t PrecPosCacheIndex = 1;
 	inline static const size_t PrecPosSkipTo = 2; // comments and white spaces
 	

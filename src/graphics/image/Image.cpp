@@ -27,6 +27,7 @@
 
 #include "graphics/image/stb_image.h"
 
+#include "core/Core.h"
 #include "graphics/Math.h"
 #include "io/fs/FilePath.h"
 #include "io/resource/PakReader.h"
@@ -147,18 +148,22 @@ bool Image::load(const char * data, size_t size, const char * file) {
 	// Release resources
 	stbi::stbi_image_free(pixels);
 	
-	static platform::EnvVarHandler * max = evh_Create("ARX_MaxTextureSize", "", 0, 0); // Experimental (still too glitchy results), so default is 0 = disabled
-	if(max->getI() > 0 && (width > max->getI() || height > max->getI())) {
+	static platform::EnvVarHandler * evhMaxSz = evh_Create("ARX_MaxTextureSize", "0 = disabled", 0, 0);
+	if(evhMaxSz->getI() > 0 && !g_allowExperiments->getB()) {
+		LogCritical << evhMaxSz->id() << " is experimental. It currently is too glitchy.";
+		evhMaxSz->setI(0);
+	}
+	if(evhMaxSz->getI() > 0 && (width > evhMaxSz->getI() || height > evhMaxSz->getI())) {
 		if(!boost::contains(file, "interface")) { // TODO filter out everything that glitches, or convert them (dinamically if possible) to a format that do not glitch.
 			int widthNew = 0;
 			int heightNew = 0;
 			if(width >= height) {
-				float fRatio = width/static_cast<float>(max->getI());
-				widthNew = max->getI();
+				float fRatio = width/static_cast<float>(evhMaxSz->getI());
+				widthNew = evhMaxSz->getI();
 				heightNew = static_cast<int>(height/(fRatio));
 			} else {
-				float fRatio = height/static_cast<float>(max->getI());
-				heightNew = max->getI();
+				float fRatio = height/static_cast<float>(evhMaxSz->getI());
+				heightNew = evhMaxSz->getI();
 				widthNew = static_cast<int>(width/(fRatio));
 			}
 			LogWarning << "resizing image '" << file << "' from " << width << "x" << height << " to " << widthNew << "x" << heightNew;

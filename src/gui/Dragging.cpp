@@ -346,6 +346,7 @@ void updateDraggedEntity() {
 		Vec3f start = player.pos + Vec3f(0.f, 80.f, 0.f) - toXZ(result.offset);
 		
 		Vec3f direction = entity->pos - start;
+		direction = glm::normalize(direction);
 		float fPrecision = 0.2f;
 		direction.x += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
 		direction.y += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
@@ -353,7 +354,9 @@ void updateDraggedEntity() {
 		direction = glm::normalize(direction);
 		
 		entity->pos = start;
-		EERIE_PHYSICS_BOX_Launch(entity->obj, entity->pos, entity->angle, direction, (1.f + player.m_attribute.strength/10.f));
+		float fVelocity = (1.f + player.m_attribute.strength/10.f);
+		LogDebug("fVelocity="<<fVelocity<<", direction="<<direction.x<<","<<direction.y<<","<<direction.z);
+		EERIE_PHYSICS_BOX_Launch(entity->obj, entity->pos, entity->angle, direction, fVelocity);
 		ARX_SOUND_PlaySFX(g_snd.WHOOSH, &entity->pos);
 		
 	} else if(glm::abs(result.offsetY) > threshold) {

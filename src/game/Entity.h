@@ -356,6 +356,7 @@ public:
 	DisabledEvents m_disabledEvents;
 	EERIE_SCRIPT script; // Primary Script
 	EERIE_SCRIPT over_script; // Overriding Script
+	EERIE_SCRIPT prec_script; // pre-compiled script data
 	short stat_count;
 	short stat_sent;
 	IO_TWEAKER_INFO * tweakerinfo; // optional tweaker infos
