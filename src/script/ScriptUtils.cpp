@@ -383,7 +383,7 @@ void PrecData::updateDbg() {
 bool Context::PrecDecompileWord2(std::string & word) {
 	if(getEntity() == entities.player()) return false;
 	if(precS.contains(m_pos)) {
-		LogDebug("DECompile2 " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
+		if(false) LogDebug("DECompile2 " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info()); // too much log
 		word = precS[m_pos]->strWord;
 		m_pos = precS[m_pos]->posAfter; // LAST THING!!!
 		return true;
@@ -507,7 +507,7 @@ bool Context::PrecCompileWord2(bool allow, size_t precPosBeforeWord, const std::
 	if(!evhAllowWords->getB()) return false;
 	
 	if(precS.contains(precPosBeforeWord)) {
-		LogDebug("updating PrecData from: " << precS[m_pos]->info());
+		LogDebug("WARNING: updating PrecData from: " << precS[m_pos]->info());
 		delete precS[precPosBeforeWord];
 	}
 	precS[precPosBeforeWord] = new PrecData(
@@ -521,7 +521,7 @@ bool Context::PrecCompileWord2(bool allow, size_t precPosBeforeWord, const std::
 		
 		"" // keep last dummy
 	);
-	LogDebug("Compile2 " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[precPosBeforeWord]->info());
+	LogDebug("ScriptCompile:Words[" << precPosBeforeWord << "]sz=" << precS.size() << ":" << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[precPosBeforeWord]->info());
 	
 	return true;
 }

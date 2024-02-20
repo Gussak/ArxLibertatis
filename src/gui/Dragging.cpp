@@ -341,10 +341,8 @@ void updateDraggedEntity() {
 			unstackedEntity->show = SHOW_FLAG_IN_SCENE;
 			if(g_dragStatus == EntityDragStatus_Throw) {
 				Vec3f start = player.pos + Vec3f(0.f, 80.f, 0.f) - toXZ(result.offset);
-				unstackedEntity->pos = start;
 				Vec3f direction = glm::normalize(unstackedEntity->pos - start + arx::randomVec(-1.f, 1.f) * delta);
-				//float fVelocity = calcAimAndVelocity(&direction); // TODO it is messing the spread too much, why?
-				//LogDebug(unstackedEntity->idString()<<": fVelocity="<<fVelocity<<", direction="<<direction.x<<","<<direction.y<<","<<direction.z);
+				unstackedEntity->pos = start;
 				EERIE_PHYSICS_BOX_Launch(unstackedEntity->obj, unstackedEntity->pos, unstackedEntity->angle, direction);
 			} else if(glm::abs(result.offsetY) > threshold) {
 				EERIE_PHYSICS_BOX_Launch(unstackedEntity->obj, unstackedEntity->pos, unstackedEntity->angle, Vec3f(0.f, 0.1f, 0.f));
