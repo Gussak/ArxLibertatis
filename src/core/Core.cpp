@@ -241,7 +241,7 @@ bool AdjustUI() {
 }
 
 void runGame() {
-	if(!g_allowExperiments) g_allowExperiments = evh_Create("ARX_DeveloperModeExperiments_IKnowWhatIAmDoing", "this will allow experimental code that may break the game and the savegame", false);
+	if(!g_allowExperiments) g_allowExperiments = evh_Create("ARX_DeveloperModeExperiments_IKnowWhatIAmDoing", "This will allow experimental code that may break the game and the savegame. So you should play the game knowing that you can lose the savegame.", false);
 	
 	mainApp = new ArxGame();
 	if(mainApp->initialize()) {

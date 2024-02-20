@@ -83,51 +83,56 @@ u64 flagsToMask(const char (&flags)[N]) {
 }
 
 class PrecData {
-public:
-	int iTst = 1000;
+	void updateDbg();
 	
+public:
 	// base
 	size_t posBefore;
 	size_t posAfter;
-	size_t skip;
-	const std::string file;
+	std::string file;
 	
 	// opt
 	Command * cmd;
 	std::string strWord;
+	std::string varName;
 	
 	std::string strDebug; // keep last
-	
-	void updateDbg();
 	
 	PrecData(
 		size_t _posBefore,
 		size_t _posAfter,
-		size_t _skip,
-		const std::string _file,
+		std::string _file,
 		
 		Command * _cmd,
 		std::string _strWord,
+		std::string _varName,
 		
-		std::string _strDummyDiscarded = "" // keep last
+		std::string _strDebug = "" // keep last with default
 	) : 
 		posBefore(_posBefore),
 		posAfter(_posAfter),
-		skip(_skip),
 		file(_file),
 		
 		cmd(_cmd),
 		strWord(_strWord),
+		varName(_varName),
 		
-		strDebug(_strDummyDiscarded)
+		strDebug(_strDebug)
 	{
-		iTst = 2000;
 		updateDbg();
 	}
 	
 	std::string_view info() { updateDbg(); return strDebug; }
 };
 static std::map< std::string, std::map<size_t, PrecData*> > precScripts;
+
+struct PrecCQ {
+	Context * context = nullptr;
+	size_t precPosBefore = size_t(-1);
+	std::string word;
+	Command * cmd = nullptr;
+	std::string varName;
+};
 
 class Context {
 	
@@ -141,6 +146,9 @@ class Context {
 	const SCR_TIMER * m_timer;
 	std::vector<std::pair<size_t, std::string>> m_stackIdCalledFromPos;
 	std::vector<size_t> m_vNewLineAt;
+	
+	static std::vector<PrecCQ> precCompileQueue;
+	bool PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName);
 	
 public:
 	
@@ -201,8 +209,13 @@ public:
 	
 	void seekToPosition(size_t pos);
 	
-	bool PrecCompileWord2(bool allow, size_t precPosBeforeWord, const std::string & word);
-	bool PrecDecompileWord2(std::string & word);
+	static void PrecCompileQueueProcess(Context & context);
+	static void PrecCompileQueueAdd(const Context * context, size_t precPosBefore, std::string word = "", const Command * cmd = nullptr, std::string varName = "");
+	bool PrecCompile(bool allow, size_t precPosBefore, std::string * word = nullptr, Command * cmd = nullptr, std::string * varName = nullptr);
+	
+	bool PrecDecompileWord(std::string & word) { return PrecDecompile(&word, nullptr, nullptr); }
+	bool PrecDecompileCmd(Command ** cmdPointer) { return PrecDecompile(nullptr, cmdPointer, nullptr); }
+	bool PrecDecompileVarName(std::string & varName) { return PrecDecompile(nullptr, nullptr, &varName); }
 	
 };
 

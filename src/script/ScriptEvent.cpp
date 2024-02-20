@@ -299,6 +299,7 @@ static const char * toString(ScriptResult ret) {
 }
 #endif
 
+//* toggleCommentBlock: 1st is working, 2nd is experimental
 ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
                                ScriptEventName event, ScriptParameters parameters,
                                size_t position, const SCR_TIMER * timer) {
@@ -457,6 +458,194 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	
 	return ret;
 }
+/*/ // middle of toggleCommentBlock
+ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
+                               ScriptEventName event, ScriptParameters parameters,
+                               size_t position, const SCR_TIMER * timer) {
+	
+	ScriptResult ret = ACCEPT;
+	
+	totalCount++;
+	
+	arx_assert(entity);
+	
+	if(checkInteractiveObject(entity, event.getId(), ret)) {
+		return ret;
+	}
+	
+	if(!es->valid) {
+		return ACCEPT;
+	}
+	
+	if(entity->m_disabledEvents & event.toDisabledEventsMask()) {
+		return REFUSE;
+	}
+	
+	// Finds script position to execute code...
+	size_t pos = position;
+	if(!event.getName().empty()) {
+		arx_assert(event.getId() == SM_NULL);
+		arx_assert_msg(ScriptEventName::parse(event.getName()).getId() == SM_NULL, "non-canonical event name");
+		pos = FindScriptPos(es, "on " + event.getName());
+	} else if(event != SM_EXECUTELINE) {
+		arx_assert(event.getId() < SM_MAXCMD);
+		pos = es->shortcut[event.getId()];
+		arx_assert(pos == size_t(-1) || pos <= es->data.size());
+	}
+
+	if(pos == size_t(-1)) {
+		return ACCEPT;
+	}
+	
+	LogDebug("--> " << event << " params=\"" << parameters << "\"" << " entity=" << entity->idString()
+	         << (es == &entity->script ? " base" : " overriding") << " pos=" << pos);
+	
+	script::Context context(es, pos, sender, entity, event.getId(), std::move(parameters), timer);
+	
+	if(event != SM_EXECUTELINE) {
+		std::string word = context.getCommand();
+		if(word != "{") {
+			ScriptEventWarning << "<-- missing bracket after event, got \"" << word << "\"";
+			return ACCEPT;
+		}
+	}
+	
+	size_t brackets = 1;
+	
+	script::Command * precCmdPointer;
+	std::string word;
+	bool bPrecCmdExec;
+	size_t precPosBeforeCmd = size_t(-1);
+	for(;;) {
+		script::Context::PrecCompileQueueProcess(context);
+		bPrecCmdExec = false;
+		precCmdPointer = nullptr;
+		if(context.PrecDecompileCmd(&precCmdPointer)) {
+			bPrecCmdExec = true;
+		} else {
+			precPosBeforeCmd = context.getPosition();
+			
+			word = context.getCommand(event != SM_EXECUTELINE);
+			if(word.empty()) {
+				if(event == SM_EXECUTELINE && context.getPosition() != es->data.size()) {
+					arx_assert(es->data[context.getPosition()] == '\n');
+					LogDebug("<-- line end");
+					return ACCEPT;
+				}
+				ScriptEventWarning << "<-- reached script end without accept / refuse / return";
+				return ACCEPT;
+			}
+			
+			// Remove all underscores from the command.
+			word.resize(std::remove(word.begin(), word.end(), '_') - word.begin());
+			
+			if(auto it = commands.find(word); it != commands.end()) {
+				precCmdPointer = it->second.get();
+			}
+		}
+		
+		if(precCmdPointer) {
+			
+			script::Command & command = *(precCmdPointer);
+			
+			script::Command::Result res;
+			bool bSkip = false;
+			if(bPrecCmdExec) bSkip = true;
+			if(!bSkip) {
+				if(command.getEntityFlags()
+					 && (command.getEntityFlags() != script::Command::AnyEntity
+							 && !(command.getEntityFlags() & long(entity->ioflags)))) {
+					ScriptEventWarning << "Command " << command.getName() << " needs an entity of type "
+														 << command.getEntityFlags();
+					context.skipCommand();
+					res = script::Command::Failed;
+					bSkip = true;
+				}
+			}
+			if(!bSkip) {
+				if(context.getParameters().isPeekOnly()) {
+					res = command.peek(context);
+					bSkip = true;
+				}
+			}
+			if(!bSkip || bPrecCmdExec) {
+				context.PrecCompile(true, precPosBeforeCmd, nullptr, &command);
+				res = command.execute(context);
+				bSkip = true;
+			}
+			
+			if(res == script::Command::AbortAccept) {
+				ret = ACCEPT;
+				break;
+			} else if(res == script::Command::AbortRefuse) {
+				ret = REFUSE;
+				break;
+			} else if(res == script::Command::AbortError) {
+				ret = BIGERROR;
+				break;
+			} else if(res == script::Command::AbortDestructive) {
+				ret = DESTRUCTIVE;
+				break;
+			} else if(res == script::Command::Jumped) {
+				if(event == SM_EXECUTELINE) {
+					event = SM_DUMMY;
+				}
+				brackets = size_t(-1);
+			}
+			
+		} else if(!word.compare(0, 2, ">>", 2)) {
+			context.skipCommand(); // labels
+		} else if(!word.compare(0, 5, "timer", 5)) {
+			if(context.getParameters().isPeekOnly()) {
+				ret = DESTRUCTIVE;
+				break;
+			}
+			script::timerCommand(word.substr(5), context);
+		} else if(word == "{") {
+			if(brackets != size_t(-1)) {
+				brackets++;
+			}
+		} else if(word == "}") {
+			if(brackets != size_t(-1)) {
+				brackets--;
+				if(brackets == 0) {
+					if(isBlockEndSuprressed(context, word)) { // TODO(broken-scripts)
+						brackets++;
+					} else {
+						ScriptEventWarning << "<-- event block ended without accept or refuse!";
+						return ACCEPT;
+					}
+				}
+			}
+		} else {
+			
+			if(isBlockEndSuprressed(context, word)) { // TODO(broken-scripts)
+				return ACCEPT;
+			}
+			
+			if(word == "&&" || word == "||" || word == ",") {
+				ScriptEventWarning << "<-- this is expected only inside conditional logical operators: '" << word <<"'. Did you forget to surround the multi condition with and() or or() ?";
+			} else {
+				if(word.size() >= 2 && word[1] == '\xBB') { // see Context::autoVarNameForScope()
+					ScriptEventWarning << "<-- unknown command: " << word << " (check if GoTo/GoSub is using the -p flag)";
+				} else {
+					ScriptEventWarning << "<-- unknown command: " << word;
+				}
+			}
+			
+			context.skipCommand();
+		}
+		
+		if(timer) {
+			context.clearCheckTimerIdVsGoToLabelOnce();
+		}
+	}
+	
+	LogDebug("<-- " << event << " finished: " << toString(ret));
+	
+	return ret;
+}
+//*/ // end of toggleCommentBlock
 
 void ScriptEvent::registerCommand(std::unique_ptr<script::Command> command) {
 	std::string_view name = command->getName();
