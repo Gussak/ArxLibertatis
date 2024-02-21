@@ -107,8 +107,8 @@ public:
 	bool bJustSkip;
 	
 	// these are just derivated from posBefore
-	size_t lineBefore;
-	size_t columnBefore;
+	int lineBefore;
+	int columnBefore;
 	
 	PrecData(
 		size_t _posBefore
@@ -131,13 +131,17 @@ public:
 		
 		,strCustomInfo(_strCustom)
 	{
+		lineBefore = -1;
+		columnBefore = -1;
+		
 		bJustSkip = false;
+		
 		updateDbg();
 	}
 	
 	PrecData & setJustSkip() { bJustSkip = true; return *this; }
 	
-	std::string_view info() { updateDbg(); return strDebug; }
+	std::string_view info() const { return strDebug; }
 };
 static std::map< std::string, std::map<size_t, PrecData*> > precScripts;
 
@@ -223,7 +227,7 @@ public:
 	
 	static void PrecCompileQueueProcess(Context & context);
 	static void PrecCompileQueueAdd(const Context * context, PrecData data);
-	bool PrecCompile(PrecData data);
+	bool PrecCompile(const PrecData data);
 	
 	bool PrecDecompileWord(std::string & word);
 	bool PrecDecompileCmd(Command ** cmdPointer);
