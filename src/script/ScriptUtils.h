@@ -83,41 +83,51 @@ u64 flagsToMask(const char (&flags)[N]) {
 }
 
 class PrecData {
+	std::string strDebug;
+	
 	void updateDbg();
 	
 public:
 	// base
-	size_t posBefore;
+	size_t posBefore; // is also the key to decompile
+	// there are cases when, after retrieving precomp data, m_pos must not be updated tho.
+	// 0 means not initialized as 0 will never be valid anyway, and will auto use current m_pos.
+	// size_t(-1) will not be changed and means to be ignored when decompiling.
 	size_t posAfter;
-	std::string file;
+	std::string file; // if empty will auto use script file
 	
-	// opt
+	// opt: these will be stored and used to decompile
 	Command * cmd;
 	std::string strWord;
 	std::string varName;
 	
-	std::string strDebug; // keep last
+	// keep last
+	std::string strCustomInfo;
+	
+	// these are just derivated from posBefore
+	size_t lineBefore;
+	size_t columnBefore;
 	
 	PrecData(
-		size_t _posBefore,
-		size_t _posAfter,
-		std::string _file,
+		size_t _posBefore
+		,size_t _posAfter
+		,std::string _file
 		
-		Command * _cmd,
-		std::string _strWord,
-		std::string _varName,
+		,Command * _cmd
+		,std::string _strWord
+		,std::string _varName
 		
-		std::string _strDebug = "" // keep last with default
+		,std::string _strCustom = "" // keep last with default
 	) : 
-		posBefore(_posBefore),
-		posAfter(_posAfter),
-		file(_file),
+		posBefore(_posBefore)
+		,posAfter(_posAfter)
+		,file(_file)
 		
-		cmd(_cmd),
-		strWord(_strWord),
-		varName(_varName),
+		,cmd(_cmd)
+		,strWord(_strWord)
+		,varName(_varName)
 		
-		strDebug(_strDebug)
+		,strCustomInfo(_strCustom)
 	{
 		updateDbg();
 	}
@@ -128,10 +138,7 @@ static std::map< std::string, std::map<size_t, PrecData*> > precScripts;
 
 struct PrecCQ {
 	Context * context = nullptr;
-	size_t precPosBefore = size_t(-1);
-	std::string word;
-	Command * cmd = nullptr;
-	std::string varName;
+	PrecData data;
 };
 
 class Context {
@@ -201,7 +208,7 @@ public:
 	
 	size_t getPosition() const { return m_pos; }
 	void getLineColumn(size_t & iLine, size_t & iColumn, size_t pos = static_cast<size_t>(-1)) const;
-	std::string getPositionAndLineNumber(bool compact = false, size_t pos = static_cast<size_t>(-1)) const;
+	std::string getPosLineColumnInfo(bool compact = false, size_t pos = static_cast<size_t>(-1)) const;
 	
 	size_t getGoSubCallFromPos(size_t  indexFromLast) const;
 	const std::string strCallStackHighlight = "!!!";
@@ -210,8 +217,8 @@ public:
 	void seekToPosition(size_t pos);
 	
 	static void PrecCompileQueueProcess(Context & context);
-	static void PrecCompileQueueAdd(const Context * context, size_t precPosBefore, std::string word = "", const Command * cmd = nullptr, std::string varName = "");
-	bool PrecCompile(bool allow, size_t precPosBefore, std::string * word = nullptr, Command * cmd = nullptr, std::string * varName = nullptr);
+	static void PrecCompileQueueAdd(const Context * context, PrecData data);
+	bool PrecCompile(PrecData data);
 	
 	bool PrecDecompileWord(std::string & word) { return PrecDecompile(&word, nullptr, nullptr); }
 	bool PrecDecompileCmd(Command ** cmdPointer) { return PrecDecompile(nullptr, cmdPointer, nullptr); }
@@ -266,7 +273,7 @@ bool isBlockEndSuprressed(const Context & context, std::string_view command);
 
 size_t initSuppressions();
 
-#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPositionAndLineNumber() << (context).getGoSubCallStack(" {CallStackId(FromPosition): ", " } ") << "] "
+#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPosLineColumnInfo() << (context).getGoSubCallStack(" {CallStackId(FromPosition): ", " } ") << "] "
 #define ScriptPrefix ScriptContextPrefix(context) << getName() <<
 #define DebugScript(args) LogDebug(ScriptPrefix args)
 #define ScriptInfo(args) LogInfo << ScriptPrefix args

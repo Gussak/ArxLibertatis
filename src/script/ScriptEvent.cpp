@@ -299,7 +299,7 @@ static const char * toString(ScriptResult ret) {
 }
 #endif
 
-//* toggleCommentBlock: 1st is working, 2nd is experimental
+/* toggleCommentBlock: 1st is working, 2nd is experimental
 ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
                                ScriptEventName event, ScriptParameters parameters,
                                size_t position, const SCR_TIMER * timer) {
@@ -569,7 +569,7 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 				}
 			}
 			if(!bSkip || bPrecCmdExec) {
-				context.PrecCompile(true, precPosBeforeCmd, nullptr, &command);
+				context.PrecCompile(script::PrecData(precPosBeforeCmd, 0, "",	&command, "", "")); // put before execute to capture current m_pos as posAfter
 				res = command.execute(context);
 				bSkip = true;
 			}

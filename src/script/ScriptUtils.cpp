@@ -19,6 +19,9 @@
 
 #include "script/ScriptUtils.h"
 
+#include <execinfo.h>
+#include <fstream>
+#include <iostream>
 #include <set>
 #include <utility>
 
@@ -104,7 +107,70 @@ std::string Context::formatString(std::string format, std::string var) const {
 }
 #pragma GCC diagnostic pop
 
-/*  toggleCommentBlock 1st broken, 2nd good
+/*  toggleCommentBlock 1st is working, 2nd experimental
+std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, bool bCreatingVar) const {
+	std::string nameAuto = std::string(name);
+	if(!isLocalVariable(nameAuto)) {
+		return nameAuto; //keep on top to be quick, no warning
+	}
+	
+	char cTokenCheck = bCreatingVar ? '\xBB' : '\xAB'; // tiny '>>' : '<<'
+	if(privateScopeOnly) { // only if pseudo-private scope is requested on the var name thru the special char
+		if(nameAuto[1] != cTokenCheck) {
+			return nameAuto; //keep on top to be quick, no warning
+		}
+	}
+	
+	std::string label;
+	if(labelOverride.size() > 0){
+		label = labelOverride;
+	} else {
+		if(m_stackIdCalledFromPos.size() == 0) {
+			if(m_message < SM_MAXCMD) {
+				label = ScriptEvent::name(m_message);
+				label[2] = '_'; // ex.: "on main" becomes "on_main"
+			}
+		} else {
+			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
+		}
+	}
+	if(label.size() == 0) {
+		LogWarning << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", Empty label for: " << nameAuto;
+		return nameAuto;
+	}
+	
+	if(bCreatingVar) {
+		if(nameAuto[1] == '\xAB') {
+			LogError << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", At GoSub param var name to be created/set, it is expected the tiny symbol \xBB '>>', but found \xAB '<<': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
+	} else {
+		if(nameAuto[1] == '\xBB') {
+			LogError << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", In a \"function\", pseudo-private var name shall use the tiny symbol \xAB '<<', but found \xBB '>>': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
+	}
+	
+	char cSeparator = '_'; // local scope
+	size_t posID = 1;
+	if(nameAuto[1] == cTokenCheck) {
+		cSeparator = '\xAB'; // pseudo-private scope tiny '<<' char. vars are ALWAYS created with this, and never with \xBB '>>'
+		posID = 2;
+	}
+	if(cSeparator == '_') {
+		static platform::EnvVarHandler * warnLocalScopeParams = evh_Create("ARX_WarnGoSubWithLocalScopeParams", "", false);
+		if(warnLocalScopeParams->getB()) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
+			LogWarning << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
+		}
+	}
+	
+	if(!boost::starts_with(nameAuto.substr(1), label)) { // only prefix with label if not already
+		nameAuto = std::string() + nameAuto[0] + label + cSeparator + nameAuto.substr(posID);
+	}
+	
+	return nameAuto;
+}
+/*/
 std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, bool bCreatingVar) const {
 	std::string nameAuto = std::string(name);
 	if((const_cast<Context*>(this))->PrecDecompileVarName(const_cast<std::string&>(nameAuto))) {
@@ -136,18 +202,18 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 		}
 	}
 	if(label.size() == 0) {
-		LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", Empty label for: " << nameAuto;
+		LogWarning << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", Empty label for: " << nameAuto;
 		return nameAuto;
 	}
 	
 	if(bCreatingVar) {
 		if(nameAuto[1] == '\xAB') {
-			LogError << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", At GoSub param var name to be created/set, it is expected the tiny symbol \xBB '>>', but found \xAB '<<': " << nameAuto << ", " << labelOverride;
+			LogError << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", At GoSub param var name to be created/set, it is expected the tiny symbol \xBB '>>', but found \xAB '<<': " << nameAuto << ", " << labelOverride;
 			return nameAuto;
 		}
 	} else {
 		if(nameAuto[1] == '\xBB') {
-			LogError << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", In a \"function\", pseudo-private var name shall use the tiny symbol \xAB '<<', but found \xBB '>>': " << nameAuto << ", " << labelOverride;
+			LogError << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", In a \"function\", pseudo-private var name shall use the tiny symbol \xAB '<<', but found \xBB '>>': " << nameAuto << ", " << labelOverride;
 			return nameAuto;
 		}
 	}
@@ -161,7 +227,7 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 	if(cSeparator == '_') {
 		static platform::EnvVarHandler * warnLocalScopeParams = evh_Create("ARX_WarnGoSubWithLocalScopeParams", "Local scope are the vanilla vars w/o tiny '>>'. You should prefer requesting the creation of pseudo-private scope vars by using that symbol.", false);
 		if(warnLocalScopeParams->getB()) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
-			LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
+			LogWarning << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
 		}
 	}
 	
@@ -169,70 +235,11 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 		nameAuto = std::string() + nameAuto[0] + label + cSeparator + nameAuto.substr(posID);
 	}
 	
-	PrecCompileQueueAdd(this, m_pos, "", nullptr, nameAuto); // good to test the static queue, but could be this also: (const_cast<Context*>(this))->PrecCompile(true, m_pos, nullptr, nullptr, &nameAuto);
-	
-	return nameAuto;
-}
-/*/
-std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, bool bCreatingVar) const {
-	std::string nameAuto = std::string(name);
-	if(!isLocalVariable(nameAuto)) {
-		return nameAuto; //keep on top to be quick, no warning
-	}
-	
-	char cTokenCheck = bCreatingVar ? '\xBB' : '\xAB'; // tiny '>>' : '<<'
-	if(privateScopeOnly) { // only if pseudo-private scope is requested on the var name thru the special char
-		if(nameAuto[1] != cTokenCheck) {
-			return nameAuto; //keep on top to be quick, no warning
-		}
-	}
-	
-	std::string label;
-	if(labelOverride.size() > 0){
-		label = labelOverride;
-	} else {
-		if(m_stackIdCalledFromPos.size() == 0) {
-			if(m_message < SM_MAXCMD) {
-				label = ScriptEvent::name(m_message);
-				label[2] = '_'; // ex.: "on main" becomes "on_main"
-			}
-		} else {
-			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
-		}
-	}
-	if(label.size() == 0) {
-		LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", Empty label for: " << nameAuto;
-		return nameAuto;
-	}
-	
-	if(bCreatingVar) {
-		if(nameAuto[1] == '\xAB') {
-			LogError << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", At GoSub param var name to be created/set, it is expected the tiny symbol \xBB '>>', but found \xAB '<<': " << nameAuto << ", " << labelOverride;
-			return nameAuto;
-		}
-	} else {
-		if(nameAuto[1] == '\xBB') {
-			LogError << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", In a \"function\", pseudo-private var name shall use the tiny symbol \xAB '<<', but found \xBB '>>': " << nameAuto << ", " << labelOverride;
-			return nameAuto;
-		}
-	}
-	
-	char cSeparator = '_'; // local scope
-	size_t posID = 1;
-	if(nameAuto[1] == cTokenCheck) {
-		cSeparator = '\xAB'; // pseudo-private scope tiny '<<' char. vars are ALWAYS created with this, and never with \xBB '>>'
-		posID = 2;
-	}
-	if(cSeparator == '_') {
-		static platform::EnvVarHandler * warnLocalScopeParams = evh_Create("ARX_WarnGoSubWithLocalScopeParams", "", false);
-		if(warnLocalScopeParams->getB()) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
-			LogWarning << getPositionAndLineNumber(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
-		}
-	}
-	
-	if(!boost::starts_with(nameAuto.substr(1), label)) { // only prefix with label if not already
-		nameAuto = std::string() + nameAuto[0] + label + cSeparator + nameAuto.substr(posID);
-	}
+	PrecCompileQueueAdd(this, PrecData(
+		m_pos,
+		size_t(-1), // disables updating m_pos
+		"",
+		nullptr, "", nameAuto ) ); // good to test the static queue, but could be this also: (const_cast<Context*>(this))->PrecCompile(true, PrecData(...));
 	
 	return nameAuto;
 }
@@ -338,7 +345,7 @@ std::string Context::getCommand(bool skipNewlines) {
 	return word;
 }
 
-std::string Context::getPositionAndLineNumber(bool compact, size_t pos) const {
+std::string Context::getPosLineColumnInfo(bool compact, size_t pos) const {
 	std::stringstream s;
 	
 	if(pos == static_cast<size_t>(-1)) {
@@ -422,7 +429,7 @@ std::string Context::getGoSubCallStack(std::string_view prepend, std::string_vie
 			if(indexHighlight == static_cast<int>(index)) ss << strCallStackHighlight;
 			ss << pair.second;
 			if(indexHighlight == static_cast<int>(index)) ss << strCallStackHighlight;
-			ss << getPositionAndLineNumber(true, m_stackIdCalledFromPos[index].first);
+			ss << getPosLineColumnInfo(true, m_stackIdCalledFromPos[index].first);
 			index++;
 		}
 	}
@@ -438,16 +445,22 @@ void Context::seekToPosition(size_t pos) {
 	m_pos=pos; 
 }
 
-
 void PrecData::updateDbg() {
-	strDebug = std::string() + "PreCompiledScriptData = { " +
-		", posBefore=" + std::to_string(posBefore) +
-		", posAfter=" + std::to_string(posAfter) +
-		", file=" + file +
+	strDebug = std::string() + "Data{" +
+		" pB=" + std::to_string(posBefore) + ":" + std::to_string(lineBefore) + ":" + std::to_string(columnBefore) + "," +
+		" pA=" + std::to_string(posAfter)  + "," +
 		
-		", strWord=" + strWord +
-		(cmd ? (", cmd=" + cmd->getName() + ", ") : "") +
-		", varName=" + varName +
+		(strWord.size() > 0 ?
+			(" W=\"" + strWord    + "\",") : "") +
+		(cmd ?
+			(" C=" + cmd->getName() + ",") : "") +
+		(varName.size() > 0 ?
+			(" V=" + varName        + ",") : "") +
+		
+		(strCustomInfo.size() > 0 ?
+			(" Info=" + strCustomInfo  + ",") : "") +
+		
+		" fl=\"" + file + "\"" + // moved file to last to compact more useful data above in the first log line
 		" }";
 }
 
@@ -462,10 +475,9 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 		if(word      ) *word       = precS[m_pos]->strWord;
 		if(cmdPointer) *cmdPointer = precS[m_pos]->cmd;
 		if(varName   ) *varName    = precS[m_pos]->varName;
-		//wild guess... arx_assert_msg(varName && precS[m_pos]->posAfter == m_pos, "the script pos (%u) used for varName should not have changed (%u)", precS[m_pos]->posAfter, m_pos);
 		
 		if(precS[m_pos]->posAfter != size_t(-1)) {
-			m_pos = precS[m_pos]->posAfter; // LAST THING!!!
+			m_pos = precS[m_pos]->posAfter; // keep as LAST thing!
 		}
 		return true;
 	}
@@ -474,14 +486,16 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 }
 
 enum EPrecStaticStr { EPSSInit, EPSSAllowStatic, EPSSDenyDynamic, EPSSDenyAll };
-class PrecWord{
-public:
+struct PrecWord{
 	size_t precPosBefore; // before whitespaces' before word
 	bool bPrecompileWord;
 	EPrecStaticStr eprecSS;
-	PrecWord(size_t _precPosBefore) : precPosBefore(_precPosBefore) {
-		static platform::EnvVarHandler * evhPrecAllowText = evh_Create("ARX_PrecompileAllowStaticText", "allow pre-compilation of words to include static text that are between \"...\"", false);
+	void init(size_t _precPosBefore) {
+		precPosBefore=(_precPosBefore);
+		
 		bPrecompileWord = false;
+		
+		static platform::EnvVarHandler * evhPrecAllowText = evh_Create("ARX_PrecompileAllowStaticText", "allow pre-compilation of words to include static text that are between \"...\"", false);
 		if(evhPrecAllowText->getB() && !g_allowExperiments->getB()) { // TODO RM after it is working w/o breaking the game
 			LogCritical << evhPrecAllowText->id() << " is experimental. It currently breaks the game.";
 			evhPrecAllowText->setB(false); // protects players
@@ -490,18 +504,14 @@ public:
 	}
 };
 std::string Context::getWord(bool evaluateVars) {
-	
-	std::string_view esdat = m_script->data;
-	
 	std::string word;
 	
-	if(PrecDecompileWord(word)) {
-		return word;
-	}
-	PrecWord precw(m_pos);
+	if(PrecDecompileWord(word)) return word;
+	static PrecWord precw; precw.init(m_pos);
 	
 	skipWhitespace(false, true);
 	
+	std::string_view esdat = m_script->data;
 	if(m_pos >= esdat.size()) {
 		return std::string();
 	}
@@ -572,8 +582,17 @@ std::string Context::getWord(bool evaluateVars) {
 		ScriptParserWarning << "unmatched '~'";
 	}
 	
-	PrecCompile(precw.bPrecompileWord || precw.eprecSS == EPrecStaticStr::EPSSAllowStatic,
-		precw.precPosBefore, &word);
+	if(
+		getEntity() != entities.player() &&
+		( precw.bPrecompileWord || precw.eprecSS == EPrecStaticStr::EPSSAllowStatic )
+	) {
+		PrecCompile( PrecData(
+				precw.precPosBefore, m_pos, "",
+				nullptr, word, "",
+				(precw.eprecSS == EPrecStaticStr::EPSSAllowStatic ? "text" : "")
+			)
+		);
+	}
 	
 	return word;
 }
@@ -583,54 +602,44 @@ void Context::PrecCompileQueueProcess(Context & context) {
 	if(Context::precCompileQueue.size() == 0) return;
 	
 	auto it = Context::precCompileQueue.begin();
-	//for(auto it : Context::precCompileQueue) {
 	while(it != Context::precCompileQueue.end()) {
 		if(it->context == &context) {
-			LogDebug("Process PrecQueue for: " << it->precPosBefore);
-			context.PrecCompile(true, it->precPosBefore, &it->word, it->cmd, &it->varName);
-			it = Context::precCompileQueue.erase(it); // it becomes next one
+			if(context.PrecCompile(it->data)) {
+				LogDebug("PrecQueue process m_pos=" << it->data.posBefore);
+			}
+			// always remove as it will be re-queued
+			it = Context::precCompileQueue.erase(it); // 'it' becomes next one
 		} else {
 			++it;
 		}
 	}
 }
-void Context::PrecCompileQueueAdd(const Context * context, size_t precPosBefore, std::string word, const Command * cmd, std::string varName) {
-	Context::precCompileQueue.push_back(
-		PrecCQ{
-			const_cast<Context*>(context),
-			precPosBefore,
-			word,
-			const_cast<Command*>(cmd),
-			varName,
-		}
-	);
+void Context::PrecCompileQueueAdd(const Context * context, PrecData data) {
+	Context::precCompileQueue.push_back(PrecCQ{ const_cast<Context*>(context), data });
 }
 
-bool Context::PrecCompile(bool allow, size_t precPosBefore, std::string * word, Command * cmd, std::string * varName) {  // pre-compile only static code
-	if(!allow) return false;
-	if(getEntity() == entities.player()) return false; // TODO could just deny console commands from ScriptConsole::execute() -> ScriptEvent::resume(&es, entity, pos);
+bool Context::PrecCompile(PrecData data) {  // pre-compile only static code
+	if(getEntity() == entities.player()) return false; // TODO could instead just deny console commands at ScriptConsole::execute() -> ScriptEvent::resume(&es, entity, pos);
+	
+	if(data.posBefore == size_t(-1)) {
+		LogDebug("invalid data.posBefore == size_t(-1)" << boost::stacktrace::stacktrace()); // TODO find a way to dump something readable in this case...
+		LogDebug("PrecData=" << data.info());
+		return false;
+	}
 	
 	#ifdef ARX_DEBUG
-		//arx_assert_msg((word || cmd || varName) && !(word && cmd) && !(word && varName) && !(cmd && varName), "set only word(%p) or cmd(%p) or varName(%p)", word, cmd, varName);
-		/*
-			arx_assert_msg( ([word, cmd, varName]() -> bool {
-				int i = 0;
-				if(word && word->size() > 0) i++;
-				if(cmd) i++;
-				if(varName && varName->size() > 0) i++;
-				return i == 1;
-			})(), ...);
-		*/
 		int iParamsOk = 0;
-		if(word && word->size() > 0) iParamsOk++;
-		if(cmd) iParamsOk++;
-		if(varName && varName->size() > 0) iParamsOk++;
+		if(data.strWord.size() > 0) iParamsOk++;
+		if(data.cmd) iParamsOk++;
+		if(data.varName.size() > 0) iParamsOk++;
 		if(iParamsOk != 1) LogCritical << boost::stacktrace::stacktrace();
-		arx_assert_msg(iParamsOk == 1, "set only word(%p) or cmd(%p) or varName(%p), %d", static_cast<const void*>(word), static_cast<const void*>(cmd), static_cast<const void*>(varName), iParamsOk);
+		arx_assert_msg(iParamsOk == 1,
+			"set only word(%s) or cmd(%p) or varName(%s), %d",
+			data.strWord.c_str(), static_cast<const void*>(data.cmd), data.varName.c_str(), iParamsOk);
 	#endif
 	
-	if(word) {
-		if(word->find_first_of("abcdefghijklmnopqrstuvwxyz_0123456789") == std::string_view::npos) return false;
+	if(data.strWord.size() > 0) {
+		if(data.strWord.find_first_of("abcdefghijklmnopqrstuvwxyz_0123456789") == std::string_view::npos) return false;
 		static platform::EnvVarHandler * evhAllowWords = evh_Create("ARX_PrecompileAllowWords", "", false);
 		if(evhAllowWords->getB() && !g_allowExperiments->getB()) {
 			LogCritical << evhAllowWords->id() << " is experimental, may crash the game!";
@@ -639,7 +648,7 @@ bool Context::PrecCompile(bool allow, size_t precPosBefore, std::string * word, 
 		if(!evhAllowWords->getB()) return false;
 	}
 	
-	if(cmd) {
+	if(data.cmd) {
 		static platform::EnvVarHandler * evhAllowCmds = evh_Create("ARX_PrecompileAllowCommands", "", false);
 		if(evhAllowCmds->getB() && !g_allowExperiments->getB()) {
 			LogCritical << evhAllowCmds->id() << " is experimental, may crash the game!";
@@ -648,7 +657,7 @@ bool Context::PrecCompile(bool allow, size_t precPosBefore, std::string * word, 
 		if(!evhAllowCmds->getB()) return false;
 	}
 	
-	if(varName) {
+	if(data.varName.size() > 0) {
 		static platform::EnvVarHandler * evhAllowVarNames = evh_Create("ARX_PrecompileAllowVarNames", "", false);
 		if(evhAllowVarNames->getB() && !g_allowExperiments->getB()) {
 			LogCritical << evhAllowVarNames->id() << " is experimental, may crash the game!";
@@ -659,23 +668,65 @@ bool Context::PrecCompile(bool allow, size_t precPosBefore, std::string * word, 
 	
 	///////////////////// create prec data
 	
-	if(precS.contains(precPosBefore)) {
+	if(precS.contains(data.posBefore)) {
 		LogDebug("WARNING: updating PrecData from: " << precS[m_pos]->info());
-		delete precS[precPosBefore];
+		delete precS[data.posBefore];
 	}
 	
-	precS[precPosBefore] = new PrecData(
-		precPosBefore,
-		m_pos, // pos after. TODO the script pos used for varName is wild guess to be ok. confirm it wont clash in the above "WARNING: updating PrecData"
-		m_script->file,
-		
-		cmd,
-		word ? *word : "",
-		varName ? *varName : "",
-		
-		"" // keep last dummy
+	if(data.posAfter == 0) {
+		data.posAfter = m_pos; // initialize to expected default
+	} else if(data.posAfter != size_t(-1) && data.posAfter != m_pos) {
+		LogDebug("instead of capturing m_pos, is using a custom posAfter=" << data.posAfter);
+	}
+	
+	data.file = m_script->file;
+	
+	precS[data.posBefore] = new PrecData(data);
+	getLineColumn(precS[data.posBefore]->lineBefore, precS[data.posBefore]->columnBefore, data.posBefore);
+	
+	LogDebug( "PreC[" << data.posBefore << "]" << precS.size() << ":"
+		<< [&](){
+				if(data.cmd)return "CMD";
+				if(data.strWord.size() > 0)return "WRD";
+				if(data.varName.size() > 0)return "VAR";
+				return "???"; // means missing detection above
+			}() << ":"
+		<< " ent=" << m_entity->idString() << ", m_pos=" << m_pos << ", "
+		<< precS[data.posBefore]->info()
 	);
-	LogDebug("ScriptCompile:" << (word?"W":(cmd?"C":(varName?"V":"?"))) << "[" << precPosBefore << "]sz=" << precS.size() << ":" << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[precPosBefore]->info());
+	
+	/* TODO below file writing is wrong, review..
+	static platform::EnvVarHandler * evhWrite = evh_Create("ARX_PrecompileWriteCache", "write all pre-compiled data to files, you will need an hex editor to visualize them. obs.: they may not have been fully pre-compiled as this happens lazily on demand.", true);
+	if(evhWrite->getB()) {
+		res::path flnm = "precompiled/" + m_script->file + ".precompiled";
+		
+		std::ofstream fl;
+		// TODO trunc once if a change is detected: ofs.open(flnm.string(), std::ofstream::out | std::ofstream::trunc);
+		fl.open(flnm.string(), std::ios::out | std::ios::binary | std::ios::app);
+		fl.write(data.posBefore, sizeof data.posBefore); // data index = 1
+		fl.write(data.posAfter, sizeof data.posAfter); // data index = 2
+		std::string what; // data index = 3. also must have always 3 chars.
+		std::string writeData; // data index = 4 size of writeData; data index = 5 writeData
+		if(data.cmd) {
+			what = "CMD";
+			writeData = data.cmd->id();
+		} else if(data.strWord.size() > 0) {
+			what = "WRD";
+			writeData = data.strWord;
+		} else if(data.varName.size() > 0) {
+			what = "VAR";
+			writeData = data.varName;
+		}
+		fl.write(what, 3);
+		size_t sz = sizeof writeData;
+		fl.write(sz, sizeof sz);
+		fl.write(writeData, sz);
+		//fl.write(reinterpret_cast<const char*>(&str), sizeof str);
+		fl.close();
+		
+		// TODO code a cache reader. reading the cache will prevent appeding existing pre-compiled data. but script changes must also be detected: the script must be dumped at precompiled folder also, and when first loading the original script, comparing with it will be the hint to clear the pre-compiled cache, do this at Context constructor probably.
+	}
+	*/
 	
 	return true;
 }
@@ -842,7 +893,7 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 	if(context) {
 		std::string strScriptMsg = context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)); // must become lowercase or wont match
 		
-		ssFlInfo << " " << context->getPositionAndLineNumber(true) << context->getGoSubCallStack("{CallStackId(FromPosition):","}");
+		ssFlInfo << " " << context->getPosLineColumnInfo(true) << context->getGoSubCallStack("{CallStackId(FromPosition):","}");
 		
 		if(boost::starts_with(util::toLowercase(strScriptMsg), "warn:" )) ssWarn  << " " << strScriptMsg.substr(5);
 		if(boost::starts_with(util::toLowercase(strScriptMsg), "error:")) ssError << " " << strScriptMsg.substr(6);

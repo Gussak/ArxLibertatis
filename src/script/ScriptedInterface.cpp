@@ -459,7 +459,7 @@ static std::string getEventAndStackInfo(Context & context) {
 		s << ")";
 	}
 	
-	s << context.getGoSubCallStack(" at GoSub {CallStackId(FromPosition): ", " }, " + context.getPositionAndLineNumber());
+	s << context.getGoSubCallStack(" at GoSub {CallStackId(FromPosition): ", " }, " + context.getPosLineColumnInfo());
 	
 	return s.str();
 }
