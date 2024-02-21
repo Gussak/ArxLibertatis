@@ -182,7 +182,7 @@ void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
 		posComment = script::seekBackwardsForCommentToken(es.data, pos);
 		if(posComment != size_t(-1)) {
 			pos = posComment;
-			if(script::detectAndSkipComment(es.data, pos, true)) {
+			if(script::detectAndSkipComment(nullptr, es.data, pos, true)) {
 				continue; // to imediately seek for next call target after the comment and after the newline
 			}
 		}

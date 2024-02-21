@@ -517,7 +517,7 @@ private:
 		while(true) {
 			DebugScript(", cMode=" << cMode << ", cOperator=" << cOperator << ", iWordCount=" << iWordCount << ", fCalc=" << fCalc << ", fWorkWithValue=" << fWorkWithValue);
 			
-			context.skipWhitespaceAndComment();
+			context.skipWhitespacesCommentsAndNewLines();
 			positionBeforeWord = context.getPosition(); //Put after skip new lines.
 			strWord = context.getWord();
 			strCalcMsg += strWord + " ";

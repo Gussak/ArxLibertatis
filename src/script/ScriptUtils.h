@@ -104,6 +104,8 @@ public:
 	// keep last
 	std::string strCustomInfo;
 	
+	bool bJustSkip;
+	
 	// these are just derivated from posBefore
 	size_t lineBefore;
 	size_t columnBefore;
@@ -129,8 +131,11 @@ public:
 		
 		,strCustomInfo(_strCustom)
 	{
+		bJustSkip = false;
 		updateDbg();
 	}
+	
+	PrecData & setJustSkip() { bJustSkip = true; return *this; }
 	
 	std::string_view info() { updateDbg(); return strDebug; }
 };
@@ -174,7 +179,7 @@ public:
 	std::string getCommand(bool skipNewlines = true);
 	
 	void skipWhitespace(bool skipNewlines = false, bool warnNewlines = false);
-	void skipWhitespaceAndComment();
+	void skipWhitespacesCommentsAndNewLines();
 	
 	void updateNewLinesList();
 	
@@ -184,8 +189,8 @@ public:
 	const ScriptParameters & getParameters() const { return m_parameters; }
 	
 	bool getBool();
-	
 	float getFloat();
+	int getInteger();
 	
 	float getFloatVar(std::string_view name, Entity * entOverride = nullptr) const;
 	
@@ -220,9 +225,10 @@ public:
 	static void PrecCompileQueueAdd(const Context * context, PrecData data);
 	bool PrecCompile(PrecData data);
 	
-	bool PrecDecompileWord(std::string & word) { return PrecDecompile(&word, nullptr, nullptr); }
-	bool PrecDecompileCmd(Command ** cmdPointer) { return PrecDecompile(nullptr, cmdPointer, nullptr); }
-	bool PrecDecompileVarName(std::string & varName) { return PrecDecompile(nullptr, nullptr, &varName); }
+	bool PrecDecompileWord(std::string & word);
+	bool PrecDecompileCmd(Command ** cmdPointer);
+	bool PrecDecompileVarName(std::string & varName);
+	bool PrecDecompileCommentSkip();
 	
 };
 
@@ -287,7 +293,7 @@ bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const s
 
 size_t seekBackwardsForCommentToken(const std::string_view & esdat, size_t posToBackTrackFrom);
 
-bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool skipNewlines);
+bool detectAndSkipComment(Context * context, const std::string_view & esdat, size_t & pos, bool skipNewlines);
 
 } // namespace script
 

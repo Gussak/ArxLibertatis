@@ -574,8 +574,8 @@ public:
 			if(flg & flag('r')) {
 				bRandomize = true;
 				
-				minA = static_cast<int>(context.getFloatVar(context.getWord()));
-				minS = static_cast<int>(context.getFloatVar(context.getWord()));
+				minA = context.getInteger();
+				minS = context.getInteger();
 				
 				std::string smA = context.getWord();
 				maxA = static_cast<int>(

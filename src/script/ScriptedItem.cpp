@@ -381,7 +381,7 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		short size = short(glm::clamp(int(context.getFloat()), 1, 100));
+		short size = short(glm::clamp(context.getInteger(), 1, 100));
 		
 		DebugScript(' ' << size);
 		

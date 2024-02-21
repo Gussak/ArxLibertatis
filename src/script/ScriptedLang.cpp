@@ -912,7 +912,7 @@ public:
 		while(true){
 			if(res != Success) {return res;}; // in case of errors found in the script.
 			iCount++;
-			context.skipWhitespaceAndComment();
+			context.skipWhitespacesCommentsAndNewLines();
 			positionBeforeWord = context.getPosition(); //Put after skip new lines.
 			wordCheck = context.getWord();
 			
@@ -1009,7 +1009,7 @@ public:
 		Result res; //this overrides processing condition result, in case of Failed
 		bool condition = false; //this will be set by the function calls
 		bool bJustConsumeTheWords = false; //when a multi nested condition can quickly end, this will be set to true so all words (related to logic operations and comparisons) are consumed and the block/command can be safely reached and processed or skipped.
-		context.skipWhitespaceAndComment();
+		context.skipWhitespacesCommentsAndNewLines();
 		size_t positionBeforeWord = context.getPosition(); //this is used to undo the wordCkeck position. Put after skip new lines.
 		std::string wordCheck = context.getWord();
 		if(wordCheck == "[") {

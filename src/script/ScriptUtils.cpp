@@ -293,7 +293,16 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
 
-bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool skipNewlines) {
+bool detectAndSkipComment(Context * context, const std::string_view & esdat, size_t & pos, bool skipNewlines) {
+	static size_t posBefore;
+	posBefore = size_t(-1);
+	if(context) {
+		if(context->PrecDecompileCommentSkip()) {
+			return true;
+		}
+		posBefore = context->getPosition();
+	}
+	
 	if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
 		pos = esdat.find('\n', pos + 2);
 		if(pos == std::string::npos) {
@@ -303,15 +312,27 @@ bool detectAndSkipComment(const std::string_view & esdat, size_t & pos, bool ski
 				pos++; //after \n
 			}
 		}
+		
+		if(context) {
+			context->PrecCompile(
+				PrecData(
+					posBefore, context->getPosition(), "",
+					nullptr, "", "",
+					"skipped comment"
+				).setJustSkip()
+			);
+		}
+		
 		return true;
 	}
 	return false;
 }
 
-void Context::skipWhitespaceAndComment() { // TODO refactor to skipWhitespacesCommentsAndNewLines
+void Context::skipWhitespacesCommentsAndNewLines() {
 	skipWhitespace(true);
-	script::detectAndSkipComment(m_script->data, m_pos, true);
-	skipWhitespace(true);
+	while(script::detectAndSkipComment(this, m_script->data, m_pos, true)) {
+		skipWhitespace(true);
+	}
 }
 
 std::string Context::getCommand(bool skipNewlines) {
@@ -332,7 +353,7 @@ std::string Context::getCommand(bool skipNewlines) {
 			ScriptParserWarning << "unexpected '~' in command name";
 		} else if(c == '\n') {
 			break;
-		} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
+		} else if(script::detectAndSkipComment(this, esdat, m_pos, false)) {
 			if(!word.empty()) {
 				break;
 			}
@@ -456,6 +477,8 @@ void PrecData::updateDbg() {
 			(" C=" + cmd->getName() + ",") : "") +
 		(varName.size() > 0 ?
 			(" V=" + varName        + ",") : "") +
+		(bJustSkip ?
+			(" S=" + std::string("JustSkip") + ",") : "") +
 		
 		(strCustomInfo.size() > 0 ?
 			(" Info=" + strCustomInfo  + ",") : "") +
@@ -464,6 +487,18 @@ void PrecData::updateDbg() {
 		" }";
 }
 
+bool Context::PrecDecompileWord(std::string & word) {
+	return PrecDecompile(&word, nullptr, nullptr);
+}
+bool Context::PrecDecompileCmd(Command ** cmdPointer) {
+	return PrecDecompile(nullptr, cmdPointer, nullptr);
+}
+bool Context::PrecDecompileVarName(std::string & varName) {
+	return PrecDecompile(nullptr, nullptr, &varName);
+}
+bool Context::PrecDecompileCommentSkip() {
+	return PrecDecompile(nullptr, nullptr, nullptr);
+}
 bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName) {
 	if(getEntity() == entities.player()) return false;
 	
@@ -472,9 +507,23 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 		static platform::EnvVarHandler * evhShowDecompile = evh_Create("ARX_PrecompileShowDecompileLog", "", false);
 		if(evhShowDecompile->getB()) LogDebug("DeCompile " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
 		#endif
+		
+		if(
+				(word && precS[m_pos]->strWord.size() == 0)    ||
+				(cmdPointer && !precS[m_pos]->cmd)             ||
+				(varName && precS[m_pos]->varName.size() == 0) ||
+				(!precS[m_pos]->bJustSkip)
+		) {
+			LogCritical << "invalid request for a type that is not set: " << precS[m_pos]->info();
+			return false;
+		}
+		
 		if(word      ) *word       = precS[m_pos]->strWord;
 		if(cmdPointer) *cmdPointer = precS[m_pos]->cmd;
 		if(varName   ) *varName    = precS[m_pos]->varName;
+		if(precS[m_pos]->bJustSkip && precS[m_pos]->posAfter == size_t(-1)) {
+			LogCritical << "nothing to skip: " << precS[m_pos]->info();
+		}
 		
 		if(precS[m_pos]->posAfter != size_t(-1)) {
 			m_pos = precS[m_pos]->posAfter; // keep as LAST thing!
@@ -568,7 +617,7 @@ std::string Context::getWord(bool evaluateVars) {
 				tilde = !tilde;
 			} else if(tilde) {
 				if(evaluateVars) var.push_back(esdat[m_pos]);
-			} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
+			} else if(script::detectAndSkipComment(this, esdat, m_pos, false)) {
 				break;
 			} else {
 				word.push_back(esdat[m_pos]);
@@ -632,11 +681,40 @@ bool Context::PrecCompile(PrecData data) {  // pre-compile only static code
 		if(data.strWord.size() > 0) iParamsOk++;
 		if(data.cmd) iParamsOk++;
 		if(data.varName.size() > 0) iParamsOk++;
+		if(data.bJustSkip) iParamsOk++;
 		if(iParamsOk != 1) LogCritical << boost::stacktrace::stacktrace();
 		arx_assert_msg(iParamsOk == 1,
-			"set only word(%s) or cmd(%p) or varName(%s), %d",
-			data.strWord.c_str(), static_cast<const void*>(data.cmd), data.varName.c_str(), iParamsOk);
+			"set only word(%s) or cmd(%p) or varName(%s) or commentSkip(%d), %d",
+			data.strWord.c_str(), static_cast<const void*>(data.cmd), data.varName.c_str(), data.bJustSkip?1:0, iParamsOk);
 	#endif
+	
+	if(precS.contains(data.posBefore)) {
+		/* mixing word & new var: from autoVarNameForScope()
+		 *  for this to work well, it should be coded like ex.:
+		 * 		f = getFloatVar(getWord()); // because m_pos will remain the same. getFloat() is the same
+		 *  otherwise, coding like this (worst case) will lead to a clash in m_pos key preventing pre-compilation ex.:
+		 * 		strVarA = getWord(); // fA should come just after this
+		 * 		strVarB = getWord(); // fB here too
+		 * 		strC = getWord();
+		 * 		fA = getFloatVar(strVarA); // as this var precomp would not match the precompiled word as has m_pos of C
+		 * 		fB = getFloatVar(strVarB); // and this fails too becuase of m_pos C
+		 */
+		if( // there is word but var is available, and new var is requested
+				precS[m_pos]->strWord.size() > 0 &&
+				precS[m_pos]->varName.size() == 0 &&
+				data.varName.size() > 0
+		) {
+			// the new var full name may refer to a pseudo-private scope short var name
+			if( boost::contains(data.varName, precS[m_pos]->strWord.substr(1)) ) {
+				precS[m_pos]->varName = data.varName;
+				LogDebug("PreC:PrecData: mixing word & new var: " << precS[m_pos]->info());
+				return true;
+			}
+		}
+		
+		LogCritical << "PreC:PrecData: can't be replaced. Existing: " << precS[m_pos]->info() << "; Requested: " << data.info();
+		return false;
+	}
 	
 	if(data.strWord.size() > 0) {
 		if(data.strWord.find_first_of("abcdefghijklmnopqrstuvwxyz_0123456789") == std::string_view::npos) return false;
@@ -666,12 +744,21 @@ bool Context::PrecCompile(PrecData data) {  // pre-compile only static code
 		if(!evhAllowVarNames->getB()) return false;
 	}
 	
+	if(data.bJustSkip) {
+		static platform::EnvVarHandler * evhAllowSkip = evh_Create("ARX_PrecompileAllowSkip", "comments", false);
+		if(evhAllowSkip->getB() && !g_allowExperiments->getB()) {
+			LogCritical << evhAllowSkip->id() << " is experimental, may crash the game!";
+			evhAllowSkip->setB(false); // protects players
+		}
+		if(!evhAllowSkip->getB()) return false;
+	}
+	
 	///////////////////// create prec data
 	
-	if(precS.contains(data.posBefore)) {
-		LogDebug("WARNING: updating PrecData from: " << precS[m_pos]->info());
-		delete precS[data.posBefore];
-	}
+	//if(precS.contains(data.posBefore)) {
+		//LogDebug("WARNING: updating PrecData from: " << precS[m_pos]->info());
+		//delete precS[data.posBefore];
+	//}
 	
 	if(data.posAfter == 0) {
 		data.posAfter = m_pos; // initialize to expected default
@@ -684,49 +771,19 @@ bool Context::PrecCompile(PrecData data) {  // pre-compile only static code
 	precS[data.posBefore] = new PrecData(data);
 	getLineColumn(precS[data.posBefore]->lineBefore, precS[data.posBefore]->columnBefore, data.posBefore);
 	
+	// obs.: writing a pre-compiled cache would speed up only the first time that part of the script is executed by avoiding the script interpretation. In a development environment it is pointless, but for release there is almost also no gain, and even the end user may try to manually patch the scripts...
+	
 	LogDebug( "PreC[" << data.posBefore << "]" << precS.size() << ":"
 		<< [&](){
 				if(data.cmd)return "CMD";
 				if(data.strWord.size() > 0)return "WRD";
 				if(data.varName.size() > 0)return "VAR";
+				if(data.bJustSkip)return "SKP";
 				return "???"; // means missing detection above
 			}() << ":"
 		<< " ent=" << m_entity->idString() << ", m_pos=" << m_pos << ", "
 		<< precS[data.posBefore]->info()
 	);
-	
-	/* TODO below file writing is wrong, review..
-	static platform::EnvVarHandler * evhWrite = evh_Create("ARX_PrecompileWriteCache", "write all pre-compiled data to files, you will need an hex editor to visualize them. obs.: they may not have been fully pre-compiled as this happens lazily on demand.", true);
-	if(evhWrite->getB()) {
-		res::path flnm = "precompiled/" + m_script->file + ".precompiled";
-		
-		std::ofstream fl;
-		// TODO trunc once if a change is detected: ofs.open(flnm.string(), std::ofstream::out | std::ofstream::trunc);
-		fl.open(flnm.string(), std::ios::out | std::ios::binary | std::ios::app);
-		fl.write(data.posBefore, sizeof data.posBefore); // data index = 1
-		fl.write(data.posAfter, sizeof data.posAfter); // data index = 2
-		std::string what; // data index = 3. also must have always 3 chars.
-		std::string writeData; // data index = 4 size of writeData; data index = 5 writeData
-		if(data.cmd) {
-			what = "CMD";
-			writeData = data.cmd->id();
-		} else if(data.strWord.size() > 0) {
-			what = "WRD";
-			writeData = data.strWord;
-		} else if(data.varName.size() > 0) {
-			what = "VAR";
-			writeData = data.varName;
-		}
-		fl.write(what, 3);
-		size_t sz = sizeof writeData;
-		fl.write(sz, sizeof sz);
-		fl.write(writeData, sz);
-		//fl.write(reinterpret_cast<const char*>(&str), sizeof str);
-		fl.close();
-		
-		// TODO code a cache reader. reading the cache will prevent appeding existing pre-compiled data. but script changes must also be detected: the script must be dumped at precompiled folder also, and when first loading the original script, comparing with it will be the hint to clear the pre-compiled cache, do this at Context constructor probably.
-	}
-	*/
 	
 	return true;
 }
@@ -758,7 +815,7 @@ void Context::skipWord() {
 		for(; m_pos != esdat.size() && !isWhitespace(esdat[m_pos]); m_pos++) {
 			if(esdat[m_pos] == '"') {
 				ScriptParserWarning << "unexpected '\"' inside token";
-			} else if(script::detectAndSkipComment(esdat, m_pos, false)) {
+			} else if(script::detectAndSkipComment(this, esdat, m_pos, false)) {
 				break;
 			}
 		}
@@ -800,6 +857,10 @@ std::string Context::getFlags() {
 
 float Context::getFloat() {
 	return getFloatVar(getWord());
+}
+
+int Context::getInteger() {
+	return static_cast<int>(getFloat());
 }
 
 bool Context::getBool() {
@@ -852,7 +913,7 @@ size_t Context::skipCommand() {
 	
 	size_t oldpos = m_pos;
 	
-	if(script::detectAndSkipComment(esdat, m_pos, false)) {
+	if(script::detectAndSkipComment(this, esdat, m_pos, false)) {
 		oldpos = size_t(-1);
 	} else { // skips to the end of the line even if it is not commented
 		m_pos = esdat.find('\n', m_pos);
