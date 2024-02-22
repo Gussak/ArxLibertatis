@@ -83,8 +83,6 @@ u64 flagsToMask(const char (&flags)[N]) {
 }
 
 class PrecData {
-	std::string strDebug;
-	
 public:
 	// base
 	size_t posBefore; // is also the key to decompile
@@ -128,14 +126,11 @@ public:
 		columnBefore = -1;
 		
 		bJustSkip = false;
-		
-		updateDbg();
 	}
 	
-	PrecData & setJustSkip() { bJustSkip = true; updateDbg(); return *this; }
-	PrecData & appendCustomInfo(std::string str) { strCustomInfo += str; updateDbg(); return *this; }
-	void updateDbg();
-	std::string_view info() const { return strDebug; }
+	PrecData & setJustSkip() { bJustSkip = true; return *this; }
+	PrecData & appendCustomInfo(std::string str) { strCustomInfo += str; return *this; }
+	std::string info() const;
 };
 static std::map< std::string, std::map<size_t, PrecData*> > precScripts;
 

@@ -464,8 +464,8 @@ void Context::seekToPosition(size_t pos) {
 	m_pos=pos; 
 }
 
-void PrecData::updateDbg() {
-	strDebug = std::string() + "PreCD{" +
+std::string PrecData::info() const {
+	return std::string() + "PreCD{" +
 		" pB=" + std::to_string(posBefore) + ":" + std::to_string(lineBefore) + ":" + std::to_string(columnBefore) + "," + // line and column -1 is to just mean it was not set as they can be 0
 		" pA=" + std::to_string(posAfter)  + "," +
 		
@@ -768,6 +768,8 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 	///////////////////// create prec data
 	precS[data.posBefore] = new PrecData(data);
 	PrecData & psD = *precS[data.posBefore];
+	arx_assert(precS[data.posBefore]->posBefore == data.posBefore);
+	arx_assert(precS[data.posBefore]->posBefore == psD.posBefore);
 	
 	if(psD.posAfter == 0) {
 		psD.posAfter = m_pos; // initialize to expected default
@@ -784,7 +786,6 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 	
 	// obs.: writing a pre-compiled cache would speed up only the first time that part of the script is executed by avoiding the script interpretation. In a development environment it is pointless, but for release there is almost also no gain, and even the end user may try to manually patch the scripts...
 	
-	psD.updateDbg();
 	LogDebug( "PreC[" << psD.posBefore << "]" << precS.size() << ":"
 		<< [&](){
 				if(psD.cmd)return "CMD";
