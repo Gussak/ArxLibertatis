@@ -464,6 +464,7 @@ void Context::seekToPosition(size_t pos) {
 	m_pos=pos; 
 }
 
+static const char* pcCritDbg = "\x1b[1;31m[!!!]\x1b[0;31m\x1b[m";
 std::string PrecData::info() const {
 	return std::string() + "PreCD{" +
 		" pB=" + std::to_string(posBefore) + ":" + std::to_string(lineBefore) + ":" + std::to_string(columnBefore) + "," + // line and column -1 is to just mean it was not set as they can be 0
@@ -508,17 +509,17 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
 		#endif
 		
-		static std::string strMsg = "invalid PreCDeCompile request (m_pos=" + std::to_string(m_pos) + ") that is not set:";
+		std::string strMsg = std::string() + pcCritDbg + " invalid PreCDeCompile request (m_pos=" + std::to_string(m_pos) + ") that is not set:";
 		if(word && precS[m_pos]->strWord.size() == 0) {
-			LogCritical << strMsg << "WRD: " << precS[m_pos]->info(); // << "\n" << boost::stacktrace::stacktrace();
+			LogDebug(strMsg << "WRD: " << precS[m_pos]->info()); // << "\n" << boost::stacktrace::stacktrace();
 			return false;
 		} else
 		if(cmdPointer && !precS[m_pos]->cmd) {
-			LogCritical << strMsg << "CMD: " << precS[m_pos]->info();
+			LogDebug(strMsg << "CMD: " << precS[m_pos]->info());
 			return false;
 		} else
 		if(varName && precS[m_pos]->varName.size() == 0) { // the var can at least have a short var name to be replaced, so show it
-			LogCritical << strMsg << "VAR=\"" << *varName << "\": " << precS[m_pos]->info();
+			LogDebug(strMsg << "VAR=\"" << *varName << "\": " << precS[m_pos]->info());
 			return false;
 		} else
 		if(justSkip && !(precS[m_pos]->bJustSkip)) {
@@ -526,7 +527,7 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 			return false;
 		} else
 		if(!word && !cmdPointer && !varName && !justSkip) {
-			LogCritical << strMsg << "???: " << precS[m_pos]->info(); // this means there is something wrong in the script decompile cpp code flow
+			LogDebug(strMsg << "???: " << precS[m_pos]->info()); // this means there is something wrong in the script decompile cpp code flow
 			return false;
 		}
 		
@@ -535,7 +536,7 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 		if(varName   ) *varName    = precS[m_pos]->varName;
 		
 		if(precS[m_pos]->bJustSkip && precS[m_pos]->posAfter == size_t(-1)) {
-			LogCritical << "asked SKP but no pos was set to skip to: " << precS[m_pos]->info();
+			LogDebug("asked SKP but no pos was set to skip to: " << precS[m_pos]->info());
 		}
 		
 		if(precS[m_pos]->posAfter != size_t(-1)) {
@@ -683,7 +684,7 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 	if(getEntity() == entities.player()) return false; // TODO could instead just deny console commands at ScriptConsole::execute() -> ScriptEvent::resume(&es, entity, pos);
 	
 	if(data.posBefore == size_t(-1)) {
-		LogCritical << "invalid data.posBefore == size_t(-1), m_pos=" << m_pos << ", " << data.info(); // << boost::stacktrace::stacktrace()); // TODO find a way to dump some readable callstack in this case...
+		LogDebug("invalid data.posBefore == size_t(-1), m_pos=" << m_pos << ", " << data.info()); // << boost::stacktrace::stacktrace()); // TODO find a way to dump some readable callstack in this case...
 		return false;
 	}
 	
