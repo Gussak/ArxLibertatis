@@ -27,6 +27,7 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/stacktrace.hpp> // boost::stacktrace::stacktrace()
 
 #include "core/Core.h"
@@ -317,7 +318,16 @@ bool detectAndSkipComment(Context * context, const std::string_view & esdat, siz
 				PrecData(
 					posBefore, context->getPosition(), "",
 					nullptr, "", ""
-				).setJustSkip().appendCustomInfo(std::string(esdat).substr(posBefore, pos - posBefore))
+				)
+				.setJustSkip()
+				.appendCustomInfo(
+					[&](){
+						std::string str; // TODO fix, is showing garbage and not the comments..
+						// str = std::string(esdat).substr(posBefore, pos - posBefore);
+						// boost::replace_all(str, "\r\n\x0A\x0D", " ");
+						return str;
+					}()
+				)
 			);
 		}
 		
@@ -464,8 +474,8 @@ void Context::seekToPosition(size_t pos) {
 	m_pos=pos; 
 }
 
-static const char* pcDbgAlert3 = "\x1b[1;31m[!!!]\x1b[0;31m\x1b[m";
-static const char* pcDbgAlert2 = "\x1b[1;33m[!!]\x1b[0;33m\x1b[m";
+static const char* pcDbgAlert3 = "\x1b[1;31m[D3]\x1b[0;31m\x1b[m";
+static const char* pcDbgAlert2 = "\x1b[1;33m[D2]\x1b[0;33m\x1b[m";
 std::string PrecData::info() const {
 	return std::string() + "PreCD{" +
 		" pB=" + std::to_string(posBefore) + ":" + std::to_string(lineBefore) + ":" + std::to_string(columnBefore) + "," + // line and column -1 is to just mean it was not set as they can be 0
@@ -512,15 +522,15 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 		
 		std::string strMsg = std::string() + pcDbgAlert2 + " ignoring PreCDeCompile request (m_pos=" + std::to_string(m_pos) + "):";
 		if(word && precS[m_pos]->strWord.size() == 0) {
-			LogDebug(strMsg << "WRD: " << precS[m_pos]->info()); // << "\n" << boost::stacktrace::stacktrace();
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "WRD: " << precS[m_pos]->info()); // << "\n" << boost::stacktrace::stacktrace();
 			return false;
 		} else
 		if(cmdPointer && !precS[m_pos]->cmd) {
-			LogDebug(strMsg << "CMD: " << precS[m_pos]->info());
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "CMD: " << precS[m_pos]->info());
 			return false;
 		} else
 		if(varName && precS[m_pos]->varName.size() == 0) { // the var can at least have a short var name to be replaced, so show it
-			LogDebug(strMsg << "VAR=\"" << *varName << "\": " << precS[m_pos]->info());
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "VAR=\"" << *varName << "\": " << precS[m_pos]->info());
 			return false;
 		} else
 		if(justSkip && !(precS[m_pos]->bJustSkip)) {
@@ -528,7 +538,7 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 			return false;
 		} else
 		if(!word && !cmdPointer && !varName && !justSkip) {
-			LogDebug(strMsg << "???: " << precS[m_pos]->info()); // this means there is something wrong in the script decompile cpp code flow
+			LogCritical << strMsg << "???: " << precS[m_pos]->info(); // this means there is something wrong in the script decompile cpp code flow
 			return false;
 		}
 		
@@ -537,7 +547,7 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 		if(varName   ) *varName    = precS[m_pos]->varName;
 		
 		if(precS[m_pos]->bJustSkip && precS[m_pos]->posAfter == size_t(-1)) {
-			LogDebug("asked SKP but no pos was set to skip to: " << precS[m_pos]->info());
+			LogDebugIf(evhShowDecompile->getB(), pcDbgAlert2 << "asked SKP but no pos was set to skip to: " << precS[m_pos]->info());
 		}
 		
 		if(precS[m_pos]->posAfter != size_t(-1)) {
@@ -720,12 +730,12 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 			// the new var full name may refer to a pseudo-private scope short var name ex.: @'<<'test1 ('<<' is the tiny 1 char) @FUNCtst'<<'test1 this could be the full var name, so "'<<'test1" matches
 			if( boost::contains(data.varName, precS[data.posBefore]->strWord.substr(1)) ) {
 				precS[data.posBefore]->varName = data.varName;
-				LogDebug("PreC:PrecData: mixing word & new var: " << precS[data.posBefore]->info());
+				LogDebug("PreC:PrecData: mixed existing word with new var: " << precS[data.posBefore]->info());
 				return true;
 			}
 		}
 		
-		LogDebug(pcDbgAlert3 << "PreC:PrecData: can't be replaced. Existing: " << precS[data.posBefore]->info() << "; Requested: " << data.info());
+		LogDebug(pcDbgAlert3 << "PreC:PrecData: can't be replaced. Existing:"<<data.posBefore<<": " << precS[data.posBefore]->info() << "; Requested: " << data.info());
 		return false;
 	}
 	
