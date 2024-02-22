@@ -153,7 +153,7 @@ class Context {
 	std::vector<size_t> m_vNewLineAt;
 	
 	static std::vector<PrecCQ> precCompileQueue;
-	bool PrecDecompile(std::string asked, std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip);
+	bool PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip);
 	
 public:
 	

@@ -464,8 +464,8 @@ void Context::seekToPosition(size_t pos) {
 	m_pos=pos; 
 }
 
-static const char* pcDbgErr = "\x1b[1;31m!\x1b[0;31m\x1b[m";
-static const char* pcDbgWrn = "\x1b[1;33m!\x1b[0;33m\x1b[m";
+static const char* pcDbgAlert3 = "\x1b[1;31m[!!!]\x1b[0;31m\x1b[m";
+static const char* pcDbgAlert2 = "\x1b[1;33m[!!]\x1b[0;33m\x1b[m";
 std::string PrecData::info() const {
 	return std::string() + "PreCD{" +
 		" pB=" + std::to_string(posBefore) + ":" + std::to_string(lineBefore) + ":" + std::to_string(columnBefore) + "," + // line and column -1 is to just mean it was not set as they can be 0
@@ -488,18 +488,18 @@ std::string PrecData::info() const {
 }
 
 bool Context::PrecDecompileWord(std::string & word) {
-	return PrecDecompile("W", &word, nullptr, nullptr, false);
+	return PrecDecompile(&word, nullptr, nullptr, false);
 }
 bool Context::PrecDecompileCmd(Command ** cmdPointer) {
-	return PrecDecompile("C", nullptr, cmdPointer, nullptr, false);
+	return PrecDecompile(nullptr, cmdPointer, nullptr, false);
 }
 bool Context::PrecDecompileVarName(std::string & varName) {
-	return PrecDecompile("V", nullptr, nullptr, &varName, false);
+	return PrecDecompile(nullptr, nullptr, &varName, false);
 }
 bool Context::PrecDecompileCommentSkip() {
-	return PrecDecompile("S", nullptr, nullptr, nullptr, true);
+	return PrecDecompile(nullptr, nullptr, nullptr, true);
 }
-bool Context::PrecDecompile(std::string asked, std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip) {
+bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip) {
 	if(getEntity() == entities.player()) return false;
 	
 	if(precS.contains(m_pos)) {
@@ -510,7 +510,7 @@ bool Context::PrecDecompile(std::string asked, std::string * word, Command ** cm
 		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
 		#endif
 		
-		std::string strMsg = std::string() + "Asked=" + asked + pcDbgWrn + " ignoring PreCDeCompile request (m_pos=" + std::to_string(m_pos) + "):";
+		std::string strMsg = std::string() + pcDbgAlert2 + " ignoring PreCDeCompile request (m_pos=" + std::to_string(m_pos) + "):";
 		if(word && precS[m_pos]->strWord.size() == 0) {
 			LogDebug(strMsg << "WRD: " << precS[m_pos]->info()); // << "\n" << boost::stacktrace::stacktrace();
 			return false;
@@ -725,7 +725,7 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 			}
 		}
 		
-		LogDebug(pcDbgErr << pcDbgErr << pcDbgErr << "PreC:PrecData: can't be replaced. Existing: " << precS[data.posBefore]->info() << "; Requested: " << data.info());
+		LogDebug(pcDbgAlert3 << "PreC:PrecData: can't be replaced. Existing: " << precS[data.posBefore]->info() << "; Requested: " << data.info());
 		return false;
 	}
 	
