@@ -467,7 +467,7 @@ void Context::seekToPosition(size_t pos) {
 }
 
 void PrecData::updateDbg() {
-	strDebug = std::string() + "Data{" +
+	strDebug = std::string() + "PreCD{" +
 		" pB=" + std::to_string(posBefore) + ":" + std::to_string(lineBefore) + ":" + std::to_string(columnBefore) + "," + // line and column -1 is to just mean it was not set as they can be 0
 		" pA=" + std::to_string(posAfter)  + "," +
 		
@@ -505,39 +505,33 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 	if(precS.contains(m_pos)) {
 		#ifdef ARX_DEBUG
 		static platform::EnvVarHandler * evhShowDecompile = evh_Create("ARX_PrecompileShowDecompileLog", "", false);
-		if(evhShowDecompile->getB()) LogDebug("DeCompile " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
+		if(evhShowDecompile->getB()) LogDebug("PreCDeCompile " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
 		#endif
 		
-		//if(word && precS[m_pos]->strWord.size() == 0) {
-			//LogCritical << "invalid request for Word "
-				//<< (word?"W":"")
-				//<< (cmdPointer?"C":"")
-				//<< (varName?"V":"")
-				//<< ((!precS[m_pos]->bJustSkip)?"!S":"")
-				//<< " that is not set: " << precS[m_pos]->info(); // << "\n" << boost::stacktrace::stacktrace();
-			//return false;
-		//}
-		
-		bool fail = false;
-		if(!fail && word && precS[m_pos]->strWord.size() == 0) fail = true;
-		if(!fail && cmdPointer && !precS[m_pos]->cmd) fail = true;
-		if(!fail && varName && precS[m_pos]->varName.size() == 0) fail = true;
-		if(!fail && !(precS[m_pos]->bJustSkip)) fail = true;
-		if(fail) {
-			LogCritical << "invalid request for a type "
-				<< (word?"W":"")
-				<< (cmdPointer?"C":"")
-				<< (varName?"V":"")
-				<< ((!precS[m_pos]->bJustSkip)?"!S":"")
-				<< " that is not set: " << precS[m_pos]->info(); // << "\n" << boost::stacktrace::stacktrace();
+		static std::string strMsg = "invalid PreCDeCompile request that is not set:";
+		if(word && precS[m_pos]->strWord.size() == 0) {
+			LogCritical << strMsg << "WRD: " << precS[m_pos]->info(); // << "\n" << boost::stacktrace::stacktrace();
+			return false;
+		} else
+		if(cmdPointer && !precS[m_pos]->cmd) {
+			LogCritical << strMsg << "CMD: " << precS[m_pos]->info();
+			return false;
+		} else
+		if(varName && precS[m_pos]->varName.size() == 0) {
+			LogCritical << strMsg << "VAR: " << precS[m_pos]->info();
+			return false;
+		} else
+		if(!word && !cmdPointer && !varName && !(precS[m_pos]->bJustSkip)) {
+			LogCritical << strMsg << "???: " << precS[m_pos]->info();
 			return false;
 		}
 		
 		if(word      ) *word       = precS[m_pos]->strWord;
 		if(cmdPointer) *cmdPointer = precS[m_pos]->cmd;
 		if(varName   ) *varName    = precS[m_pos]->varName;
+		
 		if(precS[m_pos]->bJustSkip && precS[m_pos]->posAfter == size_t(-1)) {
-			LogCritical << "nothing to skip: " << precS[m_pos]->info();
+			LogCritical << "asked SKP but no pos was set to skip to: " << precS[m_pos]->info();
 		}
 		
 		if(precS[m_pos]->posAfter != size_t(-1)) {
@@ -686,8 +680,7 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 	if(getEntity() == entities.player()) return false; // TODO could instead just deny console commands at ScriptConsole::execute() -> ScriptEvent::resume(&es, entity, pos);
 	
 	if(data.posBefore == size_t(-1)) {
-		LogDebug("invalid data.posBefore == size_t(-1)" << boost::stacktrace::stacktrace()); // TODO find a way to dump something readable in this case...
-		LogDebug("PrecData=" << data.info());
+		LogCritical << "invalid data.posBefore == size_t(-1), " << data.info(); // << boost::stacktrace::stacktrace()); // TODO find a way to dump some readable callstack in this case...
 		return false;
 	}
 	
@@ -769,7 +762,6 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 	}
 	
 	///////////////////// create prec data
-	
 	precS[data.posBefore] = new PrecData(data);
 	PrecData & psD = *precS[data.posBefore];
 	
@@ -783,11 +775,12 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 	
 	size_t l, c;
 	getLineColumn(l, c, psD.posBefore);
-	psD.lineBefore = l;
-	psD.columnBefore = c;
+	psD.lineBefore = static_cast<int>(l);
+	psD.columnBefore = static_cast<int>(c);
 	
 	// obs.: writing a pre-compiled cache would speed up only the first time that part of the script is executed by avoiding the script interpretation. In a development environment it is pointless, but for release there is almost also no gain, and even the end user may try to manually patch the scripts...
 	
+	psD.updateDbg();
 	LogDebug( "PreC[" << psD.posBefore << "]" << precS.size() << ":"
 		<< [&](){
 				if(psD.cmd)return "CMD";

@@ -85,8 +85,6 @@ u64 flagsToMask(const char (&flags)[N]) {
 class PrecData {
 	std::string strDebug;
 	
-	void updateDbg();
-	
 public:
 	// base
 	size_t posBefore; // is also the key to decompile
@@ -140,7 +138,7 @@ public:
 	}
 	
 	PrecData & setJustSkip() { bJustSkip = true; return *this; }
-	
+	void updateDbg();
 	std::string_view info() const { return strDebug; }
 };
 static std::map< std::string, std::map<size_t, PrecData*> > precScripts;
