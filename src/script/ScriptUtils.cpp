@@ -236,10 +236,9 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 	}
 	
 	PrecCompileQueueAdd(this, PrecData(
-		m_pos,
-		size_t(-1), // disables updating m_pos
-		"",
-		nullptr, "", nameAuto ) ); // good to test the static queue, but could be this also: (const_cast<Context*>(this))->PrecCompile(true, PrecData(...));
+		m_pos, size_t(-1), "",
+		nullptr, "", nameAuto
+	)); // good to test the static queue, but could be this also: (const_cast<Context*>(this))->PrecCompile(true, PrecData(...));
 	
 	return nameAuto;
 }
@@ -317,9 +316,8 @@ bool detectAndSkipComment(Context * context, const std::string_view & esdat, siz
 			context->PrecCompile(
 				PrecData(
 					posBefore, context->getPosition(), "",
-					nullptr, "", "",
-					"skipped comment"
-				).setJustSkip()
+					nullptr, "", ""
+				).setJustSkip().appendCustomInfo("skipped comment")
 			);
 		}
 		
@@ -488,27 +486,29 @@ void PrecData::updateDbg() {
 }
 
 bool Context::PrecDecompileWord(std::string & word) {
-	return PrecDecompile(&word, nullptr, nullptr);
+	return PrecDecompile(&word, nullptr, nullptr, false);
 }
 bool Context::PrecDecompileCmd(Command ** cmdPointer) {
-	return PrecDecompile(nullptr, cmdPointer, nullptr);
+	return PrecDecompile(nullptr, cmdPointer, nullptr, false);
 }
 bool Context::PrecDecompileVarName(std::string & varName) {
-	return PrecDecompile(nullptr, nullptr, &varName);
+	return PrecDecompile(nullptr, nullptr, &varName, false);
 }
 bool Context::PrecDecompileCommentSkip() {
-	return PrecDecompile(nullptr, nullptr, nullptr);
+	return PrecDecompile(nullptr, nullptr, nullptr, true);
 }
-bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName) {
+bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip) {
 	if(getEntity() == entities.player()) return false;
 	
 	if(precS.contains(m_pos)) {
+		arx_assert(precS[m_pos]->posBefore == m_pos);
+		
 		#ifdef ARX_DEBUG
 		static platform::EnvVarHandler * evhShowDecompile = evh_Create("ARX_PrecompileShowDecompileLog", "", false);
-		if(evhShowDecompile->getB()) LogDebug("PreCDeCompile " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
+		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
 		#endif
 		
-		static std::string strMsg = "invalid PreCDeCompile request that is not set:";
+		static std::string strMsg = "invalid PreCDeCompile request (m_pos=" + std::to_string(m_pos) + ") that is not set:";
 		if(word && precS[m_pos]->strWord.size() == 0) {
 			LogCritical << strMsg << "WRD: " << precS[m_pos]->info(); // << "\n" << boost::stacktrace::stacktrace();
 			return false;
@@ -517,12 +517,16 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 			LogCritical << strMsg << "CMD: " << precS[m_pos]->info();
 			return false;
 		} else
-		if(varName && precS[m_pos]->varName.size() == 0) {
-			LogCritical << strMsg << "VAR: " << precS[m_pos]->info();
+		if(varName && precS[m_pos]->varName.size() == 0) { // the var can at least have a short var name to be replaced, so show it
+			LogCritical << strMsg << "VAR=\"" << *varName << "\": " << precS[m_pos]->info();
 			return false;
 		} else
-		if(!word && !cmdPointer && !varName && !(precS[m_pos]->bJustSkip)) {
-			LogCritical << strMsg << "???: " << precS[m_pos]->info();
+		if(justSkip && !(precS[m_pos]->bJustSkip)) {
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "SKP: " << precS[m_pos]->info()); // there is a skip attempt before useful code, so this can be ignored
+			return false;
+		} else
+		if(!word && !cmdPointer && !varName && !justSkip) {
+			LogCritical << strMsg << "???: " << precS[m_pos]->info(); // this means there is something wrong in the script decompile cpp code flow
 			return false;
 		}
 		
@@ -646,9 +650,8 @@ std::string Context::getWord(bool evaluateVars) {
 	) {
 		PrecCompile( PrecData(
 				precw.precPosBefore, m_pos, "",
-				nullptr, word, "",
-				(precw.eprecSS == EPrecStaticStr::EPSSAllowStatic ? "text" : "")
-			)
+				nullptr, word, ""
+			).appendCustomInfo(precw.eprecSS == EPrecStaticStr::EPSSAllowStatic ? "text" : "")
 		);
 	}
 	
@@ -680,7 +683,7 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 	if(getEntity() == entities.player()) return false; // TODO could instead just deny console commands at ScriptConsole::execute() -> ScriptEvent::resume(&es, entity, pos);
 	
 	if(data.posBefore == size_t(-1)) {
-		LogCritical << "invalid data.posBefore == size_t(-1), " << data.info(); // << boost::stacktrace::stacktrace()); // TODO find a way to dump some readable callstack in this case...
+		LogCritical << "invalid data.posBefore == size_t(-1), m_pos=" << m_pos << ", " << data.info(); // << boost::stacktrace::stacktrace()); // TODO find a way to dump some readable callstack in this case...
 		return false;
 	}
 	
@@ -761,6 +764,7 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 		if(!evhAllowSkip->getB()) return false;
 	}
 	
+	///////////////////////////////////////////////////////////////
 	///////////////////// create prec data
 	precS[data.posBefore] = new PrecData(data);
 	PrecData & psD = *precS[data.posBefore];

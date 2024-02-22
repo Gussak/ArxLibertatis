@@ -98,15 +98,14 @@ public:
 	Command * cmd;
 	std::string strWord;
 	std::string varName;
+	bool bJustSkip; // comments for now
+	
+	// these are just derived from posBefore
+	int lineBefore;
+	int columnBefore;
 	
 	// keep last
 	std::string strCustomInfo;
-	
-	bool bJustSkip;
-	
-	// these are just derivated from posBefore
-	int lineBefore;
-	int columnBefore;
 	
 	PrecData(
 		size_t _posBefore
@@ -116,8 +115,6 @@ public:
 		,Command * _cmd
 		,std::string _strWord
 		,std::string _varName
-		
-		,std::string _strCustom = "" // keep last with default
 	) : 
 		posBefore(_posBefore)
 		,posAfter(_posAfter)
@@ -126,8 +123,6 @@ public:
 		,cmd(_cmd)
 		,strWord(_strWord)
 		,varName(_varName)
-		
-		,strCustomInfo(_strCustom)
 	{
 		lineBefore = -1;
 		columnBefore = -1;
@@ -137,7 +132,8 @@ public:
 		updateDbg();
 	}
 	
-	PrecData & setJustSkip() { bJustSkip = true; return *this; }
+	PrecData & setJustSkip() { bJustSkip = true; updateDbg(); return *this; }
+	PrecData & appendCustomInfo(std::string str) { strCustomInfo += str; updateDbg(); return *this; }
 	void updateDbg();
 	std::string_view info() const { return strDebug; }
 };
@@ -162,7 +158,7 @@ class Context {
 	std::vector<size_t> m_vNewLineAt;
 	
 	static std::vector<PrecCQ> precCompileQueue;
-	bool PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName);
+	bool PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip);
 	
 public:
 	

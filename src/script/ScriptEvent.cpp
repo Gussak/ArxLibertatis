@@ -512,16 +512,22 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	
 	size_t brackets = 1;
 	
-	script::Command * precCmdPointer;
 	std::string word;
-	bool bPrecCmdExec;
-	size_t precPosBeforeCmd = size_t(-1);
+	
+	// must set defaults on every loop begin
+	bool bPrecDecompiledCmdExec;
+	script::Command * precCmdPointer;
+	size_t precPosBeforeCmd;
+	
 	for(;;) {
 		script::Context::PrecCompileQueueProcess(context);
-		bPrecCmdExec = false;
+		
+		bPrecDecompiledCmdExec = false;
 		precCmdPointer = nullptr;
+		precPosBeforeCmd = size_t(-1);
+		
 		if(context.PrecDecompileCmd(&precCmdPointer)) {
-			bPrecCmdExec = true;
+			bPrecDecompiledCmdExec = true;
 		} else {
 			precPosBeforeCmd = context.getPosition();
 			
@@ -550,7 +556,7 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 			
 			script::Command::Result res;
 			bool bSkip = false;
-			if(bPrecCmdExec) bSkip = true;
+			if(bPrecDecompiledCmdExec) bSkip = true;
 			if(!bSkip) {
 				if(command.getEntityFlags()
 					 && (command.getEntityFlags() != script::Command::AnyEntity
@@ -568,8 +574,10 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 					bSkip = true;
 				}
 			}
-			if(!bSkip || bPrecCmdExec) {
-				context.PrecCompile(script::PrecData(precPosBeforeCmd, 0, "",	&command, "", "")); // put before execute to capture current m_pos as posAfter
+			if(!bSkip || bPrecDecompiledCmdExec) {
+				if(!bPrecDecompiledCmdExec) {
+					context.PrecCompile(script::PrecData(precPosBeforeCmd, 0, "",	&command, "", "")); // put before execute to capture current m_pos as posAfter
+				}
 				res = command.execute(context);
 				bSkip = true;
 			}
