@@ -528,7 +528,7 @@ bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
 			// otherwise it shall always exist
 			fileChkLOD = "graph/obj3d/interactive/system/lod/arx_icon_lod_32x32.ftl"; // TODO other sizes matching icons and models on floor (needs "rotate" 90o, just chose the equivalent ex 32x96 would use 96x32)
 			objLoad = loadObject(fileChkLOD, pbox).release();
-			LogCritical << "the file " << fileChkLOD << " is missing, damaged or incorrect (broken symlink?), please restore a backup (or try to drop RAM cache)"; // Non-ECC RAM may cause this problem too. This problem is not specific to this file, it may happen to any file...
+			LogCritical << "the required fast LOD file " << fileChkLOD << " could not be loaded, try restoring a backup";
 			LODIconAsSkin(objLoad, io.m_icon);
 		}
 		
