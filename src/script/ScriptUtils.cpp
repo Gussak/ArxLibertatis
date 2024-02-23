@@ -479,7 +479,8 @@ static const char* pcDbgAlert2 = "\x1b[1;33m[D2]\x1b[0;33m\x1b[m";
 std::string PrecData::info() const {
 	return std::string() + "PreCD{" +
 		" pB=" + std::to_string(posBefore) + ":" + std::to_string(lineBefore) + ":" + std::to_string(columnBefore) + "," + // line and column -1 is to just mean it was not set as they can be 0
-		" pA=" + std::to_string(posAfter)  + "," +
+		(posAfter != size_t(-1) ?
+			(" pA=" + std::to_string(posAfter) + ",") : "") +
 		
 		(strWord.size() > 0 ?
 			(" W=\"" + strWord    + "\",") : "") +
@@ -517,7 +518,7 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 		
 		#ifdef ARX_DEBUG
 		static platform::EnvVarHandler * evhShowDecompile = evh_Create("ARX_PrecompileShowDecompileLog", "", false);
-		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile " << m_entity->idString() << ", m_pos=" << m_pos << ", " << precS[m_pos]->info());
+		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile TRY " << m_entity->idString() << " (m_pos=" << m_pos << ") " << precS[m_pos]->info());
 		#endif
 		
 		std::string strMsg = std::string() + pcDbgAlert2 + " ignoring PreCDeCompile request (m_pos=" + std::to_string(m_pos) + "):";
@@ -730,6 +731,7 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 			// the new var full name may refer to a pseudo-private scope short var name ex.: @'<<'test1 ('<<' is the tiny 1 char) @FUNCtst'<<'test1 this could be the full var name, so "'<<'test1" matches
 			if( boost::contains(data.varName, precS[data.posBefore]->strWord.substr(1)) ) {
 				precS[data.posBefore]->varName = data.varName;
+				precS[data.posBefore]->appendCustomInfo("mixed word with compatible expanded var name");
 				LogDebug("PreC:PrecData: mixed existing word with new var: " << precS[data.posBefore]->info());
 				return true;
 			}
@@ -857,6 +859,12 @@ void Context::skipWhitespace(bool skipNewlines, bool warnNewlines) {
 		if(esdat[m_pos] == '\n') {
 			if(warnNewlines) {
 				ScriptParserWarning << "unexpected newline";
+				LogDebug("unexpected newline at this line data: " << [&](){
+					size_t p = m_pos - 1;
+					while(esdat[p] != '\n' && p > 0) p--;
+					p++;
+					return "p=" + std::to_string(p) + "; m_pos=" + std::to_string(m_pos) + ": <beginOfLine>={" + std::string(esdat.substr(p, m_pos - p)) + "}=<EndOfLine>";
+				}());
 				if(isBlockEndSuprressed(*this, "?")) {
 					// Ignore the newline
 					continue;
