@@ -217,6 +217,7 @@ public:
 	static void PrecCompileQueueProcess(Context & context);
 	static void PrecCompileQueueAdd(const Context * context, PrecData data);
 	bool PrecCompile(const PrecData data);
+	void PrecUpdatePosAfter(PrecData & pd);
 	
 	bool PrecDecompileWord(std::string & word);
 	bool PrecDecompileCmd(Command ** cmdPointer);
