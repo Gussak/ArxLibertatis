@@ -2321,7 +2321,7 @@ bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esda
 				continue;
 			} else { // is end of multiline comment
 				if((posEndMLC+2+(strNL.size()-1)) < line.size()) {
-					LogError << ssErrMsg.str() << "' [line=" << lineCount << "]: " << "the closing '*/' token shall always be followed by a newline. line content is: \"" << line << "\""; // show just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+					LogError << ssErrMsg.str() << "' [line=" << lineCount << "]: " << "the closing '*/' token shall always be followed by a newline to not break the line number calculation. line content is: \"" << line << "\""; // shows just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
 				}
 				esdat += line + "\n";
 				bSeekBeginMLC = true;

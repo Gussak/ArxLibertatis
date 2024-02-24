@@ -650,7 +650,7 @@ EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
 		if(vEVH.contains(_id)) {
 			return vEVH[_id];
 		} else {
-			if(EVHnoLog::allowLog) LogWarning << _id << " is not a recognized env var";
+			if(EVHnoLog::allowLog) LogWarning << _id << " is not a recognized env var (obs.: lazily initialized env vars may not be promptly available).";
 		}
 	}
 	

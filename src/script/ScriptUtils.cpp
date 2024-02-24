@@ -237,7 +237,7 @@ std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view
 	}
 	
 	PrecCompileQueueAdd(this, PrecData(
-		m_pos, size_t(-1), "",
+		m_pos - name.size(), size_t(-1), "",
 		nullptr, "", nameAuto
 	)); // good to test the static queue, but could be this also: (const_cast<Context*>(this))->PrecCompile(true, PrecData(...));
 	
@@ -294,16 +294,14 @@ std::string Context::getStringVar(std::string_view name, Entity * entOverride) c
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
 
 bool detectAndSkipComment(Context * context, const std::string_view & esdat, size_t & pos, bool skipNewlines) {
-	static size_t posBefore;
-	posBefore = size_t(-1);
-	if(context) {
-		if(context->PrecDecompileCommentSkip()) {
-			return true;
-		}
-		posBefore = context->getPosition();
+	if(context && context->PrecDecompileCommentSkip()) {
+		return true;
 	}
 	
 	if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
+		static size_t posBefore;
+		if(context) posBefore = pos;
+		
 		pos = esdat.find('\n', pos + 2);
 		if(pos == std::string::npos) {
 			pos = esdat.size();
@@ -315,12 +313,7 @@ bool detectAndSkipComment(Context * context, const std::string_view & esdat, siz
 		
 		if(context) {
 			context->PrecCompile(
-				PrecData(
-					posBefore, context->getPosition(), "",
-					nullptr, "", ""
-				)
-				.setJustSkip()
-				.appendCustomInfo(
+				PrecData(posBefore, pos, "",	nullptr, "", "").setJustSkip().appendCustomInfo(
 					[&](){
 						std::string str; // TODO fix, is showing garbage and not the comments..
 						// str = std::string(esdat).substr(posBefore, pos - posBefore);
@@ -333,6 +326,7 @@ bool detectAndSkipComment(Context * context, const std::string_view & esdat, siz
 		
 		return true;
 	}
+	
 	return false;
 }
 
@@ -500,18 +494,22 @@ std::string PrecData::info() const {
 }
 
 bool Context::PrecDecompileWord(std::string & word) {
-	return PrecDecompile(&word, nullptr, nullptr, false);
+	return PrecDecompile(m_pos,
+		&word, nullptr, nullptr, false);
 }
 bool Context::PrecDecompileCmd(Command ** cmdPointer) {
-	return PrecDecompile(nullptr, cmdPointer, nullptr, false);
+	return PrecDecompile(m_pos,
+		nullptr, cmdPointer, nullptr, false);
 }
 bool Context::PrecDecompileVarName(std::string & varName) {
-	return PrecDecompile(nullptr, nullptr, &varName, false);
+	return PrecDecompile(m_pos - varName.size(),
+		nullptr, nullptr, &varName, false);
 }
 bool Context::PrecDecompileCommentSkip() {
-	return PrecDecompile(nullptr, nullptr, nullptr, true);
+	return PrecDecompile(m_pos,
+		nullptr, nullptr, nullptr, true);
 }
-bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip) {
+bool Context::PrecDecompile(size_t pos, std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip) {
 	if(getEntity() == entities.player()) return false;
 	
 	#ifdef ARX_DEBUG
@@ -523,17 +521,16 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 	}
 	#endif
 	
-	if(precS.contains(m_pos)) {
-		PrecData & psD = *precS[m_pos];
-		
-		arx_assert(psD.posBefore == m_pos);
+	if(precS.contains(pos)) {
+		PrecData & psD = *precS[pos];
+		arx_assert(psD.posBefore == pos);
 		
 		#ifdef ARX_DEBUG
 		static platform::EnvVarHandler * evhShowDecompile = evh_Create("ARX_PrecompileShowDecompileLog", "", false);
-		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile TRY " << m_entity->idString() << " (m_pos=" << m_pos << ") " << psD.info());
+		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile TRY " << m_entity->idString() << " (pos=" << pos << ") " << " (m_pos=" << m_pos << ") " << psD.info());
 		#endif
 		
-		std::string strMsg = std::string() + pcDbgAlert2 + " ignoring PreCDeCompile request (m_pos=" + std::to_string(m_pos) + "):";
+		std::string strMsg = std::string() + pcDbgAlert2 + " ignoring PreCDeCompile request (pos=" + std::to_string(pos) + "):";
 		if(word && psD.strWord.size() == 0) {
 			LogDebugIf(evhShowDecompile->getB(), strMsg << "WRD: " << psD.info()); // << "\n" << boost::stacktrace::stacktrace();
 			return false;
@@ -559,13 +556,27 @@ bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::stri
 		if(cmdPointer) *cmdPointer = psD.cmd;
 		if(varName   ) *varName    = psD.varName;
 		
+		LogDebugIf(psD.varName.size() > 0 && psD.strWord.size() == 0, pcDbgAlert3 << "var should always end up mixed with a word: " << psD.info());
+		
 		if(psD.bJustSkip && psD.posAfter == size_t(-1)) {
 			LogDebugIf(evhShowDecompile->getB(), pcDbgAlert2 << "asked SKP but no pos was set to skip to: " << psD.info());
 		}
 		
-		if(psD.posAfter != size_t(-1)) {
-			m_pos = psD.posAfter; // keep as LAST thing!
+		// seek to pos after, keep as LAST thing
+		if(psD.posAfter != size_t(-1) && (word || cmdPointer)) { // not allowed for var
+			if(pos == m_pos) {
+				if(psD.posAfter > m_pos) {
+					m_pos = psD.posAfter;
+				} else {
+					LogCritical << "Script decompile posAfter (" << psD.posAfter << ") should always be AFTER m_pos (" << m_pos << "): " << psD.info();
+				}
+			} else {
+				if(psD.posAfter != m_pos) { // may already be where it should in case of alt pos
+					LogCritical << "Script decompile was requested for alt pos (" << pos << ") than expected current (" << m_pos << "). In this case seeking to posAfter should not have also been requested: " << psD.info();
+				}
+			}
 		}
+		
 		return true;
 	}
 	
@@ -760,44 +771,69 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 		}
 		*/
 		
-		// convert justSkip to anything else
+		/*TODO RETHINK
+		// convert to more relevant types
 		if(pdE.bJustSkip && !data.bJustSkip) {
 			pdE.strWord = data.strWord;
 			pdE.varName = data.varName;
 			pdE.cmd = data.cmd;
 			pdE.appendCustomInfo("converted JustSkip to better match");
-			LogDebug(pcDbgAlert1 << "PreC:PrecData: converted JustSkip to better match: " << pdE.info());
-			pdE.strWord = ""; //prevents messing var retrieval
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.bJustSkip = false;
 			PrecUpdatePosAfter(pdE);
 			return true;
 		} else
-		if( // convert word to var if possible
-				pdE.strWord.size() > 0 && // there is word
-				pdE.varName.size() == 0 && // and var is available
-				data.varName.size() > 0 // and new var is requested
-		) {
-			// the new var full name may refer to a pseudo-private scope short var name ex.: @'<<'test1 ('<<' is the tiny 1 char) @FUNCtst'<<'test1 this could be the full var name, so "'<<'test1" matches
-			if( boost::contains(data.varName, pdE.strWord.substr(1)) ) {
+		if(pdE.varName.size() > 0 && data.cmd) { // cmd over var
+			pdE.cmd = data.cmd;
+			pdE.appendCustomInfo("converted var \"" + pdE.varName + "\" hit to cmd hit");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.varName = "";
+			PrecUpdatePosAfter(pdE);
+			return true;
+		} else
+		if( pdE.strWord.size() > 0 && data.cmd ) { // cmd over word
+			pdE.cmd = data.cmd;
+			pdE.appendCustomInfo("converted word \"" + pdE.strWord + "\" hit to cmd hit");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.strWord = "";
+			PrecUpdatePosAfter(pdE);
+			return true;
+		} else
+		if( pdE.strWord.size() > 0 && data.varName.size() > 0 ) { // var over word
+			pdE.varName = data.varName;
+			pdE.appendCustomInfo("converted word \"" + pdE.strWord + "\" hit to var hit");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.strWord = "";
+			PrecUpdatePosAfter(pdE);
+			return true;
+		} else
+		{}
+		*/
+		
+		if( pdE.strWord.size() > 0 && data.cmd ) { // TODO can this ever happen? as commands arent retrieved thru getWord()
+			pdE.cmd = data.cmd;
+			pdE.appendCustomInfo("mixed word+cmd");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			return true;
+		} else
+		if( pdE.strWord.size() > 0 && data.varName.size() > 0 ) { // this will happen
+			if( pdE.strWord == data.varName || boost::contains(data.varName, pdE.strWord.substr(1)) ) {
 				pdE.varName = data.varName;
-				pdE.appendCustomInfo("converted word to compatible expanded var name");
-				LogDebug(pcDbgAlert1 << "PreC:PrecData: converting word \"" << pdE.strWord << "\" to compatible expanded var name: " << pdE.info());
-				pdE.strWord = ""; //prevents messing var retrieval
-				PrecUpdatePosAfter(pdE);
+				pdE.appendCustomInfo("mixed word+var");
+				LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
 				return true;
 			}
 		} else
-		if( pdE.strWord.size() > 0 && !pdE.cmd && data.cmd ) { // convert word to command if possible
-			std::string pdEchkCmd = util::toLowercase(pdE.strWord);
-			pdEchkCmd.resize(std::remove(pdEchkCmd.begin(), pdEchkCmd.end(), '_') - pdEchkCmd.begin());
-			if( pdEchkCmd == data.cmd->getName() ) {
-				pdE.cmd = data.cmd;
-				pdE.appendCustomInfo("converted word to cmd");
-				LogDebug(pcDbgAlert1 << "PreC:PrecData: converting word \"" << pdE.strWord << "\" to cmd: " << pdE.info());
-				pdE.strWord = ""; //prevents messing cmd retrieval
-				PrecUpdatePosAfter(pdE);
+		if( pdE.varName.size() > 0 && data.strWord.size() > 0) { // TODO how this happens?
+			if( pdE.strWord == data.varName || boost::contains(data.varName, pdE.strWord.substr(1)) ) {
+				pdE.strWord = data.strWord;
+				pdE.posAfter = data.posAfter; // needed for word but not allowed for var, see decompile
+				pdE.appendCustomInfo("mixed var+word");
+				LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
 				return true;
 			}
-		}
+		} else
+		{}
 		
 		LogDebug(pcDbgAlert3 << "PreC: existing data at ["<< data.posBefore<<"] " << pdE.info() << " can't be replaced by " << data.info());
 		return false;

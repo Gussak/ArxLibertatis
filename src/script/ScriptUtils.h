@@ -129,7 +129,7 @@ public:
 	}
 	
 	PrecData & setJustSkip() { bJustSkip = true; return *this; }
-	PrecData & appendCustomInfo(std::string str) { strCustomInfo += str; return *this; }
+	PrecData & appendCustomInfo(std::string str) { strCustomInfo += str + (str.size() > 0 ? "; " : ""); return *this; }
 	std::string info() const;
 };
 static std::map< std::string, std::map<size_t, PrecData*> > precScripts;
@@ -153,7 +153,7 @@ class Context {
 	std::vector<size_t> m_vNewLineAt;
 	
 	static std::vector<PrecCQ> precCompileQueue;
-	bool PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip);
+	bool PrecDecompile(size_t pos, std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip); // pos should just be m_pos in most cases
 	
 public:
 	

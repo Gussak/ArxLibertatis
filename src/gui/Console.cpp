@@ -446,17 +446,19 @@ int ScriptConsole::list(std::string filter, bool execOnSingleMatch) {
 		return 0;
 	}
 	
+	std::string strList;
 	int iCount = 0;
 	std::string strCmd;
 	for(std::string cmd: m_history) {
 		if (std::regex_search(cmd, *re)) {
-			if(cmd != strCmd && !boost::starts_with(cmd, "hist ")) { // TODO get history command string properly
+			if(cmd != strCmd && !boost::starts_with(cmd, "hist ")) { // TODO get history command string properly, to skip them here
 				iCount++; // ignoring dups
 				strCmd = cmd;
-				LogInfo << cmd;
+				strList += "\t" + cmd + "\n";
 			}
 		}
 	}
+	LogInfo << "Console commands history:\n" << strList;
 	
 	LogDebug("count=" << iCount << ", cmd=" << strCmd);
 	
