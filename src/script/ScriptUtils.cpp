@@ -513,46 +513,57 @@ bool Context::PrecDecompileCommentSkip() {
 bool Context::PrecDecompile(std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip) {
 	if(getEntity() == entities.player()) return false;
 	
+	#ifdef ARX_DEBUG
+	static platform::EnvVarHandler * evhPrecClear = evh_Create("ARX_PrecompileClearAllOnce", "remove all pre-compilations (for tests, no need to restart the game, just spawn a new entity instance like unstacking an item)", false);
+	if(evhPrecClear->getB()) {
+		precScripts.clear();
+		LogInfo << "Cleared all pre-compiled script data. Disable other pre-compile vars to prevent pre-compilation, and re-spawn entities after that.";
+		evhPrecClear->setB(false);
+	}
+	#endif
+	
 	if(precS.contains(m_pos)) {
-		arx_assert(precS[m_pos]->posBefore == m_pos);
+		PrecData* pd = precS[m_pos];
+		
+		arx_assert(pd->posBefore == m_pos);
 		
 		#ifdef ARX_DEBUG
 		static platform::EnvVarHandler * evhShowDecompile = evh_Create("ARX_PrecompileShowDecompileLog", "", false);
-		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile TRY " << m_entity->idString() << " (m_pos=" << m_pos << ") " << precS[m_pos]->info());
+		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile TRY " << m_entity->idString() << " (m_pos=" << m_pos << ") " << pd->info());
 		#endif
 		
 		std::string strMsg = std::string() + pcDbgAlert2 + " ignoring PreCDeCompile request (m_pos=" + std::to_string(m_pos) + "):";
-		if(word && precS[m_pos]->strWord.size() == 0) {
-			LogDebugIf(evhShowDecompile->getB(), strMsg << "WRD: " << precS[m_pos]->info()); // << "\n" << boost::stacktrace::stacktrace();
+		if(word && pd->strWord.size() == 0) {
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "WRD: " << pd->info()); // << "\n" << boost::stacktrace::stacktrace();
 			return false;
 		} else
-		if(cmdPointer && !precS[m_pos]->cmd) {
-			LogDebugIf(evhShowDecompile->getB(), strMsg << "CMD: " << precS[m_pos]->info());
+		if(cmdPointer && !pd->cmd) {
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "CMD: " << pd->info());
 			return false;
 		} else
-		if(varName && precS[m_pos]->varName.size() == 0) { // the var can at least have a short var name to be replaced, so show it
-			LogDebugIf(evhShowDecompile->getB(), strMsg << "VAR=\"" << *varName << "\": " << precS[m_pos]->info());
+		if(varName && pd->varName.size() == 0) { // the var can at least have a short var name to be replaced, so show it
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "VAR=\"" << *varName << "\": " << pd->info());
 			return false;
 		} else
-		if(justSkip && !(precS[m_pos]->bJustSkip)) {
-			LogDebugIf(evhShowDecompile->getB(), strMsg << "SKP: " << precS[m_pos]->info()); // there is a skip attempt before useful code, so this can be ignored
+		if(justSkip && !(pd->bJustSkip)) {
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "SKP: " << pd->info()); // there is a skip attempt before useful code, so this can be ignored
 			return false;
 		} else
 		if(!word && !cmdPointer && !varName && !justSkip) {
-			LogCritical << strMsg << "???: " << precS[m_pos]->info(); // this means there is something wrong in the script decompile cpp code flow
+			LogCritical << strMsg << "???: " << pd->info(); // this means there is something wrong in the script decompile cpp code flow or support to a new pre-compile kind is missing
 			return false;
 		}
 		
-		if(word      ) *word       = precS[m_pos]->strWord;
-		if(cmdPointer) *cmdPointer = precS[m_pos]->cmd;
-		if(varName   ) *varName    = precS[m_pos]->varName;
+		if(word      ) *word       = pd->strWord;
+		if(cmdPointer) *cmdPointer = pd->cmd;
+		if(varName   ) *varName    = pd->varName;
 		
-		if(precS[m_pos]->bJustSkip && precS[m_pos]->posAfter == size_t(-1)) {
-			LogDebugIf(evhShowDecompile->getB(), pcDbgAlert2 << "asked SKP but no pos was set to skip to: " << precS[m_pos]->info());
+		if(pd->bJustSkip && pd->posAfter == size_t(-1)) {
+			LogDebugIf(evhShowDecompile->getB(), pcDbgAlert2 << "asked SKP but no pos was set to skip to: " << pd->info());
 		}
 		
-		if(precS[m_pos]->posAfter != size_t(-1)) {
-			m_pos = precS[m_pos]->posAfter; // keep as LAST thing!
+		if(pd->posAfter != size_t(-1)) {
+			m_pos = pd->posAfter; // keep as LAST thing!
 		}
 		return true;
 	}
