@@ -760,44 +760,44 @@ bool Context::PrecCompile(const PrecData data) {  // pre-compile only static cod
 		}
 		*/
 		
-		// convert justSkip to anything else
+		/*TODO RETHINK
+		// convert to more relevant types
 		if(pdE.bJustSkip && !data.bJustSkip) {
 			pdE.strWord = data.strWord;
 			pdE.varName = data.varName;
 			pdE.cmd = data.cmd;
 			pdE.appendCustomInfo("converted JustSkip to better match");
-			LogDebug(pcDbgAlert1 << "PreC:PrecData: converted JustSkip to better match: " << pdE.info());
-			pdE.strWord = ""; //prevents messing var retrieval
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.bJustSkip = false;
 			PrecUpdatePosAfter(pdE);
 			return true;
 		} else
-		if( // convert word to var if possible
-				pdE.strWord.size() > 0 && // there is word
-				pdE.varName.size() == 0 && // and var is available
-				data.varName.size() > 0 // and new var is requested
-		) {
-			// the new var full name may refer to a pseudo-private scope short var name ex.: @'<<'test1 ('<<' is the tiny 1 char) @FUNCtst'<<'test1 this could be the full var name, so "'<<'test1" matches
-			if( boost::contains(data.varName, pdE.strWord.substr(1)) ) {
-				pdE.varName = data.varName;
-				pdE.appendCustomInfo("converted word to compatible expanded var name");
-				LogDebug(pcDbgAlert1 << "PreC:PrecData: converting word \"" << pdE.strWord << "\" to compatible expanded var name: " << pdE.info());
-				pdE.strWord = ""; //prevents messing var retrieval
-				PrecUpdatePosAfter(pdE);
-				return true;
-			}
+		if(pdE.varName.size() > 0 && data.cmd) { // cmd over var
+			pdE.cmd = data.cmd;
+			pdE.appendCustomInfo("converted var \"" + pdE.varName + "\" hit to cmd hit");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.varName = "";
+			PrecUpdatePosAfter(pdE);
+			return true;
 		} else
-		if( pdE.strWord.size() > 0 && !pdE.cmd && data.cmd ) { // convert word to command if possible
-			std::string pdEchkCmd = util::toLowercase(pdE.strWord);
-			pdEchkCmd.resize(std::remove(pdEchkCmd.begin(), pdEchkCmd.end(), '_') - pdEchkCmd.begin());
-			if( pdEchkCmd == data.cmd->getName() ) {
-				pdE.cmd = data.cmd;
-				pdE.appendCustomInfo("converted word to cmd");
-				LogDebug(pcDbgAlert1 << "PreC:PrecData: converting word \"" << pdE.strWord << "\" to cmd: " << pdE.info());
-				pdE.strWord = ""; //prevents messing cmd retrieval
-				PrecUpdatePosAfter(pdE);
-				return true;
-			}
-		}
+		if( pdE.strWord.size() > 0 && data.cmd ) { // cmd over word
+			pdE.cmd = data.cmd;
+			pdE.appendCustomInfo("converted word \"" + pdE.strWord + "\" hit to cmd hit");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.strWord = "";
+			PrecUpdatePosAfter(pdE);
+			return true;
+		} else
+		if( pdE.strWord.size() > 0 && data.varName.size() > 0 ) { // var over word
+			pdE.varName = data.varName;
+			pdE.appendCustomInfo("converted word \"" + pdE.strWord + "\" hit to var hit");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.strWord = "";
+			PrecUpdatePosAfter(pdE);
+			return true;
+		} else
+		{}
+		*/
 		
 		LogDebug(pcDbgAlert3 << "PreC: existing data at ["<< data.posBefore<<"] " << pdE.info() << " can't be replaced by " << data.info());
 		return false;
