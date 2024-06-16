@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "game/EntityManager.h"
 #include "platform/Platform.h"
 #include "script/ScriptEvent.h"
 #include "io/log/Logger.h"
@@ -81,29 +82,99 @@ u64 flagsToMask(const char (&flags)[N]) {
 	return result;
 }
 
+class PrecData {
+public:
+	// base
+	size_t posBefore; // is also the key to decompile
+	// there are cases when, after retrieving precomp data, m_pos must not be updated tho.
+	// 0 means not initialized as 0 will never be valid anyway, and will auto use current m_pos.
+	// size_t(-1) will not be changed and means to be ignored when decompiling.
+	size_t posAfter;
+	std::string file; // if empty will auto use script file
+	
+	// opt: these will be stored and used to decompile
+	Command * cmd;
+	std::string strWord;
+	std::string varName;
+	bool bJustSkip; // comments for now
+	
+	// these are just derived from posBefore
+	int lineBefore;
+	int columnBefore;
+	
+	// keep last
+	std::string strCustomInfo;
+	
+	PrecData(
+		size_t _posBefore
+		,size_t _posAfter
+		,std::string _file
+		
+		,Command * _cmd
+		,std::string _strWord
+		,std::string _varName
+	) : 
+		posBefore(_posBefore)
+		,posAfter(_posAfter)
+		,file(_file)
+		
+		,cmd(_cmd)
+		,strWord(_strWord)
+		,varName(_varName)
+	{
+		lineBefore = -1;
+		columnBefore = -1;
+		
+		bJustSkip = false;
+	}
+	
+	PrecData & setJustSkip() { bJustSkip = true; return *this; }
+	PrecData & appendCustomInfo(std::string str) { strCustomInfo += str + (str.size() > 0 ? "; " : ""); return *this; }
+	std::string info() const;
+};
+static std::map< std::string, std::map<size_t, PrecData*> > precScripts;
+
+struct PrecCQ {
+	Context * context = nullptr;
+	PrecData data;
+};
+
 class Context {
 	
 	const EERIE_SCRIPT * m_script;
+	std::map<size_t, PrecData*> & precS; //pre-compiled script
 	size_t m_pos;
 	Entity * m_sender;
 	Entity * m_entity;
 	ScriptMessage m_message;
 	ScriptParameters m_parameters;
-	std::vector<size_t> m_stack;
+	const SCR_TIMER * m_timer;
+	std::vector<std::pair<size_t, std::string>> m_stackIdCalledFromPos;
+	std::vector<size_t> m_vNewLineAt;
+	
+	static std::vector<PrecCQ> precCompileQueue;
+	bool PrecDecompile(size_t pos, std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip); // pos should just be m_pos in most cases
 	
 public:
 	
 	explicit Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entity * entity,
-	                 ScriptMessage msg, ScriptParameters parameters);
+	                 ScriptMessage msg, ScriptParameters parameters, const SCR_TIMER * timer = nullptr);
 	
-	std::string getStringVar(std::string_view name) const;
+	std::string getStringVar(std::string_view name, Entity * entOverride = nullptr) const;
 	std::string getFlags();
-	std::string getWord();
+	std::string getWord(bool evaluateVars = true);
 	void skipWord();
+	std::string formatString(std::string format, float var) const;
+	std::string formatString(std::string format, long var) const;
+	std::string formatString(std::string format, std::string var) const;
+	std::string autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride = "", bool bCreatingVar = false) const;
 	
 	std::string getCommand(bool skipNewlines = true);
 	
 	void skipWhitespace(bool skipNewlines = false, bool warnNewlines = false);
+	void skipWhitespacesCommentsAndNewLines();
+	
+	void updateNewLinesList();
 	
 	Entity * getSender() const { return m_sender; }
 	Entity * getEntity() const { return m_entity; }
@@ -111,10 +182,10 @@ public:
 	const ScriptParameters & getParameters() const { return m_parameters; }
 	
 	bool getBool();
-	
 	float getFloat();
+	int getInteger();
 	
-	float getFloatVar(std::string_view name) const;
+	float getFloatVar(std::string_view name, Entity * entOverride = nullptr) const;
 	
 	/*!
 	 * Skip input until the end of the current line.
@@ -129,8 +200,29 @@ public:
 	
 	const EERIE_SCRIPT * getScript() const { return m_script; }
 	
-	size_t getPosition() const { return m_pos; }
+	bool isCheckTimerIdVsGoToLabelOnce() { return m_timer != nullptr; }
+	void clearCheckTimerIdVsGoToLabelOnce() { m_timer = nullptr; }
+	std::string getTimerName() { return m_timer == nullptr ? "(void)" : m_timer->nameHelper; }
 	
+	size_t getPosition() const { return m_pos; }
+	void getLineColumn(size_t & iLine, size_t & iColumn, size_t pos = static_cast<size_t>(-1)) const;
+	std::string getPosLineColumnInfo(bool compact = false, size_t pos = static_cast<size_t>(-1)) const;
+	
+	size_t getGoSubCallFromPos(size_t  indexFromLast) const;
+	const std::string strCallStackHighlight = "!!!";
+	std::string getGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between = " -> ", size_t indexFromLast = size_t(-1)) const;
+	
+	void seekToPosition(size_t pos);
+	
+	static void PrecCompileQueueProcess(Context & context);
+	static void PrecCompileQueueAdd(const Context * context, PrecData data);
+	bool PrecCompile(const PrecData data);
+	void PrecUpdatePosAfter(PrecData & pd);
+	
+	bool PrecDecompileWord(std::string & word);
+	bool PrecDecompileCmd(Command ** cmdPointer);
+	bool PrecDecompileVarName(std::string & varName);
+	bool PrecDecompileCommentSkip();
 	
 };
 
@@ -181,7 +273,7 @@ bool isBlockEndSuprressed(const Context & context, std::string_view command);
 
 size_t initSuppressions();
 
-#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPosition() << "] "
+#define ScriptContextPrefix(context) '[' << ((context).getEntity() ? (((context).getScript() == &(context).getEntity()->script) ? (context).getEntity()->className() : (context).getEntity()->idString()) : "unknown") << ':' << (context).getPosLineColumnInfo() << (context).getGoSubCallStack(" {CallStackId(FromPosition): ", " } ") << "] "
 #define ScriptPrefix ScriptContextPrefix(context) << getName() <<
 #define DebugScript(args) LogDebug(ScriptPrefix args)
 #define ScriptInfo(args) LogInfo << ScriptPrefix args
@@ -190,6 +282,12 @@ size_t initSuppressions();
 
 #define HandleFlags(expected) std::string options = context.getFlags(); \
 	for(u64 run = !options.empty(), flg = 0; run && ((flg = flagsToMask(options), (flg && !(flg & ~flagsToMask(expected)))) || (ScriptWarning << "unexpected flags: " << options, true)); run = 0)
+
+bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails = "", const std::string strCodeFile = "", const std::string strScriptStringVariableID = "", const Context * context = nullptr, size_t callStackIndexFromLast = 0);
+
+size_t seekBackwardsForCommentToken(const std::string_view & esdat, size_t posToBackTrackFrom);
+
+bool detectAndSkipComment(Context * context, const std::string_view & esdat, size_t & pos, bool skipNewlines);
 
 } // namespace script
 

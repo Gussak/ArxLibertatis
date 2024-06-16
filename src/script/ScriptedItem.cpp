@@ -327,7 +327,46 @@ public:
 		
 		DebugScript(' ' << price);
 		
-		context.getEntity()->_itemdata->price = price;
+		context.getEntity()->_itemdata->buyPrice = price;
+		context.getEntity()->_itemdata->sellPrice = price;
+		
+		return Success;
+	}
+	
+};
+
+class SetBuyPriceCommand : public Command {
+	
+public:
+	
+	SetBuyPriceCommand() : Command("setbuyprice", IO_ITEM) { }
+	
+	Result execute(Context & context) override {
+		
+		long buyPrice = std::max(long(context.getFloat()), 0l);
+		
+		DebugScript(' ' << buyPrice);
+		
+		context.getEntity()->_itemdata->buyPrice = buyPrice;
+		
+		return Success;
+	}
+	
+};
+
+class SetSellPriceCommand : public Command {
+	
+public:
+	
+	SetSellPriceCommand() : Command("setsellprice", IO_ITEM) { }
+	
+	Result execute(Context & context) override {
+		
+		long sellPrice = std::max(long(context.getFloat()), 0l);
+		
+		DebugScript(' ' << sellPrice);
+		
+		context.getEntity()->_itemdata->sellPrice = sellPrice;
 		
 		return Success;
 	}
@@ -342,7 +381,7 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		short size = short(glm::clamp(int(context.getFloat()), 1, 100));
+		short size = short(glm::clamp(context.getInteger(), 1, 100));
 		
 		DebugScript(' ' << size);
 		
@@ -400,6 +439,8 @@ void setupScriptedItem() {
 	ScriptEvent::registerCommand(std::make_unique<SetMaxCountCommand>());
 	ScriptEvent::registerCommand(std::make_unique<SetCountCommand>());
 	ScriptEvent::registerCommand(std::make_unique<SetPriceCommand>());
+	ScriptEvent::registerCommand(std::make_unique<SetBuyPriceCommand>());
+	ScriptEvent::registerCommand(std::make_unique<SetSellPriceCommand>());
 	ScriptEvent::registerCommand(std::make_unique<PlayerStackSizeCommand>());
 	ScriptEvent::registerCommand(std::make_unique<EatMeCommand>());
 	

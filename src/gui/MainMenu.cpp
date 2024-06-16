@@ -1658,6 +1658,11 @@ public:
 		
 		addControlRow(CONTROLS_CUST_MINIMAP,      "system_menus_options_input_customize_controls_minimap");
 		
+		addControlRow(CONTROLS_CUST_COMBINE,      "system_menus_options_input_customize_controls_combine"); // like the double click of action_combine but does not require double key press, a single key press suffices to init combine QOL
+		addControlRow(CONTROLS_CUST_TAKEALLITEMS, "system_menus_options_input_customize_controls_take_all_items");
+		addControlRow(CONTROLS_CUST_UNSTACK,      "system_menus_options_input_customize_controls_unstack");
+		addControlRow(CONTROLS_CUST_ACTION2,      "system_menus_options_input_customize_controls_action2"); // like the double click of action_combine but does not require double key press, a single key press suffices to init action (activation) QOL
+		
 		if(config.input.allowConsole) {
 			addControlRow(CONTROLS_CUST_CONSOLE, "system_menus_options_input_customize_controls_console");
 		}
@@ -1712,9 +1717,50 @@ public:
 		addControlRow(CONTROLS_CUST_PRECAST1,          "system_menus_options_input_customize_controls_precast1");
 		addControlRow(CONTROLS_CUST_PRECAST2,          "system_menus_options_input_customize_controls_precast2");
 		addControlRow(CONTROLS_CUST_PRECAST3,          "system_menus_options_input_customize_controls_precast3");
+		addControlRow(CONTROLS_CUST_PRECAST4,          "system_menus_options_input_customize_controls_precast4");
+		addControlRow(CONTROLS_CUST_PRECAST5,          "system_menus_options_input_customize_controls_precast5");
+		addControlRow(CONTROLS_CUST_PRECAST6,          "system_menus_options_input_customize_controls_precast6");
+		addControlRow(CONTROLS_CUST_PRECAST7,          "system_menus_options_input_customize_controls_precast7");
+		addControlRow(CONTROLS_CUST_PRECAST8,          "system_menus_options_input_customize_controls_precast8");
+		addControlRow(CONTROLS_CUST_PRECAST9,          "system_menus_options_input_customize_controls_precast9");
 		
 		addControlRow(CONTROLS_CUST_WEAPON,            "system_menus_options_input_customize_controls_weapon");
 		addControlRow(CONTROLS_CUST_UNEQUIPWEAPON,     "system_menus_options_input_customize_controls_unequipweapon");
+		
+		addBackButton(Page_OptionsInputCustomizeKeys1);
+		
+		{
+			std::string_view label = getLocalised("system_menus_options_input_customize_default");
+			auto txt = std::make_unique<TextWidget>(hFontMenu, label);
+			txt->clicked = [this](Widget * /* widget */) {
+				resetActionKeys();
+			};
+			addCorner(std::move(txt), BottomCenter);
+		}
+
+		{
+			auto cb = std::make_unique<ButtonWidget>(buttonSize(16, 16), "graph/interface/menus/next");
+			cb->setTargetPage(Page_OptionsInputCustomizeKeys3);
+			addCorner(std::move(cb), BottomRight);
+		}
+		
+		reinitActionKeys();
+		
+	}
+	
+};
+
+class ControlOptionsMenuPage3 final : public ControlOptionsPage {
+	
+public:
+	
+	ControlOptionsMenuPage3()
+		: ControlOptionsPage(Page_OptionsInputCustomizeKeys3)
+	{ }
+	
+	void init() override {
+		
+		reserveBottom();
 		
 		addControlRow(CONTROLS_CUST_PREVIOUS,          "system_menus_options_input_customize_controls_previous");
 		addControlRow(CONTROLS_CUST_NEXT,              "system_menus_options_input_customize_controls_next");
@@ -1726,7 +1772,7 @@ public:
 		
 		addControlRow(CONTROLS_CUST_DEBUG,             "system_menus_options_input_customize_controls_debug");
 		
-		addBackButton(Page_OptionsInputCustomizeKeys1);
+		addBackButton(Page_OptionsInputCustomizeKeys2);
 		
 		{
 			std::string_view label = getLocalised("system_menus_options_input_customize_default");
@@ -1807,6 +1853,7 @@ void MainMenu::initWindowPages() {
 	m_window->add(std::make_unique<InputOptionsMenuPage>());
 	m_window->add(std::make_unique<ControlOptionsMenuPage1>());
 	m_window->add(std::make_unique<ControlOptionsMenuPage2>());
+	m_window->add(std::make_unique<ControlOptionsMenuPage3>());
 	
 	m_window->add(std::make_unique<QuitConfirmMenuPage>());
 	m_window->add(std::make_unique<LocalizationMenuPage>());

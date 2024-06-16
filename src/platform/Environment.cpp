@@ -18,12 +18,19 @@
  */
 
 #include "platform/Environment.h"
+#include "util/String.h"
 
 #include <cctype>
 #include <algorithm>
 #include <mutex>
+#include <regex>
 #include <sstream>
+#include <typeinfo>
 #include <utility>
+#include <typeinfo>
+
+#define BOOST_STACKTRACE_LINK
+#include <boost/stacktrace.hpp> // boost::stacktrace::stacktrace()
 
 #include <stdlib.h> // needed for realpath and more
 
@@ -62,6 +69,7 @@ struct IUnknown; // Workaround for error C2187 in combaseapi.h when using /permi
 #include "io/fs/PathConstants.h"
 #include "io/fs/FilePath.h"
 #include "io/fs/Filesystem.h"
+#include "io/log/Logger.h"
 
 #include "platform/WindowsUtils.h"
 
@@ -534,6 +542,220 @@ void setEnvironmentVariable(const char * name, const char * value) {
 	#elif ARX_HAVE_SETENV
 	setenv(name, value, 1);
 	#endif
+}
+
+bool EnvRegex::isSet() {
+	return re && strRegex.size(); 
+}
+
+bool EnvRegex::matchRegex(std::string data) {
+	if(strRegex == ".*") return true; // faster?
+	return re && strRegex.size() && std::regex_search(data.c_str(), *re); // not set or empty will match nothing
+}
+
+bool EnvRegex::setRegex(std::string strRE, bool bUpdateEVHlink) {
+	std::regex * reNew = util::prepareRegex(re, strRE);
+	if(reNew) {
+		re = reNew;
+		if(EVHnoLog::allowLog) LogDebug("regex updated from \"" << strRegex << "\" to \"" << strRE << "\"");
+		strRegex = strRE;
+		if(bUpdateEVHlink && evhLink) {
+			evhLink->setS(strRegex);
+		}
+		return true;
+	}
+	
+	if(EVHnoLog::allowLog) LogError << "regex failed updating from \"" << strRegex << "\" to \"" << strRE << "\"";
+	return false;
+}
+
+EnvVarHandler & EnvVarHandler::copyFrom(const EnvVarHandler & evCopyFrom) {
+	if(evCopyFrom.strId.size() > 0) {
+		this->copyRawFrom(evCopyFrom);
+		if(EVHnoLog::allowLog) LogDebug(static_cast<const void*>(this) << " = " << static_cast<const void*>(&evCopyFrom));
+	}
+	return *this;
+}
+EnvVarHandler & EnvVarHandler::operator=(const EnvVarHandler & evCopyFrom) {
+	return copyFrom(evCopyFrom);
+}
+std::string EnvVarHandler::toString() {
+	switch(evtH) {
+		case 'S': return evbCurrent.evS;
+		case 'I': return std::to_string(evbCurrent.evI);
+		case 'F': return std::to_string(evbCurrent.evF);
+		case 'B': return evbCurrent.evB ? "true" : "false";
+		default: arx_assert_msg(false, "type not set for %s", strId.c_str());
+	}
+	return "";
+}
+int EnvVarHandler::toInt() {
+	switch(evtH) {
+		case 'S': return util::parseInt(evbCurrent.evS);
+		case 'I': return evbCurrent.evI;
+		case 'F': return static_cast<int>(evbCurrent.evF);
+		case 'B': return evbCurrent.evB ? 1 : 0;
+		default: arx_assert_msg(false, "type not set for %s", strId.c_str());
+	}
+	return 0;
+}
+float EnvVarHandler::toFloat() {
+	switch(evtH) {
+		case 'S': return util::parseFloat(evbCurrent.evS);
+		case 'I': return static_cast<float>(evbCurrent.evI);
+		case 'F': return evbCurrent.evF;
+		case 'B': return evbCurrent.evB ? 1.f : 0.f;
+		default: arx_assert_msg(false, "type not set for %s", strId.c_str());
+	}
+	return 0;
+}
+bool EnvVarHandler::toBool() {
+	switch(evtH) {
+		case 'S': return evbCurrent.evS == "true" ? true : false;
+		case 'I': return evbCurrent.evI != 0;
+		case 'F': return evbCurrent.evF != 0.f;
+		case 'B': return evbCurrent.evB;
+		default: arx_assert_msg(false, "type not set for %s", strId.c_str());
+	}
+	return false;
+}
+EnvVarHandler * EnvVarHandler::setAuto(std::string _strEVB) {
+	try {
+		switch(evtH) {
+			case 'S': setS(_strEVB); break;
+			case 'I': setI(boost::lexical_cast<int>(_strEVB)); break; // util::parseInt()
+			case 'F': setF(boost::lexical_cast<float>(_strEVB)); break; // util::parseFloat()
+			case 'B': setB(util::toLowercase(_strEVB) == "true"); break;
+			default: arx_assert(false);
+		}
+	} catch(const std::exception & e) {
+		LogError << "[EnvVar] " << strId << ": parsing \"" << _strEVB << "\" to '" << evtH << "'";
+	}
+	
+	return this;
+}
+EnvVarHandler * EnvVarHandler::addToList(std::string _id, EnvVarHandler * evh) { // static
+	arx_assert(evh);
+	arx_assert_msg(!vEVH.contains(_id), "Already configured (%s)%p ! new (%s)%p", _id.c_str(), static_cast<const void*>(vEVH[_id]), evh->strId.c_str(), static_cast<const void*>(evh));
+	
+	vEVH[_id] = evh; // TODO all env vars could become automatic options in the config menu, then they would need to be saved too and optionally override the env var set with the contents of the cfg file
+	if(EVHnoLog::allowLog) LogInfo << "[EnvVar] Created: " << evh->strId << " = \"" << vEVH[evh->strId]->toString() << "\"";
+	
+	return vEVH[_id];
+}
+EnvVarHandler * EnvVarHandler::getEVH(std::string _id) { // static
+	if(_id.find_first_not_of(validIdChars) != std::string::npos) {
+		LogError << "env var id contains invalid characters \"" << _id << "\"";
+	} else {
+		if(vEVH.contains(_id)) {
+			return vEVH[_id];
+		} else {
+			if(EVHnoLog::allowLog) LogWarning << _id << " is not a recognized env var (obs.: lazily initialized env vars may not be promptly available).";
+		}
+	}
+	
+	return nullptr;
+}
+std::string EnvVarHandler::getMinMaxInfo() {
+	switch(evtH) {
+		case 'S':break;
+		case 'I':
+			return "min=" + std::to_string(evbMin.evI) + ";max=" + std::to_string(evbMax.evI) + ";";
+			break;
+		case 'F':
+			return "min=" + std::to_string(evbMin.evF) + ";max=" + std::to_string(evbMax.evF) + ";";
+			break;
+		case 'B':break;
+		default: arx_assert(false);
+	}
+	return "";
+}
+void EnvVarHandler::getEnvVarHandlerList(bool bListAsEnvVar, bool bListShowDescription) { // static
+	std::string str;
+	std::string strEnvVarList;
+	for(auto it : vEVH) {
+		if(bListAsEnvVar) {
+			str = "	: ${" + it.first + ":=\"" + it.second->toString() + "\"};export " + it.first + "; "; // TODO windows/mac too ? but how?
+			strEnvVarList += "\n" + str;
+		} else { // as script var to re-use in console
+			str = "	env -s " + it.first + " \"" + it.second->toString() + "\" ";
+		}
+		
+		if(bListShowDescription) {
+			std::string strDesc = it.second->getDescription() + ". " + it.second->getMinMaxInfo();
+			str           += " //help: " + strDesc;
+			strEnvVarList += " #help: "  + strDesc;
+		}
+		
+		if(EVHnoLog::allowLog && !bListAsEnvVar) LogInfo << "[EnvVar] " << str;
+	}
+	
+	if(EVHnoLog::allowLog && bListAsEnvVar) LogInfo << "[EnvVar] " << "\n" << strEnvVarList; // reusable as config shell script
+}
+EnvVarHandler & EnvVarHandler::setCommon() {
+	fixMinMax(); 
+	if(isModified() && hasInternalConverter) {
+		funcConvert();
+		clearModified();
+	}
+	return *this;
+}
+
+void EnvVarHandler::initEnvVar(char _evtH, std::string _strId, std::string _msg, bool _hasInternalConverter) {
+	// TODO check the callstack, if not called from inside a class, the instance may have happened in global static scope and will crash! SIGFPE, why?
+	
+	evbMax.evtD = evbMin.evtD = evbOld.evtD = evbCurrent.evtD = evtH = _evtH;
+	evbMax.strIdD = evbMin.strIdD = evbOld.strIdD = evbCurrent.strIdD = strId = _strId;
+	
+	msg = _msg;
+	
+	hasInternalConverter = _hasInternalConverter;
+	
+	//funcConvert = [](){};
+	
+	const char * pcVal = getenv(strId.c_str());
+	if(pcVal) {
+		if(EVHnoLog::allowLog) LogInfo << "[EnvVar] " << strId << " = \"" << pcVal << "\"";
+		setAuto(pcVal); // this may call funcConvert() if configured to
+	} else {
+		strEVB = toString().c_str(); // the default will just be converted to string here
+		// funcConvert() should not be necessary to be called here, as at this moment this tmp EnvVarHandler shall already receive this default value from the externally converted custom external variable
+	}
+	
+	arx_assert(evtH=='S' || evtH=='B' || evtH=='F' || evtH=='I');
+	arx_assert_msg(strId.find_first_not_of(validIdChars) == std::string::npos, "env var id contains invalid characters \"%s\"", strId.c_str());
+	
+	std::stringstream ssDbgMsg; ssDbgMsg << "id=" << _strId << " value=\"" << toString() << "\" " << getMinMaxInfo() << ", this=" << static_cast<const void*>(this); // << "\n" << boost::stacktrace::stacktrace();
+	if(EVHnoLog::allowLog) { LogDebug(ssDbgMsg.str()); } else { RawDebug(ssDbgMsg.str()); } // TODO move equivalent to Logger.h/cpp ?
+}
+void EnvVarHandler::fixMinMax() {
+	switch(evtH) {
+		case 'S':break;
+		case 'I':
+			if(evbCurrent.evI < evbMin.evI) {
+				if(EVHnoLog::allowLog) LogWarning << "fixing " << strId << " from " << evbCurrent.evI << " to " << evbMin.evI;
+				evbCurrent.evI = evbMin.evI;
+			}
+			else
+			if(evbCurrent.evI > evbMax.evI) {
+				if(EVHnoLog::allowLog) LogWarning << "fixing " << strId << " from " << evbCurrent.evI << " to " << evbMax.evI;
+				evbCurrent.evI = evbMax.evI;
+			}
+			break;
+		case 'F':
+			if(evbCurrent.evF < evbMin.evF) {
+				if(EVHnoLog::allowLog) LogWarning << "fixing " << strId << " from " << evbCurrent.evF << " to " << evbMin.evF;
+				evbCurrent.evF = evbMin.evF;
+			}
+			else
+			if(evbCurrent.evF > evbMax.evF) {
+				if(EVHnoLog::allowLog) LogWarning << "fixing " << strId << " from " << evbCurrent.evF << " to " << evbMax.evF;
+				evbCurrent.evF = evbMax.evF;
+			}
+			break;
+		case 'B':break;
+		default: arx_assert(false);
+	}
 }
 
 void unsetEnvironmentVariable(const char * name) {

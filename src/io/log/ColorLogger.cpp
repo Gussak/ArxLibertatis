@@ -22,7 +22,9 @@
 #include <iostream>
 #include <iomanip>
 
+#include "platform/Environment.h"
 #include "platform/Platform.h"
+#include "util/String.h"
 
 #if ARX_HAVE_ISATTY
 
@@ -30,11 +32,22 @@ namespace logger {
 
 void ColorConsole::log(const Source & file, int line, Logger::LogLevel level, std::string_view str) {
 	
+	static platform::EnvRegex erOutputFilter = [](){ evh_CreateSNoLog("ARX_DebugOutput", "regex only for DEBUG output content", ".*")->setConverter( [](){erOutputFilter.setRegex(evh->getS());} ); return evh; }();
+	if(level == Logger::Debug && erOutputFilter.isSet() && !erOutputFilter.matchRegex(std::string(str))) return;
+	
 	std::ostream * os = (level >= Logger::Warning) ? &std::cerr : &std::cout;
+	
+	size_t length = 0;
+	
+	static platform::EnvVarHandler * logDateTimeFormat = [](){ evh_CreateSNoLog("ARX_LogDateTimeFormat", "simplified date/time format \"Y:M:D-h:m:s\"", "Y/h:m:s"); return evh; }();
+	if(logDateTimeFormat->getS().size() > 0) {
+		std::cout << util::getDateTimeString(logDateTimeFormat->getS());
+		length = logDateTimeFormat->getS().size();
+	}
 	
 	const char * c = "\x1b[m";
 	const char * e = "";
-	size_t length = 3;
+	length += 3;
 	switch(level) {
 		case Logger::Debug:    std::cout << "\x1b[1;36m[D]\x1b[0;36m"; break;
 		case Logger::Info:     std::cout << "\x1b[1;32m[I]\x1b[0;32m"; break;

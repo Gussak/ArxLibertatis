@@ -115,12 +115,13 @@ Entity * LoadInter_Ex(const res::path & classPath, EntityInstance instance,
 	RestoreInitialIOStatusOfIO(io);
 	ARX_INTERACTIVE_HideGore(io);
 	
-	io->lastpos = io->initpos = io->pos = pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos = pos;
 	io->move = Vec3f(0.f);
 	io->initangle = io->angle = angle;
 	
 	if(PakDirectory * dir = g_resources->getDirectory(io->instancePath())) {
-		loadScript(io->over_script, dir->getFile(io->className() + ".asl"));
+		res::path script = io->className() + ".asl";
+		loadScript(io->over_script, dir->getFile(script), script);
 	}
 	
 	if(SendIOScriptEvent(nullptr, io, SM_LOAD) == ACCEPT && io->obj == nullptr) {

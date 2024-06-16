@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <cstring>
 #include <algorithm>
+#include <regex>
 #include <string>
 #include <string_view>
 
@@ -135,7 +136,11 @@ inline bool safeGet(T & data, CTYPE * & pos, STYPE & size) {
 	return true;
 }
 
-[[nodiscard]] std::string getDateTimeString();
+[[nodiscard]] std::string getDateTimeString(std::string strFormat = "Y.M.D-h.m.s");
+
+void applyTokenAt(std::string & strAt, const std::string strToken, const std::string strText);
+
+std::regex * prepareRegex(std::regex * re, std::string strRegex, bool allowLog = false);
 
 struct SplitStringSentinel { };
 

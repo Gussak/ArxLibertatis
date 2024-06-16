@@ -106,6 +106,7 @@ public:
 		Level      = 1 << 2,
 		NoColorKey = 1 << 3,
 		Intensity  = 1 << 4,
+		ForceColorKey = 1 << 5,
 	};
 	
 	DECLARE_FLAGS(TCFlag, TCFlags)

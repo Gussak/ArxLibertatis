@@ -19,10 +19,16 @@
 
 #include "io/log/Logger.h"
 
+
+#include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/split.hpp> // Include for boost::split
+
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
 #include <mutex>
+#include <typeinfo>
 #include <unordered_map>
 #include <vector>
 
@@ -30,6 +36,7 @@
 #include "io/log/LogBackend.h"
 #include "io/log/MsvcLogger.h"
 
+#include "platform/Environment.h"
 #include "platform/ProgramOptions.h"
 
 #include "Configure.h"
@@ -41,7 +48,7 @@ struct LogManager {
 	static const Logger::LogLevel defaultLevel;
 	static Logger::LogLevel minimumLevel;
 	
-	static std::mutex mutex;
+	static std::recursive_mutex mutex;
 	
 	//! note: using the pointer value of a string constant as a hash map index.
 	typedef std::unordered_map<const char *, logger::Source> Sources;
@@ -63,7 +70,7 @@ Logger::LogLevel LogManager::minimumLevel = LogManager::defaultLevel;
 LogManager::Sources LogManager::sources;
 LogManager::Backends LogManager::backends;
 LogManager::Rules LogManager::rules;
-std::mutex LogManager::mutex;
+std::recursive_mutex LogManager::mutex;
 
 logger::Source * LogManager::getSource(const char * file) {
 	
@@ -141,7 +148,7 @@ void Logger::remove(logger::Backend * backend) {
 	
 }
 
-bool Logger::isEnabled(const char * file, LogLevel level) {
+bool Logger::isEnabled(const char * file, LogLevel level, const char * function, int line) {
 	
 	if(level < LogManager::minimumLevel) {
 		return false;
@@ -149,7 +156,52 @@ bool Logger::isEnabled(const char * file, LogLevel level) {
 	
 	std::scoped_lock lock(LogManager::mutex);
 	
-	return (LogManager::getSource(file)->level <= level);
+	logger::Source * source = LogManager::getSource(file);
+	
+	if(source->level <= level) {
+		#ifdef ARX_DEBUG
+		// prepare filters
+		static platform::EnvRegex erFile = [](){ evh_CreateSNoLog("ARX_DebugFile", "regex for file names", ".*")->setConverter( [](){erFile.setRegex(evh->getS());} ); return evh; }();
+		static platform::EnvRegex erFunc = [](){ evh_CreateSNoLog("ARX_DebugFunc", "regex for pretty function names", ".*")->setConverter( [](){erFunc.setRegex(evh->getS());} ); return evh; }();
+		static platform::EnvRegex erLine = [](){ evh_CreateSNoLog("ARX_DebugLine", "regex for line numbers. tip: to ignore specific lines use ex.: ^(?!.*(1856|1863)).* ", ".*")->setConverter( [](){erLine.setRegex(evh->getS());} ); return evh; }();
+		if(level == Logger::Debug) {
+			// multi regex ex.: "/someFileRegex/someFuncRegex/someLineRegex"
+			static platform::EnvVarHandler * evStrFileFuncLineSplitRegex = [](){
+				evh_CreateSNoLog("ARX_Debug",
+					"the first custom char is the section token for @File@Func@Line ex.: \";ArxGame;LOD;.*\"",
+					";" + erFile.getRegexDefault() + ";" + erFunc.getRegexDefault() + ";" + erLine.getRegexDefault()
+				);
+				return evh;
+			}();
+			if(evStrFileFuncLineSplitRegex->isModified()) {
+				std::string strMultiRegex = evStrFileFuncLineSplitRegex->getS();
+				if(strMultiRegex.size() > 1) {
+					std::string strToken = strMultiRegex.substr(0, 1); // user requested delimiter
+					std::string strMultiRegexTmp = strMultiRegex.substr(1);
+					
+					std::vector<std::string> vRegex;
+					boost::split(vRegex, strMultiRegexTmp, boost::is_any_of(strToken));
+					
+					platform::EVHnoLog disableLogTilDestructor;
+					if(vRegex.size() > 0) erFile.setRegex(vRegex[0], true);
+					if(vRegex.size() > 1) erFunc.setRegex(vRegex[1], true);
+					if(vRegex.size() > 2) erLine.setRegex(vRegex[2], true);
+				} else {
+					LogError << "invalid split regex \"" << evStrFileFuncLineSplitRegex->getS() << "\" for " << evStrFileFuncLineSplitRegex->id();
+				}
+				evStrFileFuncLineSplitRegex->clearModified();
+			}
+			
+			// apply debug filters
+			if(erFile.isSet() && !erFile.matchRegex(file)) return false;
+			if(erFunc.isSet() && !erFunc.matchRegex(function)) return false;
+			if(erLine.isSet() && !erLine.matchRegex(std::to_string(line))) return false;
+		}
+		#endif
+		return true;
+	}
+	
+	return false;
 }
 
 void Logger::log(const char * file, int line, LogLevel level, std::string_view str) {

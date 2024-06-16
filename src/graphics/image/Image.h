@@ -101,6 +101,8 @@ public:
 	//! Set the alpha of pixels matching the color key to 0. Will add an alpha channel if needed.
 	void applyColorKeyToAlpha(Color colorKey = Color::black, bool antialias = false);
 	
+	bool canApplyColorKey() { return m_format == Format_R8G8B8 || m_format == Format_B8G8R8; }
+	
 	/*!
 	 * Extend the image and fill ne new space by sampling at the nearest border
 	 * of the original image.

@@ -39,10 +39,10 @@ public:
 	static std::string_view name(ScriptMessage event);
 	
 	static ScriptResult send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity, ScriptEventName event,
-	                         ScriptParameters parameters = { }, size_t position = 0);
+	                         ScriptParameters parameters = { }, size_t position = 0, const SCR_TIMER * timer = nullptr);
 	
-	static ScriptResult resume(const EERIE_SCRIPT * es, Entity * entity, size_t position) {
-		return send(es, nullptr, entity, SM_EXECUTELINE, { }, position);
+	static ScriptResult resume(const EERIE_SCRIPT * es, Entity * entity, size_t position, const SCR_TIMER * timer = nullptr) {
+		return send(es, nullptr, entity, SM_EXECUTELINE, { }, position, timer);
 	}
 	
 	static void registerCommand(std::unique_ptr<script::Command> command);

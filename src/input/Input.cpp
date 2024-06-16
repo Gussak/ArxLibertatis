@@ -74,6 +74,7 @@ Input * GInput = nullptr;
 
 long EERIEMouseButton = 0;
 long LastMouseClick = 0;
+bool ActionDoubleClick = false;
 
 struct KeyDescription {
 	InputKeyId id;
@@ -869,7 +870,7 @@ static unsigned int uiOneHandedStealth = 0;
 
 bool Input::actionPressed(ControlAction actionId) const {
 	
-	if(actionId == CONTROLS_CUST_USE || actionId == CONTROLS_CUST_ACTION) {
+	if(actionId == CONTROLS_CUST_USE || actionId == CONTROLS_CUST_ACTION || actionId == CONTROLS_CUST_ACTION2 || actionId == CONTROLS_CUST_COMBINE) {
 		return false;
 	}
 	

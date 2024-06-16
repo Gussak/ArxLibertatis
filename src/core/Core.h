@@ -57,6 +57,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "graphics/data/Mesh.h"
 #include "gui/debug/DebugKeys.h"
 #include "io/resource/ResourcePath.h"
+#include "platform/Environment.h"
 #include "math/Types.h"
 
 #include "Configure.h"
@@ -79,6 +80,8 @@ extern res::path LastLoadedScene;
 
 extern AreaId g_teleportToArea;
 extern std::string TELEPORT_TO_POSITION;
+
+extern platform::EnvVarHandler * g_allowExperiments;
 
 extern float PULSATE;
 

@@ -94,6 +94,7 @@ void ARX_INTERACTIVE_MEMO_TWEAK(Entity * io, TweakType type, const res::path & p
 void ARX_INTERACTIVE_APPLY_TWEAK_INFO(Entity * io);
 bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp);
 void ARX_INTERACTIVE_Teleport(Entity * io, const Vec3f & target, bool flag = false);
+void ARX_INTERACTIVE_TeleportSafe(Entity * io, const Vec3f & target, bool flag = false);
 
 bool IsEquipedByPlayer(const Entity * io);
 void CleanScriptLoadedIO();
@@ -129,7 +130,7 @@ void RestoreInitialIOStatus();
 
 void UnlinkAllLinkedObjects();
 Entity * getCollidingEntityAt(const Vec3f & pos, const Vec3f & size);
-Entity * GetFirstInterAtPos(const Vec2s & pos);
+Entity * GetFirstInterAtPos(const Vec2s & pos, float fForceMaxDist = 0.0f);
 
 /*!
  * Adds an Interactive Object to the Scene
@@ -157,7 +158,8 @@ std::string_view GetMaterialString(const res::path & texture);
 Entity * CloneIOItem(Entity * src);
 
 float ARX_INTERACTIVE_GetArmorClass(Entity * io);
-s32 ARX_INTERACTIVE_GetPrice(Entity * io, Entity * shop);
+s32 ARX_INTERACTIVE_GetBuyPrice(Entity * io, Entity * shop);
+s32 ARX_INTERACTIVE_GetSellPrice(Entity * io, Entity * shop);
 s32 ARX_INTERACTIVE_GetSellValue(Entity * item, Entity * shop, long count = 1);
 
 struct TREATZONE_IO {

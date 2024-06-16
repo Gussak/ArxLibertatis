@@ -50,6 +50,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <stddef.h>
 #include <cstring>
 #include <limits>
+#include <map>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -80,6 +81,7 @@ enum ScriptMessage {
 	SM_CHAT,
 	SM_CINE_END,
 	SM_CLICKED,
+	SM_CLONE,
 	SM_COLLIDE_DOOR,
 	SM_COLLIDE_FIELD,
 	SM_COLLIDE_NPC,
@@ -96,6 +98,7 @@ enum ScriptMessage {
 	SM_DEAD,
 	SM_DETECTPLAYER,
 	SM_DIE,
+	SM_DURABILITY_LOSS,
 	SM_ENTERZONE,
 	SM_EQUIPIN,
 	SM_EQUIPOUT,
@@ -115,6 +118,7 @@ enum ScriptMessage {
 	SM_LOAD,
 	SM_LOSTTARGET,
 	SM_MAIN,
+	SM_MOVEMENTDETECTED,
 	SM_OUCH,
 	SM_PATHEND,
 	SM_PATHFINDER_FAILURE,
@@ -188,6 +192,8 @@ struct EERIE_SCRIPT {
 	bool valid = false;
 	std::string data;
 	size_t shortcut[SM_MAXCMD];
+	std::map<std::string, size_t> shortcutCalls; // key cannot be std::string_view here as it needs to hold the new string data
+	std::string file;
 
 	EERIE_SCRIPT() noexcept {
 		memset(&shortcut, 0, sizeof(shortcut));
@@ -198,6 +204,7 @@ struct EERIE_SCRIPT {
 struct SCR_TIMER {
 	
 	std::string name;
+	std::string nameHelper;
 	short exist;
 	bool idle;
 	long count;
@@ -217,7 +224,7 @@ struct SCR_TIMER {
 		, start(0)
 		, io(entity)
 		, es(nullptr)
-	{ }
+	{ nameHelper = name; }
 	
 };
 
@@ -545,6 +552,18 @@ size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str);
 void CloneLocalVars(Entity * ioo, Entity * io);
 void ARX_SCRIPT_Free_All_Global_Variables();
 
-void loadScript(EERIE_SCRIPT & script, PakFile * file);
+bool createSingleLineComment(std::string & esdat, size_t & posNow);
+bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript);
+size_t detectAndFixGoToGoSubParam(std::string & line);
+size_t adaptScriptCode(std::string & line);
+void fixLineEnding(std::string & strData, char cLineEndingMode = '.');
+void fixTo8859_15(std::string strFilename, std::string & strData);
+bool writeScriptAtModDumpFolder(const res::path & pathModdedDump, const std::string & esdatPatched, const std::string & esdatOriginal);
+std::string loadAndFixScriptData(std::string strFilename, std::ifstream & file, char cLineEndingMode = '.');
+std::string loadFileDataAndCloseIt(std::ifstream & file);
+std::string fixScriptData(std::string strFilename, std::string strData, char cLineEndingMode = '.');
+
+void loadScript(EERIE_SCRIPT & script, res::path & pathScript);
+void loadScript(EERIE_SCRIPT & script, PakFile * file, res::path & pathScript);
 
 #endif // ARX_SCRIPT_SCRIPT_H

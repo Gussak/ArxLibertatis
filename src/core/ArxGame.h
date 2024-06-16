@@ -93,6 +93,13 @@ private:
 	void handlePlayerDeath();
 	void updateActiveCamera();
 	
+	void LODbeforeEntitiesLoop();
+	void LODafterEntitiesLoop();
+	void LODplayerDist(Entity & entity);
+	void LODupdateNearestEntityToImprove(Entity * entity = nullptr);
+	void LODforEntity(Entity & entity);
+	void LODworkAtEntityLoop(Entity & entity);
+	
 	void updateLevel();
 	void renderLevel();
 	

@@ -62,6 +62,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "math/Vector.h"
 #include "math/Angle.h"
 #include "scene/Light.h"
+#include "scene/Object.h"
 #include "script/Script.h" // TODO remove this
 #include "util/Flags.h"
 
@@ -80,6 +81,7 @@ struct TWEAK_INFO;
 constexpr size_t MAX_ANIMS = 200; // max loadable anims per character
 constexpr size_t MAX_ANIM_LAYERS = 4;
 constexpr float BASE_RUBBER = 1.5f;
+constexpr size_t MAX_LODS = 6; 
 
 struct IO_PHYSICS {
 	
@@ -249,7 +251,14 @@ struct AnimationBlendStatus {
 	GameInstant lastanimtime;
 };
 
+class LODentity { // TODOA to help split game logic from rendering
+	//TODO move to here all LOD vars used by entity
+};
+
 class Entity {
+	
+	EERIE_3DOBJ * objMain; // pointer to LOD_PERFECT = first loaded obj
+	static std::map<EERIE_3DOBJ*, std::map<LODFlag, EERIE_3DOBJ*>> objMainVsLODs; // ex.: obj = objMainVsLODs[objMain][LOD_HIGH]
 	
 public:
 	
@@ -259,9 +268,30 @@ public:
 	explicit Entity(const res::path & classPath, EntityInstance instance);
 	~Entity();
 	
+	LODentity lod;
+	
+	EERIE_3DOBJ * getObjMain() { return objMain; }
+	void setObjMain(EERIE_3DOBJ * o);
+	
+	Vec3f previousPosForLOD;
+	time_t lodImproveWaitUntil;
+	time_t lodCooldownUntil;
+	time_t lodLastCalcTime;
+	float lodYawBeforeLookAtCam;
+	float playerDistLastCalcLOD;
+	PlatformInstant LODpreventDegradeDelayUntil;
+	
+	// LOD data that shall be reset on changing the main mesh
+	LODFlag currentLOD;
+	LODFlag previousLOD;
+	std::map<LODFlag, EERIE_3DOBJ*> objLOD; // LODs TODO: remove in favor of mainModelVsLODs
+	LODFlags availableLODFlags;
+	LODFlags iconLODFlags;
+	
 	EntityFlags ioflags; // IO type
 	Vec3f lastpos; // IO last position
 	Vec3f pos; // IO position
+	Vec3f detectMovePos;
 	Vec3f move;
 	Vec3f lastmove;
 	Vec3f forcedmove;
@@ -273,7 +303,7 @@ public:
 	float original_height;
 	float original_radius;
 	TextureContainer * m_icon; // Object Icon
-	EERIE_3DOBJ * obj; // IO Mesh data
+	EERIE_3DOBJ * obj; // IO Mesh data TODO: remove in favor of setObjMain() getObjMain() getObjCurrentLOD() for LOD
 	std::array<ANIM_HANDLE *, MAX_ANIMS> anims; // Object Animations
 	std::array<AnimLayer, MAX_ANIM_LAYERS> animlayer;
 	
@@ -326,6 +356,7 @@ public:
 	DisabledEvents m_disabledEvents;
 	EERIE_SCRIPT script; // Primary Script
 	EERIE_SCRIPT over_script; // Overriding Script
+	EERIE_SCRIPT prec_script; // pre-compiled script data
 	short stat_count;
 	short stat_sent;
 	IO_TWEAKER_INFO * tweakerinfo; // optional tweaker infos
@@ -455,6 +486,9 @@ public:
 	[[nodiscard]] bool operator!=(const Entity & other) const noexcept {
 		return &other != this;
 	}
+	
+	void resetLOD(bool bDelete);
+	bool setLOD(const LODFlag lodRequest);
 	
 private:
 	

@@ -29,9 +29,12 @@
 #include "graphics/GlobalFog.h"
 #include "graphics/Renderer.h"
 #include "graphics/particle/ParticleTextures.h"
+#include "io/log/Logger.h"
+#include "platform/Environment.h"
 #include "platform/profiler/Profiler.h"
 #include "scene/Interactive.h"
 #include "scene/Tiles.h"
+#include "util/Number.h"
 
 static std::vector<TexturedVertex> g_shadowBatch;
 
@@ -104,8 +107,12 @@ void ARXDRAW_DrawInterShadows() {
 				addShadowBlob(entity, entity.obj->vertexWorldPositions[group.origin].v, group.m_blobShadowSize, true);
 			}
 		} else {
-			for(const EERIE_VERTEX & vertex : entity.obj->vertexWorldPositions | boost::adaptors::strided(9)) {
-				addShadowBlob(entity, vertex.v, entity.scale, false);
+			static platform::EnvVarHandler * limitShadowBlobsTo = evh_Create("ARX_LimitShadowBlobsForVertexes", "", 9, 0);
+			if(limitShadowBlobsTo->getI() > 0) { // it won't show more blob shadows than the available vertexWorldPositions
+				int iStride = limitShadowBlobsTo->getI() <= static_cast<int>(entity.obj->vertexWorldPositions.size()) ? entity.obj->vertexWorldPositions.size() / limitShadowBlobsTo->getI() : 1;
+				for(const EERIE_VERTEX & vertex : entity.obj->vertexWorldPositions | boost::adaptors::strided(iStride)) {
+					addShadowBlob(entity, vertex.v, entity.scale, false);
+				}
 			}
 		}
 		

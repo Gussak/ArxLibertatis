@@ -46,15 +46,22 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/Script.h"
 
-#include <stddef.h>
-#include <cstdio>
 #include <algorithm>
-#include <exception>
-#include <limits>
-#include <sstream>
 #include <chrono>
+#include <cstdio>
+#include <exception>
+#include <filesystem>
+#include <fstream>
+#include <limits>
+#include <map>
+#include <regex>
+#include <sstream>
+#include <stddef.h>
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include "ai/Paths.h"
 
@@ -63,6 +70,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "core/GameTime.h"
 #include "core/Core.h"
 #include "core/Config.h"
+#include "core/FpsCounter.h"
 
 #include "game/Camera.h"
 #include "game/Damage.h"
@@ -76,6 +84,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "gui/Dragging.h"
 #include "gui/Interface.h"
 #include "gui/Speech.h"
+#include "gui/hud/SecondaryInventory.h"
 
 #include "graphics/particle/ParticleEffects.h"
 #include "graphics/Math.h"
@@ -83,6 +92,9 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "io/resource/PakReader.h"
 #include "io/log/Logger.h"
 
+#include "platform/Dialog.h"
+#include "platform/Process.h"
+#include "platform/Thread.h"
 #include "platform/profiler/Profiler.h"
 
 #include "scene/Scene.h"
@@ -256,6 +268,13 @@ size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 	
 	// TODO(script-parser) remove, respect quoted strings
 	
+	if(str.size() >= 2 && str[0] == '>' && str[1] == '>') { // uses the cache only for GoTo/GoSub calls
+		auto it = es->shortcutCalls.find(std::string(str));
+		if(it != es->shortcutCalls.end()) {
+			return it->second;
+		}
+	}
+	
 	for(size_t pos = 0; pos < es->data.size(); pos++) {
 		
 		pos = es->data.find(str, pos);
@@ -268,11 +287,14 @@ size_t FindScriptPos(const EERIE_SCRIPT * es, std::string_view str) {
 		}
 		
 		// Check if the line is commented out!
-		for(size_t p = pos; es->data[p] != '/' || es->data[p + 1] != '/'; p--) {
-			if(es->data[p] == '\n' || p == 0) {
-				return pos + str.length();
-			}
+		if(script::seekBackwardsForCommentToken(es->data, pos) == size_t(-1)) {
+			return pos + str.length();
 		}
+		//for(size_t p = pos; es->data[p] != '/' || es->data[p + 1] != '/'; p--) {
+			//if(es->data[p] == '\n' || p == 0) {
+				//return pos + str.length();
+			//}
+		//}
 		
 	}
 	
@@ -475,6 +497,81 @@ static Date getSystemTime() {
 	return s_frameSystemTime;
 }
 
+static float getDegrees(const script::Context & context, const std::string_view & name, const int & offset, const char xyz) {
+	Entity * entity = nullptr;
+	if (offset == -1) {
+		entity = context.getEntity();
+	} else {
+		entity = entities.getById(name.substr(offset));
+	}
+	
+	if( !entity ){
+		return 0.f;
+	}
+	
+	float degrees = 0.f;
+	switch(xyz) {
+		case 'x': degrees = (entity == entities.player() ? player.angle : entity->angle).getPitch(); break;
+		case 'y': degrees = (entity == entities.player() ? player.angle : entity->angle).getYaw();   break;
+		case 'z': degrees = (entity == entities.player() ? player.angle : entity->angle).getRoll();  break;
+		case 'Y': 
+			if( !context.getEntity() ) {
+				return 0.f;
+			}
+			degrees = Camera::getLookAtAngle(context.getEntity()->pos, entity->pos).getYaw();  
+			break;
+		default: LogWarning << "invalid xyz = " << xyz; break;
+	}
+	
+	degrees = MAKEANGLE(degrees);
+	
+	LogDebug("name="<<name<<",xyz="<<xyz<<",deg="<<degrees<<",pitch="<<entity->angle.getPitch()<<",yaw="<<entity->angle.getYaw()<<",roll="<<entity->angle.getRoll()<<",Ppitch="<<player.angle.getPitch()<<",Pyaw="<<player.angle.getYaw()<<",Proll="<<player.angle.getRoll()<<",Cpitch="<<context.getEntity()->angle.getPitch()<<",Cyaw="<<context.getEntity()->angle.getYaw()<<",Croll="<<context.getEntity()->angle.getRoll()); //<<",fixedDeg="<<(*fcontent)
+	
+	return degrees;
+}
+
+static float getLocation(const std::string_view & name, const char xyz) {
+	Entity * entWorkWith = entities.getById(name.substr(11));
+	float f = 99999999999.f;
+	if(entWorkWith && (entWorkWith->show == SHOW_FLAG_IN_SCENE || entWorkWith->show == SHOW_FLAG_IN_INVENTORY)) {
+		switch(xyz) {
+			case 'x': f = entWorkWith == entities.player() ? player.pos.x : GetItemWorldPosition(entWorkWith).x; break;
+			case 'y': f = entWorkWith == entities.player() ? player.pos.y : GetItemWorldPosition(entWorkWith).y; break;
+			case 'z': f = entWorkWith == entities.player() ? player.pos.z : GetItemWorldPosition(entWorkWith).z; break;
+			default: break;
+		}
+	}
+	return f;
+}
+
+static float getLife(const std::string_view & name, char cType, const int offset, Entity * entOverride = nullptr) {
+	Entity * ent = entOverride ? entOverride : entities.getById(name.substr(offset));
+	
+	if( !ent ) {
+		return 0.f;
+	}
+	
+	if(ent == entities.player()) {
+		switch(cType) {
+			case 'c': return player.Full_life; break; //current
+			case 'm': return player.m_lifeMaxWithoutMods; break; //max
+			case 'M': return player.lifePool.max; break; //ModMax
+			default: arx_assert_msg(false, "invalid life type for player: '%c'", cType);
+		}
+	} else
+	if(ent->ioflags & IO_NPC) {
+		switch(cType) {
+			case 'c': return ent->_npcdata->lifePool.current; break; //current
+			case 'm': return ent->_npcdata->lifePool.max; break; //max
+			default: arx_assert_msg(false, "invalid life type for NPC: '%c'", cType);
+		}
+	}
+	
+	LogDebug("player.Full_life="<<player.Full_life<<"," <<"player.m_lifeMaxWithoutMods="<<player.m_lifeMaxWithoutMods<<"," <<"player.lifePool.max="<<player.lifePool.max<<"," <<"cType="<<cType<<"," <<"ent="<<ent<<"," <<"name="<<name<<"," <<"offset="<<offset<<"," <<"entOverride="<<entOverride<<"," );
+	
+	return 0.f;
+}
+
 ValueType getSystemVar(const script::Context & context, std::string_view name,
                        std::string & txtcontent, float * fcontent, long * lcontent) {
 	
@@ -501,6 +598,28 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				if(context.getEntity()) {
 					MakeTopObjString(context.getEntity(), txtcontent);
 				}
+				return TYPE_TEXT;
+			}
+			
+			// ^$objontop_<extraBoundaryXZ>[_<entityID>]
+			if(boost::starts_with(name, "^$objontop_")) {
+				Entity * ent = context.getEntity();
+				float extraBoundaryXZ = 0.f;
+				
+				std::string_view strCheck = name.substr(11);
+				size_t posEntityID = strCheck.find('_');
+				if(posEntityID == std::string_view::npos) {
+					posEntityID = strCheck.length();
+				} else {
+					ent = entities.getById(name.substr(++posEntityID)); //++ to skip the '_' before the entityID
+				}
+				extraBoundaryXZ = util::parseFloat(name.substr(11,posEntityID-11));
+				
+				txtcontent = "none";
+				if(ent) {
+					MakeTopObjString(ent, txtcontent, extraBoundaryXZ);
+				}
+				
 				return TYPE_TEXT;
 			}
 			
@@ -620,6 +739,11 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_LONG;
 			}
 			
+			if(name == "^arxtime") {
+				*lcontent = static_cast<long>(toMsi(g_gameTime.now()));
+				return TYPE_LONG;
+			}
+			
 			if(name == "^arxtime_hours") {
 				*lcontent = static_cast<long>(toMsi(g_gameTime.now()) * 6 / 3600000) % 12;
 				if(*lcontent == 0) {
@@ -661,7 +785,7 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_FLOAT;
 			}
 			
-			if(boost::starts_with(name, "^anglex_")) {
+			if(boost::starts_with(name, "^anglex_")) { //radians
 				*fcontent = 0.f;
 				Entity * entity = getEntityParam(name, 8, context);
 				if(entity) {
@@ -671,7 +795,7 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_FLOAT;
 			}
 			
-			if(boost::starts_with(name, "^anglez_")) {
+			if(boost::starts_with(name, "^anglez_")) { //radians
 				*fcontent = 0.f;
 				Entity * entity = getEntityParam(name, 8, context);
 				if(entity) {
@@ -735,6 +859,14 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_TEXT;
 			}
 			
+			if(boost::starts_with(name, "^buyprice")) {
+				*fcontent = 0;
+				if(context.getEntity() && (context.getEntity()->ioflags & IO_ITEM)) {
+					*fcontent = static_cast<float>(context.getEntity()->_itemdata->buyPrice);
+				}
+				return TYPE_FLOAT;
+			}
+			
 			break;
 		}
 		
@@ -770,20 +902,86 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 		}
 		
 		case 'd': {
+			if(boost::starts_with(name, "^debugcalledfrom_")) { // ^debugcalledfrom_<indexFromLastOnTheCallStack>
+				txtcontent = "void";
+				std::string str = context.getGoSubCallStack("", "", "\n", util::parseInt(name.substr(17)));
+				size_t i = str.find(context.strCallStackHighlight, 0);
+				if(i != std::string::npos) {
+					i += context.strCallStackHighlight.size();
+					size_t i2 = str.find(context.strCallStackHighlight, i);
+					txtcontent = str.substr(i, i2 - i);
+				}
+				return TYPE_TEXT;
+			}
+			
+			if(name == "^degrees") {
+				*fcontent = getDegrees(context, name, -1, 'y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^degrees_")){
+				*fcontent = getDegrees(context, name, 9, 'y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^degreesx_")){
+				*fcontent = getDegrees(context, name, 10, 'x');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^degreesy_")){
+				*fcontent = getDegrees(context, name, 10, 'y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^degreesz_")){
+				*fcontent = getDegrees(context, name, 10, 'z');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^degreesto_")){
+				*fcontent = getDegrees(context, name, 11, 'Y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^degreesyto_")){
+				*fcontent = getDegrees(context, name, 12, 'Y');
+				return TYPE_FLOAT;
+			}
 			
 			if(boost::starts_with(name, "^dist_")) {
 				if(context.getEntity()) {
-					Entity * target = entities.getById(name.substr(6));
-					if(target == entities.player()) {
-						*fcontent = fdist(player.pos, context.getEntity()->pos);
-					} else if(target
-					          && (context.getEntity()->show == SHOW_FLAG_IN_SCENE
-					              || context.getEntity()->show == SHOW_FLAG_IN_INVENTORY)
-					          && (target->show == SHOW_FLAG_IN_SCENE
-					              || target->show == SHOW_FLAG_IN_INVENTORY)) {
-						*fcontent = fdist(GetItemWorldPosition(context.getEntity()), GetItemWorldPosition(target));
-					} else {
+					if( name[6] == '[' ) {
 						*fcontent = 99999999999.f;
+						
+						Vec3f pos = Vec3f(0.f);
+						size_t iStrPosNext = 6;
+						
+						size_t iStrPosIni=iStrPosNext+1; //skip '['
+						iStrPosNext=name.find(',',iStrPosIni);
+						if(iStrPosNext == std::string::npos) { return TYPE_FLOAT; LogError << "missing 1st ','"; }
+						pos.x = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						iStrPosIni=iStrPosNext+1; //skip ','
+						iStrPosNext=name.find(',',iStrPosIni);
+						if(iStrPosNext == std::string::npos) { return TYPE_FLOAT; LogError << "missing 2nd ','"; }
+						pos.y = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						iStrPosIni=iStrPosNext+1; //skip ','
+						iStrPosNext=name.find(']',iStrPosIni);
+						if(iStrPosNext == std::string::npos) { return TYPE_FLOAT; LogError << "missing ']'"; }
+						pos.z = util::parseFloat(name.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+						
+						LogDebug(' ' << pos.x <<' ' << pos.y <<' ' << pos.z);
+						
+						*fcontent = fdist(context.getEntity()->pos, pos);
+					} else {
+						Entity * target = entities.getById(name.substr(6));
+						if(target == entities.player()) {
+							*fcontent = fdist(player.pos, context.getEntity()->pos);
+						} else if(target
+											&& (context.getEntity()->show == SHOW_FLAG_IN_SCENE
+													|| context.getEntity()->show == SHOW_FLAG_IN_INVENTORY)
+											&& (target->show == SHOW_FLAG_IN_SCENE
+													|| target->show == SHOW_FLAG_IN_INVENTORY)) {
+							*fcontent = fdist(GetItemWorldPosition(context.getEntity()), GetItemWorldPosition(target));
+						} else {
+							*fcontent = 99999999999.f;
+						}
 					}
 					return TYPE_FLOAT;
 				}
@@ -819,6 +1017,11 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^fighting")) {
 				*lcontent = long(ARX_PLAYER_IsInFightMode());
 				return TYPE_LONG;
+			}
+			
+			if(boost::starts_with(name, "^fps")) {
+				*fcontent = g_fpsCounter.FPS;
+				return TYPE_FLOAT;
 			}
 			
 			break;
@@ -861,6 +1064,11 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_TEXT;
 			}
 			
+			if(boost::starts_with(name, "^hover_")) {
+				txtcontent = idString( GetFirstInterAtPos( DANAEMouse, util::parseFloat(name.substr(7)) ) );
+				return TYPE_TEXT;
+			}
+			
 			break;
 		}
 		
@@ -888,6 +1096,11 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 				return TYPE_LONG;
 			}
 			
+			if(name == "^ininventory") {
+				txtcontent = idString(locateInInventories(context.getEntity()).container);
+				return TYPE_TEXT;
+			}
+			
 			if(boost::starts_with(name, "^inplayerinventory")) {
 				*lcontent = IsInPlayerInventory(context.getEntity()) ? 1 : 0;
 				return TYPE_LONG;
@@ -898,17 +1111,54 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 		
 		case 'l': {
 			
-			if(boost::starts_with(name, "^life")) {
-				*fcontent = 0;
-				if(context.getEntity() && (context.getEntity()->ioflags & IO_NPC)) {
-					*fcontent = context.getEntity()->_npcdata->lifePool.current;
-				}
+			if(name == "^life") {
+				*fcontent = getLife(name, 'c', 0, context.getEntity());
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^life_")) {
+				*fcontent = getLife(name, 'c', 6);
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^lifemax_")) {
+				*fcontent = getLife(name, 'm', 9);
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^lifemodmax_")) {
+				*fcontent = getLife(name, 'M', 12);
 				return TYPE_FLOAT;
 			}
 			
 			if(boost::starts_with(name, "^last_spawned")) {
 				txtcontent = idString(LASTSPAWNED);
 				return TYPE_TEXT;
+			}
+			
+			if(boost::starts_with(name, "^locationx_")) {
+				*fcontent = getLocation(name, 'x');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^locationy_")) {
+				*fcontent = getLocation(name, 'y');
+				return TYPE_FLOAT;
+			}
+			if(boost::starts_with(name, "^locationz_")) {
+				*fcontent = getLocation(name, 'z');
+				return TYPE_FLOAT;
+			}
+			
+			if(name == "^lootinventory") {
+				txtcontent = idString(
+					(g_secondaryInventoryHud.isVisible() && g_secondaryInventoryHud.isOpen()) ? 
+					g_secondaryInventoryHud.getEntity() : nullptr );
+				return TYPE_TEXT;
+			}
+			
+			if(boost::starts_with(name, "^sellprice")) {
+				*fcontent = 0;
+				if(context.getEntity() && (context.getEntity()->ioflags & IO_ITEM)) {
+					*fcontent = static_cast<float>(context.getEntity()->_itemdata->sellPrice);
+				}
+				return TYPE_FLOAT;
 			}
 			
 			break;
@@ -960,6 +1210,13 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^maxdurability")) {
 				*fcontent = (context.getEntity()) ? context.getEntity()->max_durability : 0.f;
 				return TYPE_FLOAT;
+			}
+			
+			if(name == "^lootinventory") {
+				txtcontent = idString(
+					(g_secondaryInventoryHud.isVisible() && g_secondaryInventoryHud.isOpen()) ? 
+					g_secondaryInventoryHud.getEntity() : nullptr );
+				return TYPE_TEXT;
 			}
 			
 			break;
@@ -1024,7 +1281,7 @@ ValueType getSystemVar(const script::Context & context, std::string_view name,
 			if(boost::starts_with(name, "^price")) {
 				*fcontent = 0;
 				if(context.getEntity() && (context.getEntity()->ioflags & IO_ITEM)) {
-					*fcontent = static_cast<float>(context.getEntity()->_itemdata->price);
+					*fcontent = static_cast<float>(context.getEntity()->_itemdata->buyPrice);
 				}
 				return TYPE_FLOAT;
 			}
@@ -1826,7 +2083,7 @@ void ARX_SCRIPT_Timer_Check() {
 		
 		if(es && ValidIOAddress(io)) {
 			LogDebug("running timer \"" << name << "\" for entity " << io->idString());
-			ScriptEvent::resume(es, io, pos);
+			ScriptEvent::resume(es, io, pos, &timer);
 		} else {
 			LogDebug("could not run timer \"" << name << "\" - entity vanished");
 		}
@@ -1945,16 +2202,410 @@ void ManageCasseDArme(Entity * io) {
 	
 }
 
-void loadScript(EERIE_SCRIPT & script, PakFile * file) {
+bool writeScriptAtModDumpFolder(const res::path & pathModdedDump, const std::string & esdatPatched, const std::string & esdatOriginal) {
+	if(esdatOriginal.size() == esdatPatched.size() && esdatOriginal == esdatPatched) { // because testing the size first, allows just passing an empty esdatOriginal to force writing esdatPatched
+		return true; // ok, nothing changed
+	}
 	
-	if(!file) {
+	res::path folder = pathModdedDump.parent();
+	LogDebug("folder=" << folder << ", fl=" << pathModdedDump);
+	std::filesystem::create_directories(folder.string());
+	
+	static std::ofstream flModdedDump;
+	flModdedDump.open(pathModdedDump.string(), std::ios_base::trunc); //std::ios_base::app);
+	if(!flModdedDump.fail()) {
+		flModdedDump << esdatPatched << "\n";
+		flModdedDump.flush();
+		flModdedDump.close();
+		LogDebug("wrote " << pathModdedDump);
+		return true;
+	}
+	
+	LogError << "Failed to write mod dump file '" << pathModdedDump.string() << "'";
+	
+	return false;
+}
+
+size_t detectAndFixGoToGoSubParam(std::string & line) { // transform goto/gosub param var=value into var value (replace '=' with space)
+	static std::string strSearchRegex = "_*g_*o_*(t_*o|s_*u_*b)_*";
+	static std::regex * reSearch = nullptr;
+	reSearch = util::prepareRegex(reSearch, strSearchRegex.c_str());
+	if(!reSearch) {
+		LogCritical << "invalid regex: " << strSearchRegex;
+		return 0;
+	}
+	
+	if (std::regex_search(line, *reSearch)) {
+		/**
+		 * create a strict/precise match as possible.
+		 * For \xBB read ScriptedLand.cpp GotoCommand::createParamVar() (\xAB is never on the left side),
+		 * also \xBB{0,1} means that a GoSub param can also set a normal var using it's full name
+		 * (instead of an auto var name based on a short name).
+		 */
+		static std::string strReplaceRegex = "([ \t][@\xA3\xA7][\xBB]{0,1}[a-z0-9_]*)=([^ \t])";
+		static std::regex * reReplace = nullptr;
+		reReplace = util::prepareRegex(reReplace, strReplaceRegex.c_str());
+		if(!reReplace) {
+			LogCritical << "invalid regex: " << strReplaceRegex;
+			return 0;
+		}
+		
+		std::string strLineBefore = line;
+		line = std::regex_replace(line, *reReplace, "$1 $2");
+		if(strLineBefore != line) {
+			return 1; // TODO count diff chars?
+		}
+	}
+	
+	return 0;
+}
+size_t adaptScriptCode(std::string & line) {
+	return detectAndFixGoToGoSubParam(line);
+}
+/**
+ * Necessary because of other parts of the code that seek back for the single line comment token "//" !
+ * IMPORTANT: This is destructive. Will replace initial chars of each line in the multiline comment with "//", but only in the RAM.
+ */
+bool detectAndTransformMultilineCommentIntoSingleLineComments(std::string & esdat, res::path & pathScript) {
+	std::stringstream ssErrMsg;
+	ssErrMsg << "MultilineCommentScript at '" << pathScript.string();
+	
+	std::string strNL = esdat.find("\r\n", 0) != std::string::npos ? "\r\n" : "\n";
+	
+	std::vector<std::string> lines;
+	boost::split(lines, esdat, boost::is_any_of("\n"));
+	
+	esdat="";
+	bool bSeekBeginMLC = true;
+	size_t lineCount = 0;
+	size_t countMLC = 0;
+	size_t countSLC = 0;
+	size_t countASC = 0;
+	for(std::string line : lines) {
+		lineCount++;
+		
+		countASC += adaptScriptCode(line);
+		
+		if(bSeekBeginMLC) {
+			size_t posBeginMLC = line.find("/*");
+			if(posBeginMLC == std::string::npos) { // not found, is normal line
+				esdat += line + "\n";
+				continue;
+			} else { // is begin of multiline comment?
+				size_t posComment = line.find("//");
+				if(posComment != std::string::npos && posComment < posBeginMLC) { // a line like "// ... /* " is not a begin of a multiline comment
+					esdat += line + "\n";
+					continue;
+				} else {  // is begin of multiline comment!
+					// replaces "/*" with "//"
+					line[posBeginMLC  ] = '/';
+					line[posBeginMLC+1] = '/';
+					countSLC++;
+					bSeekBeginMLC = false;
+					countMLC++;
+				}
+			}
+		} else { //seek end
+			size_t posEndMLC = line.find("*/");
+			
+			if(line.size() == 1) { // transform into empty line
+				line=" ";
+			} else if(line.size() >= 2) { // transform in single line comment
+				line[0] = '/';
+				line[1] = '/';
+				countSLC++;
+			}
+			
+			if(posEndMLC == std::string::npos) { // not found, is simple commented line
+				esdat += line + "\n";
+				continue;
+			} else { // is end of multiline comment
+				if((posEndMLC+2+(strNL.size()-1)) < line.size()) {
+					LogError << ssErrMsg.str() << "' [line=" << lineCount << "]: " << "the closing '*/' token shall always be followed by a newline to not break the line number calculation. line content is: \"" << line << "\""; // shows just a simple user instruction. must have a '\n', otherwise auto adding a newline here would make the line calculation, of other messages, miss the original script! obs.: do not use arx_assert_msg() as mod developers (and end users too) may cause this by editing .asl files!
+				}
+				esdat += line + "\n";
+				bSeekBeginMLC = true;
+			}
+		}
+	}
+	
+	if((countMLC+countSLC+countASC) > 0) {
+		LogDebug("Converted " << countMLC << " multiline comment(s) into " << countSLC << " single line comments and adapted " << countASC << " lines of code at " << pathScript.string());
+		return true;
+	}
+	
+	return false;
+}
+
+void fixLineEnding(std::string & strData, char cLineEndingMode) {
+	switch(cLineEndingMode) {
+		case 'w':
+			boost::replace_all(strData, "\r", "");
+			boost::replace_all(strData, "\n", "\r\n");
+			break;
+		case 'l':
+			boost::replace_all(strData, "\r\n", "\n");
+			break;
+		case '.': // to ignore
+			break;
+		default: arx_assert_msg(false, "invalid LineEndingMode = '%c'", cLineEndingMode); break;
+	}
+}
+
+void fixTo8859_15(std::string strFilename, std::string & strData) { // only chars that matters for now from the most used format UTF-8 only
+	if(strData.find_first_of("\xC2\xE2\x82\xAC") != std::string::npos) {
+		LogWarning << "fixing data to ISO-8859-15 read from '" << strFilename << "'";
+		boost::replace_all(strData, "\xC2", ""); // UTF-8 seems to only prepend special chars with 0xC2, so remove it
+		boost::replace_all(strData, "\xE2\x82\xAC", "\xA4"); // least this one, needs conversion
+	}
+}
+
+std::string loadAndFixScriptData(std::string strFilename, std::ifstream & file, char cLineEndingMode) {
+	return fixScriptData(strFilename, loadFileDataAndCloseIt(file), cLineEndingMode);
+}
+std::string loadFileDataAndCloseIt(std::ifstream & file) {
+	std::stringstream fileData;
+	fileData << file.rdbuf();
+	file.close();
+	return fileData.str();
+}
+std::string fixScriptData(std::string strFilename, std::string strData, char cLineEndingMode) {
+	strData = util::toLowercase(strData);
+	fixLineEnding(strData, cLineEndingMode);
+	fixTo8859_15(strFilename, strData);
+	return strData;
+}
+
+void loadScript(EERIE_SCRIPT & script, res::path & pathScript) {
+	loadScript(script, g_resources->getFile(pathScript), pathScript);
+}
+void loadScript(EERIE_SCRIPT & script, PakFile * fileInput, res::path & pathScript) {
+	
+	if(!fileInput) {
 		return;
 	}
 	
-	script.valid = true;
+	res::path pathModdedDump;
+	pathModdedDump = std::string() + "modsdump/" + pathScript.string();
 	
-	script.data = util::toLowercase(file->read());
+	script.valid = true;
+	script.file = pathScript.string();
+	
+	std::string strScriptData;
+	
+	static const char * moddingOpt = std::getenv("ARX_MODDING"); // set ARX_MODDING=1 to let dumped scripts cache always be loaded, this will also ignore changes to mod files and to original files that would be patched/overriden
+	int moddingMode = 0;
+	if(moddingOpt) {
+		moddingMode = util::parseInt(moddingOpt);
+		if(moddingMode < 0) moddingMode = 0; // as the end user can cause this error, just auto-fix it.
+	}
+	static bool bShowModeOnce = true;
+	if(bShowModeOnce) {
+		LogInfo << "Modding mode (" << moddingMode << "): " << (moddingMode == 0 ? "using cached modded scripts if available" : "developer mode always apply patches, overrides and appends, letting you edit .asl files without restarting the game");
+		bShowModeOnce = false;
+	}
+	
+	bool usingFileFromCache = false;
+	if(moddingMode == 0) {
+		std::ifstream fileModCache(pathModdedDump.string());
+		if (fileModCache.is_open()) {
+			strScriptData = fixScriptData(pathModdedDump.string(), loadFileDataAndCloseIt(fileModCache), '.');
+			script.file = pathModdedDump.string();
+			usingFileFromCache = true;
+		}
+	}
+	
+	std::string strScriptDataOriginal; // there is no need to read original data if using the cache that is meant to be fast
+	if(!usingFileFromCache) {
+		strScriptDataOriginal = fileInput->read();
+		strScriptData = strScriptDataOriginal;
+		char cLineEndingMode = strScriptData.find("\r\n") != std::string::npos ? 'w' : 'l';
+		
+		strScriptData = fixScriptData(pathScript.string(), strScriptData, cLineEndingMode);
+		
+		std::string strBaseModPath = "mods";
+		std::string strFlModLoadOrder = strBaseModPath + "/" + "modloadorder.cfg";
+		static std::vector<std::string> vModList;
+		static std::string strModListFileData;
+		if(strModListFileData.size() == 0 || moddingMode) { // detects changes in the load order in case of modding mode
+			std::ifstream flLoadOrder(strFlModLoadOrder);
+			std::string strModListFileDataNew = loadFileDataAndCloseIt(flLoadOrder);
+			if(strModListFileDataNew != strModListFileData) {
+				if(vModList.size() > 0) {
+					LogInfo << "Mod load order file change detected, reloading.";
+				}
+				vModList.clear();
+				strModListFileData = strModListFileDataNew;
+			}
+		}
+		if(vModList.size() == 0) {
+			//the last in the list wins.
+			std::ifstream flLoadOrder(strFlModLoadOrder);
+			if (flLoadOrder.is_open()) {
+				std::string line;
+				LogInfo << "Mod load order file found: " << strFlModLoadOrder;
+				while (std::getline(flLoadOrder, line)) {
+					//strModListFileData += line + "\n"; // should detect \r\n
+					if(line.size() == 0) continue; //empty lines are ignored
+					if(line[0] == '#') continue; //lines beggining with # are comments and will be ignored
+					vModList.push_back(line.c_str());
+					LogInfo << " ├─ Mod: " << line;
+				}
+				flLoadOrder.close();
+				LogInfo << " └─ Ended collecting mod load order.";
+			}
+		}
+		
+		//* 1st) Patches are meant to be applied at originals (of other mods) and vanilla scripts.
+		//* 2nd) Overrides are prepended script code, they will be found before others.
+		//* 3rd) Appended code shall have unique identifiers as will be at the end, is more a mod developer helper as it's contents could also be at overrides file as the final result wont change.
+		//* To apply a patch in a script code override, create a new folder (mod) containing it and being loaded after.
+		int logInfoForScript = 0;
+		size_t modOverrideApplyCount = 0;
+		size_t modPatchApplyCount = 0;
+		size_t modAppendApplyCount = 0;
+		for(std::string strMod : vModList) {
+			std::string strModBase = std::string() + strBaseModPath + "/" + strMod + "/" + pathScript.string();
+			int cleanTo = strBaseModPath.size() + 1 + strMod.size() + 1;
+			res::path pathModOverride = strModBase + ".override.asl"; // the final .asl is to keep it easy to be detected by code editors
+			res::path pathModPatch = strModBase + ".patch";
+			res::path pathModAppend = strModBase + ".append.asl"; // this file is more useful to mod developers that want to split test code from the main mod file. combine with a patch to let the test code be reachable.
+			int logInfoForMod = 0;
+			int logInfoAppliedForMod = 0;
+			
+			// apply diff patch
+			while(true) { // this loop let the user or mod developer take action w/o requiring to restart the game
+				std::ifstream fileModPatch(pathModPatch.string());
+				if (fileModPatch.is_open()) {
+					if(logInfoForScript == 0) {
+						LogInfo << "Modding script file: " << pathScript.string();
+						logInfoForScript++;
+					}
+					if(logInfoForMod == 0) {
+						LogInfo << "├─ Mod name: " << strMod;
+						logInfoForMod++;
+					}
+
+					std::string strFileDataPatch = loadFileDataAndCloseIt(fileModPatch);
+					
+					res::path pathModPatchToApply;
+					if(strFileDataPatch.find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
+						std::ofstream fileModPatchLowerCase;
+						res::path pathModPatchLowerCase = pathModPatch.string()+".lowercase.patch";
+						fileModPatchLowerCase.open(pathModPatchLowerCase.string(), std::ios_base::trunc);
+						if(fileModPatchLowerCase.fail()) {
+							arx_assert_msg(false, "failed to write required lowercase patch file '%s'", pathModPatchLowerCase.string().c_str());
+						}
+						
+						strFileDataPatch = fixScriptData(pathModPatch.string(), strFileDataPatch, cLineEndingMode);
+						fileModPatchLowerCase << strFileDataPatch;
+						fileModPatchLowerCase.flush();
+						fileModPatchLowerCase.close();
+						LogInfo << "│   ├─ lower case patch : " << pathModPatchLowerCase.string().substr(cleanTo);
+						pathModPatchToApply = pathModPatchLowerCase;
+					} else {
+						pathModPatchToApply = pathModPatch;
+					}
+					
+					res::path pathScriptToBePatched = pathModdedDump;
+					writeScriptAtModDumpFolder(pathScriptToBePatched, strScriptData, strScriptDataOriginal);
+					
+					std::string strPatchOutputFile = pathModPatchToApply.string() + ".log";
+					std::string strCmd = std::string() + "patch \"" + pathScriptToBePatched.string() + "\" \"" + pathModPatchToApply.string() + "\" 2>&1 >\"" + strPatchOutputFile + "\"";
+					int retCmdPatch = platform::runUserCommand(strCmd.c_str());
+					if(retCmdPatch != 0) { // these below are important to show also to end users installing mods, so they can remove the mod, update it, or try to fix by themselves.
+						std::stringstream ssPatchingOutput;
+						std::ifstream fileOutputMsg(strPatchOutputFile);
+						if (fileOutputMsg.is_open()) {
+							ssPatchingOutput << fileOutputMsg.rdbuf();
+							fileOutputMsg.close();
+						}
+						
+						// TODO terminal input is not capturable? is there some way to let it work w/o system windowed popup? while debugging with nemiver at least, none of these work to wait terminal user input (hitting enter does nothing, so it wont continue running, the app stays there forever): std::cin >> dummy; dummy = platform::runUserCommand("read"); getchar(); do { ... } while (std::cin.get() != '\n');
+						std::string strTitle = "Modding";
+						if(platform::askOkCancelCustomUserSystemPopupCommand(strTitle, std::string() + "ERROR: Applying a mod patch failed.\n [SCRIPT] '" + pathScriptToBePatched.string() + "'", ssPatchingOutput.str(), pathModPatch.string())) { // pathModPatch will be lower cased again
+							platform::showInfoDialog(std::string() + "ArxLibertatis" + strTitle + "\n" + "After editing:\n [PATCH] '" + pathModPatch.string() + "'\nClose this dialog to retry the patch.", "ArxLibertatis" + strTitle); // TODO zenity is not showing the specified title
+							continue;
+						}
+						
+						LogError << "[Description] Failed to patch the script (err=" << retCmdPatch << ") '" << pathScriptToBePatched.string() << "' using the mod patch file '" << pathModPatchToApply.string() << "'. See the above output at '" << strPatchOutputFile << "'\n";
+						#ifdef ARX_DEBUG
+						LogError << "[PatchCommandOutput] " << ssPatchingOutput.str();
+						#endif
+						LogError << "[RequestUserAction] Fix, update or remove the patch. Retrying in 3s ...\n"; 
+						Thread::sleep(3000ms);
+						continue;
+					}
+					
+					std::ifstream fileModPatched(pathScriptToBePatched.string());
+					if (fileModPatched.is_open()) {
+						strScriptData = loadAndFixScriptData(pathScriptToBePatched.string(), fileModPatched, cLineEndingMode);
+						LogInfo << "│   ├─ applied patch    : " << pathModPatchToApply.string().substr(cleanTo);;
+						modPatchApplyCount++;
+					} else {
+						arx_assert_msg(false, "failed to load the patched script '%s' after using the mod patch file '%s'", pathScriptToBePatched.string().c_str(), pathModPatchToApply.string().c_str());
+					}
+				}
+				
+				break;
+			}
+			
+			// apply simple override. prepends script code for GoTo/GoSub calls and events. The last prepended wins.
+			std::ifstream fileModOverride(pathModOverride.string());
+			if (fileModOverride.is_open()) {
+				if(logInfoForScript == 0) {
+					LogInfo << "Modding script file: " << pathScript.string();
+					logInfoForScript++;
+				}
+				if(logInfoForMod == 0) {
+					LogInfo << "├─ Mod name: " << strMod;
+					logInfoForMod++;
+				}
+				
+				strScriptData = fixScriptData(pathModOverride.string(), loadFileDataAndCloseIt(fileModOverride) + "\n" + strScriptData, cLineEndingMode);
+				LogInfo << "│   ├─ applied overrides: " << pathModOverride.string().substr(cleanTo);;
+				modOverrideApplyCount++;
+				logInfoAppliedForMod++;
+			}
+			
+			// apply simple append. Should be accompained by a patch also to let the appended code be reachable.
+			std::ifstream fileModAppend(pathModAppend.string());
+			if (fileModAppend.is_open()) {
+				if(logInfoForScript == 0) {
+					LogInfo << "Modding script file: " << pathScript.string();
+					logInfoForScript++;
+				}
+				if(logInfoForMod == 0) {
+					LogInfo << "├─ Mod name: " << strMod;
+					logInfoForMod++;
+				}
+				
+				strScriptData = fixScriptData(pathModAppend.string(), strScriptData + "\n" + loadFileDataAndCloseIt(fileModAppend), cLineEndingMode);
+				LogInfo << "│   ├─ applied append   : " << pathModAppend.string().substr(cleanTo);;
+				modAppendApplyCount++;
+				logInfoAppliedForMod++;
+			}
+			
+			if(logInfoAppliedForMod > 0) {
+				LogInfo << "│   └─ Ended applying all for: " << strMod;
+				// else? LogWarning << "│   └─ Nothing found to apply at: " << strMod;
+			}
+		}
+		
+		if((modOverrideApplyCount + modPatchApplyCount + modAppendApplyCount) > 0) {
+			writeScriptAtModDumpFolder(pathModdedDump, strScriptData, strScriptDataOriginal);
+			script.file = pathModdedDump.string();
+			LogInfo << "└─ All Mods: Dumping applied result(s) of " << modOverrideApplyCount << " override(s), " << modPatchApplyCount << " patch(es) and " << modAppendApplyCount << " append(s) at: " << pathModdedDump;
+		}
+	}
+	
+	if(detectAndTransformMultilineCommentIntoSingleLineComments(strScriptData, pathModdedDump)) {
+		writeScriptAtModDumpFolder(pathModdedDump, strScriptData, strScriptDataOriginal);
+	}
+	
+	script.data = strScriptData;
 	
 	ARX_SCRIPT_ComputeShortcuts(script);
 	
 }
+

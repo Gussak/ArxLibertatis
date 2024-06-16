@@ -65,6 +65,10 @@ public:
 	
 	void append(std::string_view text);
 	
+	void resize(size_t l, size_t w) {
+		if(m_lines.size() != l) m_lines.resize(l);
+		m_width = w;
+	}
 };
 
 class MemoryLogger final : public logger::Backend {
@@ -84,9 +88,9 @@ class ScriptConsole final : protected BasicTextInput {
 	
 	static const size_t MaxSuggestions = 1000;
 	static const size_t MaxVisibleSuggestions = 20;
-	static const size_t ScrollbackLines = 10;
-	static const size_t ScrollbackColumns = 100;
-	static const size_t MaxHistorySize = 100;
+	inline static size_t ScrollbackLines = 10;
+	inline static size_t ScrollbackColumns = 100;
+	static const size_t MaxHistorySize = 1000;
 	
 	bool m_enabled;
 	bool m_wasPaused;
@@ -151,6 +155,8 @@ public:
 		, m_suggestionPos(0)
 	{ }
 	
+	void loadHistoryFile();
+	
 	//! Show the console and unlock the hotkey
 	void open();
 	
@@ -168,6 +174,8 @@ public:
 	
 	//!< Execute the current command
 	void execute();
+	
+	int list(std::string filter, bool execOnSingleMatch = false);
 	
 	void update();
 	void draw();

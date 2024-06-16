@@ -43,20 +43,26 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/ScriptedInterface.h"
 
+#include <boost/algorithm/string/predicate.hpp>
+#include <regex>
 #include <utility>
 
+#include "core/GameTime.h"
 #include "game/Inventory.h"
 #include "game/Entity.h"
 #include "game/Player.h"
+#include "gui/Console.h"
 #include "gui/Hud.h"
 #include "gui/Interface.h"
 #include "gui/Menu.h"
 #include "gui/MiniMap.h"
 #include "gui/hud/SecondaryInventory.h"
+#include "gui/widget/TextInputWidget.h"
 #include "scene/GameSound.h"
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
 #include "util/Cast.h"
+#include "util/String.h"
 
 
 namespace script {
@@ -100,6 +106,201 @@ public:
 		return Success;
 	}
 	
+};
+
+class ConsoleHistoryCommand : public Command { // TODOA not working yet
+	
+	public:
+	
+		ConsoleHistoryCommand() : Command("hist") { }
+		
+		Result execute(Context & context) override {
+			
+			g_console.list(context.getWord(), true);
+			
+			return Success;
+		}
+};
+
+class TextInputCommand : public Command { // TODOA not working yet
+	
+	public:
+	
+		TextInputCommand() : Command("ask") { }
+		
+		/**
+		 * TODO: LogHelp()
+		 * ask "<question>" <stringVar>
+		 */
+		Result execute(Context & context) override {
+			
+			std::string strQuestion = context.getWord();
+			std::string strVar = context.autoVarNameForScope(true, context.getWord());
+			
+			std::string strVal = context.getStringVar(strVar);
+			
+			if(strVal == "void") {
+				if(!SETVarValueText(context.getEntity()->m_variables, strVar, "")) {
+					ScriptWarning << "Unable to create variable " << strVar;
+					return Failed;
+				}
+			}
+			
+			g_gameTime.pause(GameTime::PauseUser);
+			
+			//TODOA see how ScriptConsole::draw() works ! it pauses the game and receives the input focus, try to not pause the game and make inscribing (hand writing) speed depend on objectknowledge 1s-5s skill 100-20  =  (1+((100-skill)/20))s. Inscribing will then fail if player moves or enter combat mode. Sound hand writing when finished. Sound dammit if fails. Store a history to not require re-typing everything.
+/*
+			if(!m_enabled) {
+				return;
+			}
+			
+			UseRenderState state(render2D());
+			
+			Color background = Color::black;
+			background.a = 150;
+			Color line = Color::gray(0.8f);
+			Color selection = Color::yellow;
+			selection.a = 40;
+			
+			{
+				Rectf box = Rectf(g_size);
+				box.bottom = box.top + float((m_buffer.lines() + 1) * hFontDebug->getLineHeight()) + 4.f;
+				EERIEDrawBitmap(box, 0.f, nullptr, background);
+			}
+			
+			Vec2i pos(0);
+			for(size_t i = 0; i < m_buffer.lines(); i++) {
+				hFontDebug->draw(pos, m_buffer.line(i), Color::white);
+				pos.y += hFontDebug->getLineHeight();
+			}
+			
+			pos.y += 1;
+			
+			drawLine(Vec2f(0, pos.y), Vec2f(g_size.width(), pos.y), 0.f, line);
+			
+			pos.y += 2;
+			
+			pos.x += hFontDebug->draw(pos, "> ", Color::green).advance();
+			
+			std::string_view displayText = text();
+			std::string buffer;
+			if(!strVal.empty()) {
+				buffer = displayText;
+				buffer.insert(cursorPos(), strVal);
+				displayText = buffer;
+			}
+			size_t displayCursorPos = cursorPos() + editCursorPos();
+			
+			// Highlight edit area
+			if(!strVal.empty()) {
+				int left = hFontDebug->getTextSize(displayText.substr(0, cursorPos())).advance();
+				int right = hFontDebug->getTextSize(displayText.substr(0, cursorPos() + strVal.size())).advance();
+				int height = hFontDebug->getLineHeight();
+				Rectf box = Rectf(Rect(pos + Vec2i(left, 0), right - left, height));
+				EERIEDrawBitmap(box, 0.f, nullptr, selection);
+			}
+			
+			// Draw text
+			s32 x = hFontDebug->draw(pos.x, pos.y, displayText, Color::white).next();
+			
+			// Preview autocomplete
+			std::string_view completion = m_completion.second;
+			if(cursorPos() == text().size() && cursorPos() < completion.size()) {
+				hFontDebug->draw(x, pos.y, completion.substr(cursorPos()), Color::gray(0.5f));
+			}
+			
+			// Draw cursor
+			bool blink = true;
+			if(mainApp->getWindow()->hasFocus()) {
+				blink = timeWaveSquare(g_platformTime.frameStart(), 1200ms);
+			}
+			if(blink) {
+				int cursor = x;
+				if(cursorPos() != displayText.size()) {
+					cursor = pos.x + hFontDebug->getTextSize(displayText.substr(0, displayCursorPos)).next();
+				}
+				drawLine(Vec2f(cursor, pos.y), Vec2f(cursor, pos.y + hFontDebug->getLineHeight()), 0.f, line);
+				if(editCursorLength() > 0) {
+					int endX = pos.x + hFontDebug->getTextSize(displayText.substr(0, displayCursorPos + editCursorLength())).next();
+					drawLine(Vec2f(endX, pos.y), Vec2f(endX, pos.y + hFontDebug->getLineHeight()), 0.f, line);
+				}
+			}
+			
+			pos.y += hFontDebug->getLineHeight();
+			
+			pos.y += 1;
+			
+			drawLine(Vec2f(0, pos.y), Vec2f(g_size.width(), pos.y), 0.f, line);
+			
+			pos.y += 2;
+			
+			// Draw error message and suggestions
+			if(!m_error.second.empty()) {
+				Vec2i errorPos = pos;
+				errorPos.x += hFontDebug->getTextSize(std::string_view(text()).substr(0, m_error.first)).advance();
+				hFontDebug->draw(errorPos + Vec2i(1), m_error.second, Color::black);
+				hFontDebug->draw(errorPos, m_error.second, Color::red);
+			} else if(!m_suggestions.empty()) {
+				Vec2i suggestionPos = pos;
+				size_t position = 0;
+				size_t start = 0;
+				if(m_selection >= int(MaxVisibleSuggestions)) {
+					start = m_selection - MaxVisibleSuggestions + 1;
+				}
+				for(size_t i = start; i < m_suggestions.size(); i++) {
+					if(i == start + MaxVisibleSuggestions - (start != 0)) {
+						std::ostringstream oss;
+						oss << "... " << (start + 1) << " - " << (start + MaxVisibleSuggestions - (start != 0))
+								<< " / " << m_suggestions.size();
+						hFontDebug->draw(suggestionPos + Vec2i(1), oss.str(), Color::black);
+						hFontDebug->draw(suggestionPos, oss.str(), Color::red);
+						break;
+					}
+					if(m_suggestions[i].first != position) {
+						position = m_suggestions[i].first;
+						suggestionPos.x = pos.x + hFontDebug->getTextSize(std::string_view(text()).substr(0, position)).advance();
+					}
+					if(start != 0 && i == start) {
+						hFontDebug->draw(suggestionPos + Vec2i(1), "...", Color::black);
+						hFontDebug->draw(suggestionPos, "...", Color::red);
+						suggestionPos.y += hFontDebug->getLineHeight();
+					}
+					if(int(i) + 1 == m_selection) {
+						int width = hFontDebug->getTextSize(m_suggestions[i].second).width();
+						int height = hFontDebug->getLineHeight();
+						Rectf highlight = Rectf(Rect(suggestionPos - Vec2i(2, 1), width + 3, height + 2));
+						EERIEDrawBitmap(highlight, 0.f, nullptr, selection);
+						drawLineRectangle(highlight, 0.f, background);
+					}
+					hFontDebug->draw(suggestionPos + Vec2i(1), m_suggestions[i].second, Color::black);
+					hFontDebug->draw(suggestionPos, m_suggestions[i].second, Color::white);
+					suggestionPos.y += hFontDebug->getLineHeight();
+				}
+			}
+//*/			
+			
+			ARX_UNICODE_DrawTextInRect(hFontMenu, Vec2f(200,200), 999999, strQuestion, Color(232, 204, 142));
+			
+			TextInputWidget textbox(hFontMenu, strVal, Rectf(200,220,300,20));
+			//textbox.setText(strVal);
+			if(!textbox.click()) {
+				ScriptWarning << "Unable create text input " << strQuestion << ", " << strVar << ", " << strVal;
+				return Failed;
+			}
+			
+			g_gameTime.resume(GameTime::PauseUser); // TODOA wait enter or esc key ? or is it automatic?
+			
+			if(!textbox.text().empty()) {
+				if(!SETVarValueText(context.getEntity()->m_variables, strVar, context.getStringVar(textbox.text(), context.getEntity()))) {
+					ScriptWarning << "Unable to set variable " << strVar;
+					return Failed;
+				}
+			}
+			
+			textbox.unfocus();
+			
+			return Success;
+		}
 };
 
 class CloseStealBagCommand : public Command {
@@ -155,12 +356,33 @@ public:
 	
 };
 
-struct PrintGlobalVariables { };
-
-std::ostream & operator<<(std::ostream & os, const PrintGlobalVariables & /* unused */) {
+struct PrintGlobalVariables {
 	
-	for(const SCRIPT_VAR & var : svar) {
-		os << var << '\n';
+	std::string m_filter;
+	
+	explicit PrintGlobalVariables(std::string_view filter = "") : m_filter(filter) { }
+	
+};
+
+std::ostream & operator<<(std::ostream & os, const PrintGlobalVariables & data) {
+	
+	if(data.m_filter.size() > 0) {
+		static std::regex * re = nullptr;
+		re = util::prepareRegex(re, data.m_filter);
+		if(!re) {
+			LogError << "invalid regex: " << data.m_filter;
+			return os;
+		}
+		
+		for(const SCRIPT_VAR & var : svar) {
+			if (std::regex_search(var.name, *re)) {
+				os << var << '\n';
+			}
+		}
+	} else {
+		for(const SCRIPT_VAR & var : svar) {
+			os << var << '\n';
+		}
 	}
 	
 	return os;
@@ -188,18 +410,58 @@ public:
 struct PrintLocalVariables {
 	
 	Entity * m_entity;
+	std::string m_filter;
 	
-	explicit PrintLocalVariables(Entity * entity) : m_entity(entity) { }
+	explicit PrintLocalVariables(Entity * entity, std::string_view filter = "") : m_entity(entity), m_filter(filter) { }
 	
 };
 
 std::ostream & operator<<(std::ostream & os, const PrintLocalVariables & data) {
 	
-	for(const SCRIPT_VAR & var : data.m_entity->m_variables) {
-		os << var << '\n';
+	if(data.m_filter.size() > 0) {
+		static std::regex * re = nullptr;
+		re = util::prepareRegex(re, data.m_filter);
+		if(!re) {
+			LogError << "invalid regex: " << data.m_filter;
+			return os;
+		}
+		
+		for(const SCRIPT_VAR & var : data.m_entity->m_variables) {
+			if (std::regex_search(var.name, *re)) {
+				os << var << '\n';
+			}
+		}
+	} else {
+		for(const SCRIPT_VAR & var : data.m_entity->m_variables) {
+			os << var << '\n';
+		}
 	}
 	
 	return os;
+}
+
+static std::string getEventAndStackInfo(Context & context) {
+	std::stringstream s;
+	
+	if(context.getMessage() < SM_MAXCMD) {
+		s << " at Event " << ScriptEvent::name(context.getMessage());
+	}
+	
+	if(context.getSender()) {
+		s << " sent from " << context.getSender()->idString();
+	}
+	
+	if(context.getParameters().size() > 0) {
+		s << " with parameters (";
+		for(std::string s2 : context.getParameters()) {
+			s << s2 << " ";
+		}
+		s << ")";
+	}
+	
+	s << context.getGoSubCallStack(" at GoSub {CallStackId(FromPosition): ", " }, " + context.getPosLineColumnInfo());
+	
+	return s.str();
 }
 
 class ShowLocalsCommand : public Command {
@@ -210,10 +472,17 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		DebugScript("");
+		std::string filter;
+		HandleFlags("f") {
+			if(flg & flag('f')) {
+				filter = context.getStringVar(context.getWord());
+			}
+		}
 		
-		LogInfo << "Local variables for " << context.getEntity()->idString() << ":\n"
-		        << PrintLocalVariables(context.getEntity());
+		DebugScript("" << filter);
+		
+		LogInfo << "Local variables for " << context.getEntity()->idString() << getEventAndStackInfo(context) << ":\n"
+			<< PrintLocalVariables(context.getEntity(), filter);
 		
 		return Success;
 	}
@@ -228,11 +497,18 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		DebugScript("");
+		std::string filter;
+		HandleFlags("f") {
+			if(flg & flag('f')) {
+				filter = context.getStringVar(context.getWord());
+			}
+		}
 		
-		LogInfo << "Local variables for " << context.getEntity()->idString() << ":\n"
-		        << PrintLocalVariables(context.getEntity());
-		LogInfo << "Global variables:\n" << PrintGlobalVariables();
+		DebugScript("" << filter);
+		
+		LogInfo << "Local variables for " << context.getEntity()->idString() << getEventAndStackInfo(context) << ":\n"
+			<< PrintLocalVariables(context.getEntity(), filter);
+		LogInfo << "Global variables:\n" << PrintGlobalVariables(filter);
 		
 		return Success;
 	}
@@ -410,7 +686,8 @@ void setupScriptedInterface() {
 	ScriptEvent::registerCommand(std::make_unique<EndGameCommand>());
 	ScriptEvent::registerCommand(std::make_unique<MapMarkerCommand>());
 	ScriptEvent::registerCommand(std::make_unique<DrawSymbolCommand>());
-	
+	ScriptEvent::registerCommand(std::make_unique<TextInputCommand>());
+	ScriptEvent::registerCommand(std::make_unique<ConsoleHistoryCommand>());
 }
 
 } // namespace script

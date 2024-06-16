@@ -47,14 +47,18 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include <string>
 #include <string_view>
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #include "ai/Paths.h"
 #include "core/GameTime.h"
 #include "game/EntityManager.h"
+#include "game/Inventory.h"
 #include "game/NPC.h"
 #include "graphics/data/Mesh.h"
 #include "io/resource/ResourcePath.h"
 #include "scene/Interactive.h"
 #include "script/ScriptUtils.h"
+#include "util/Number.h"
 
 
 namespace script {
@@ -80,16 +84,42 @@ public:
 	Result execute(Context & context) override {
 		
 		Entity * io = context.getEntity();
+		std::string strEntID;
+		bool bAbs=false;
+		
+		HandleFlags("hea") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * Rotate [-ea] <e?strEntID> x y z
+	 * -a is absolute rotation
+)");
+				return Success;
+			}
+			if(flg & flag('a')) {
+				bAbs=true;
+			}
+			if(flg & flag('e')) {
+				strEntID = context.getWord();
+			}
+		}
 		
 		float pitch = context.getFloat();
 		float yaw   = context.getFloat();
 		float roll  = context.getFloat();
 		
-		DebugScript(' ' << pitch << ' ' << yaw << ' ' << roll);
+		if(strEntID != "") {
+			io = entities.getById(context.getStringVar(strEntID));
+			if(!io) { //after consume params
+				ScriptWarning << "invalid entity ID: " << strEntID;
+				return Failed;
+			}
+		}
 		
-		io->angle.setPitch(io->angle.getPitch() + pitch);
-		io->angle.setYaw(io->angle.getYaw() + yaw);
-		io->angle.setRoll(io->angle.getRoll() + roll);
+		DebugScript(' ' << pitch << ' ' << yaw << ' ' << roll);
+		io->angle.setPitch(bAbs ? pitch : io->angle.getPitch() + pitch);
+		io->angle.setYaw  (bAbs ? yaw   : io->angle.getYaw  () + yaw  );
+		io->angle.setRoll (bAbs ? roll  : io->angle.getRoll () + roll );
+		io->angle.normalize();
 		
 		io->animBlend.lastanimtime = 0;
 		
@@ -364,18 +394,250 @@ public:
 	MoveCommand() : Command("move", AnyEntity) { }
 	
 	Result execute(Context & context) override {
+		std::string strEntId;
+		
+		HandleFlags("e") {
+			if(flg & flag('e')) {
+				strEntId = context.getStringVar(context.getWord());
+			}
+		}
 		
 		float dx = context.getFloat();
 		float dy = context.getFloat();
 		float dz = context.getFloat();
 		
-		DebugScript(' ' << dx << ' ' << dy << ' ' << dz);
+		DebugScript(' ' << strEntId << ' ' << dx << ' ' << dy << ' ' << dz);
 		
-		context.getEntity()->pos += Vec3f(dx, dy, dz);
+		Entity * entity = context.getEntity();
+		if(strEntId != "") {
+			entity = entities.getById(strEntId);
+			if(!entity) {
+				ScriptWarning << "invalid entity id " << strEntId;
+				return Failed;
+			}
+		}
+		
+		entity->pos += Vec3f(dx, dy, dz);
 		
 		return Success;
 	}
 	
+};
+
+class InterpolateCommand : public Command {
+	
+public:
+	
+	InterpolateCommand() : Command("interpolate", AnyEntity) { }
+	
+	void interpretLocation(Vec3f & pos, const std::string_view & strPos){ //TODO static global reuse with ^dist_{x,y,z}, place at ScriptUtils probably
+		int iStrPosIni=0;
+		int iStrPosNext=strPos.find(',',iStrPosIni);
+		pos.x = util::parseFloat(strPos.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+		
+		iStrPosIni=iStrPosNext+1; //skip ','
+		iStrPosNext=strPos.find(',',iStrPosIni);
+		pos.y = util::parseFloat(strPos.substr(iStrPosIni,iStrPosNext-iStrPosIni));
+		
+		iStrPosIni=iStrPosNext+1; //skip ','
+		pos.z = util::parseFloat(strPos.substr(iStrPosIni));
+	}
+	
+	std::string vec3fToStr(Vec3f & v3) {
+		std::string s;
+		s+=std::to_string(v3.x)+",";
+		s+=std::to_string(v3.y)+",";
+		s+=std::to_string(v3.z);
+		return s;
+	}
+	
+	Result execute(Context & context) override {
+		Entity * entToMove = nullptr;
+		Entity * entTarget = nullptr;
+		Vec3f posTarget = Vec3f(0.f);
+		Vec3f posFrom = Vec3f(0.f);
+		Vec3f posRequested = Vec3f(0.f);
+		bool bLimitDist = true;
+		bool bAbsPosFrom = false;
+		bool bPosTarget = false;
+		float fContextDist = 0.f;
+		char cDistMode = 'n'; //NearDist
+		
+		HandleFlags("hflsp") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * INTERPOLATE [-flsp] <EntityToMove> <f?FromLocation> <TargetLocation|TargetEntity> <NearDist|PercentDist|StepDist>
+	 *  <EntityToMove>: (entityID) is who will be moved
+	 *  [-l]: no limits, allows negative distance and distance bigger than max distance
+	 *  [-f]: FromLocation: x,y,z is the absolute position to move from ignoring EntityToMove position
+	 *  [-s]: StepDist: will move this distance from where it is towards target. if negative, will move away instead.
+	 *  [-p]: PercentDist: Near dist but as percent. From 1.0 to 0.0 will be a percent of the distance between them, where 0.0 is at target. A negative percent will move past the target. A positive will move away the target.
+	 *  NearDist: if not -p and not -s. If bigger than the distance between the from and target location, allows moving farer instead of nearer, and if negative it can move past the target location.
+	 *  <TargetLocation|TargetEntity>: TargetLocation: x,y,z is the absolute target position; TargetEntity: (entityID) is the target entity to get the position
+)");
+				return Success;
+			}
+			if(flg & flag('f')) {
+				bAbsPosFrom = true;
+			}
+			if(flg & flag('l')) {
+				bLimitDist=false;
+			}
+			if(flg & flag('s')) {
+				cDistMode = 's';
+			}
+			if(flg & flag('p')) {
+				cDistMode = 'p';
+			}
+		}
+		
+		std::string strEntityToMove = context.getStringVar(context.getWord());
+		entToMove = strEntityToMove == "self" ? context.getEntity() : entities.getById(strEntityToMove);
+		
+		//optional from absolute position
+		if(bAbsPosFrom){
+			//param:FromLocation
+			interpretLocation(posFrom, context.getWord());
+		} else {
+			if(entToMove) {
+				posFrom = entToMove == entities.player() ? entities.player()->pos : GetItemWorldPosition(entToMove);
+			}
+		}
+		
+		std::string strTarget = context.getWord();
+		if(boost::contains(strTarget,",")){ //absolute location
+			//param:TargetLocation
+			interpretLocation(posTarget,strTarget);
+			bPosTarget = true;
+		}else{
+			//param:TargetEntity
+			if(strTarget[0] == '$' || strTarget[0] == '\xA3') strTarget = context.getStringVar(strTarget);
+			entTarget = strTarget=="self" ? context.getEntity() : entities.getById(strTarget);
+			if(entTarget) {
+				posTarget = entTarget == entities.player() ? entities.player()->pos : GetItemWorldPosition(entTarget);
+			}
+		}
+		
+		fContextDist = context.getFloat();
+		
+		///////////////////////////////////////////////////////////////
+		// !!! ATTENTION !!!
+		// can only return after all params have been collected to not break the remainder of the script!
+		// return failure first from null pointers that are a better warn info than others.
+		///////////////////////////////////////////////////////////////
+		
+		if(!entToMove) {
+			ScriptWarning << "null EntityToMove " << strEntityToMove;
+			return Failed;
+		}
+		
+		if(!bPosTarget){
+			if(!entTarget) {
+				ScriptWarning << "null TargetEntity " << strTarget;
+				return Failed;
+			}
+		}
+			
+		if(!bPosTarget){
+			if(entToMove == entTarget){
+				ScriptWarning << "EntityToMove and TargetEntity are the same";
+				return Failed;
+			}
+		}
+		
+		if(posFrom==posTarget){ //already there
+			return Success;
+		}
+		
+		float fDistMax = fdist(posFrom, posTarget);
+		if(fDistMax < 0.f) { //TODO explain how fdist() negative can happen
+			fDistMax = 0.f;
+		}
+		
+		float fDistRequested = 0.f;
+		switch(cDistMode) {
+			case 's':
+				if(fContextDist == 0.f){ //wont move at all
+					ScriptWarning << "step distance is 0, wont move at all";
+					return Failed; //because some movement should be happening, it is a step after all.
+				}
+				
+				if(bLimitDist) {
+					if(fContextDist < 0.f) {
+						return Success; //limit requested so just accept it, wont move at all
+					}
+					if(fContextDist > fDistMax) {
+						posRequested = posTarget;
+					}
+				}
+				
+				fDistRequested = fDistMax - fContextDist;
+				
+				break;
+				
+			case 'p':
+				if(fContextDist == 1.0f){ //wont move at all, is 100% far away
+					return Success;
+				}
+				if(bLimitDist) {
+					if(fContextDist > 1.0f){
+						return Success; //limit requested so just accept it, wont move at all, is limited to max perc dist
+					} else if(fContextDist < 0.f){
+						fContextDist = 0.f;
+					}
+				}
+				
+				fDistRequested = fDistMax * fContextDist;
+				
+				if(fDistRequested == 0) {
+					posRequested = posTarget;
+				}
+				
+				break;
+				
+			case 'n':
+				if(fContextDist == fDistMax) { //wont move at all, is at max dist
+					return Success;
+				}
+				
+				if(bLimitDist) {
+					if(fContextDist > fDistMax){
+						return Success; //limit requested so just accept it, wont move at all, is limited to max dist
+					}
+					if(fContextDist < 0.f){
+						fContextDist = 0.f; //fix the dist by limit request
+					}
+				}
+				
+				fDistRequested = fContextDist;
+				
+				break;
+				
+		}
+		
+		if((cDistMode=='p' || cDistMode=='n') && (fContextDist == 0.f)) { //NearTargetDistance: will just be placed at target location
+			posRequested = posTarget;
+		}
+		
+		if(posRequested != posTarget) {
+			Vec3f delta = posFrom - posTarget;
+			float fDeltaNorm = ffsqrt( //TODO compare results with LegacyMath.h:interpolatePos() ?
+				arx::pow2(posFrom.x - posTarget.x) + //glm::pow(
+				arx::pow2(posFrom.y - posTarget.y) + 
+				arx::pow2(posFrom.z - posTarget.z)   );
+			float fDistPerc=fDistRequested/fDeltaNorm;
+			posRequested = posTarget + (fDistPerc*delta);
+		}
+		
+		DebugScript("posRequested=" << vec3fToStr(posRequested) << ", fContextDist=" << fContextDist);
+		
+		ARX_INTERACTIVE_TeleportSafe(entToMove, posRequested);
+		
+		LogDebug("INTERPOLATE(): strEntityToMove="<<strEntityToMove <<",strTarget="<<strTarget <<",entToMoveId="<<entToMove->idString() <<",entTargetId="<<(entTarget?entTarget->idString():"null") <<",posTarget="<< vec3fToStr(posTarget)<<",posFrom="<< vec3fToStr(posFrom)<<",fDistMax="<<fDistMax<<",posRequested="<< vec3fToStr(posRequested)<<",bLimitDist="<< bLimitDist<<",bAbsPosFrom="<<bAbsPosFrom <<",bPosTarget="<< bPosTarget<<",fContextDist="<< fContextDist);
+		
+		return Success;
+	}
+
 };
 
 class UsePathCommand : public Command {
@@ -698,6 +960,7 @@ void setupScriptedAnimation() {
 	ScriptEvent::registerCommand(std::make_unique<SetPathCommand>());
 	ScriptEvent::registerCommand(std::make_unique<UsePathCommand>());
 	ScriptEvent::registerCommand(std::make_unique<UnsetControlledZoneCommand>());
+	ScriptEvent::registerCommand(std::make_unique<InterpolateCommand>());
 	
 }
 

@@ -213,7 +213,7 @@ static void ARX_NPC_SpawnMember(Entity * ioo, VertexSelectionId num) {
 	io->m_icon = nullptr;
 	io->scriptload = 1;
 	io->obj = nouvo;
-	io->lastpos = io->initpos = io->pos = from->vertexWorldPositions[inpos].v;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos = from->vertexWorldPositions[inpos].v;
 	io->angle = ioo->angle;
 	
 	io->gameFlags = ioo->gameFlags;

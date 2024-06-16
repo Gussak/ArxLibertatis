@@ -43,15 +43,22 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/ScriptedVariable.h"
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #include <cstring>
+#include <regex>
 #include <string>
 #include <string_view>
 
 #include "game/Entity.h"
+#include "game/EntityManager.h"
+#include "game/Item.h"
+#include "game/Inventory.h"
 #include "graphics/data/Mesh.h"
+#include "platform/Environment.h"
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
-
+#include "util/Number.h"
 
 namespace script {
 
@@ -63,10 +70,231 @@ public:
 	
 	SetCommand() : Command("set") { }
 	
+	std::string getItemListAtInventory(Entity * ent, std::string prefix, bool getCountToo=false) {
+		std::string list;
+		if(ent && ent->inventory) {
+			for(auto slot : ent->inventory->slots()) {
+				if(slot.entity && (boost::starts_with(slot.entity->idString(), prefix) || prefix == "*")) {
+					if(list != "") {
+						list += " ";
+					}
+					
+					list += slot.entity->idString();
+					
+					if(getCountToo) {
+						list += " " + slot.entity->_itemdata->count;
+					}
+				}
+			}
+		}
+		return list;
+	}
+	
+	int getItemCountAtInventory(Entity * ent, std::string prefix) {
+		int count = 0;
+		if(ent && ent->inventory) {
+			for(auto slot : ent->inventory->slots()) {
+				if(slot.entity && boost::starts_with(slot.entity->idString(), prefix)) {
+					count += slot.entity->_itemdata->count;
+				}
+			}
+		}
+		return count;
+	}
+	
+	/**
+	 * TODO: LogHelp()
+	 * the array must contain words separated by a single space
+	 */
+	std::string getWordAtIndex(std::string array, long indexAsked) {
+		long indexCurrent=0;
+		size_t posWordStart = 0;
+		size_t posWordEnd = 0;
+		std::string word;
+		while(true) {
+			posWordEnd = array.find(' ', posWordStart);
+			if(posWordEnd == std::string_view::npos) {
+				posWordEnd = array.length();
+			}
+			
+			if(posWordEnd == posWordStart) { // fail
+				word = "";
+				break;
+			}
+			
+			word = array.substr(posWordStart, posWordEnd - posWordStart);
+			if(indexCurrent == indexAsked) { // success
+				break;
+			}
+			if(posWordEnd == array.length()) { // fail
+				break;
+			}
+			
+			posWordStart=posWordEnd;
+			posWordStart++;
+			
+			indexCurrent++;
+		}
+
+		if(indexCurrent < indexAsked) { // array ended before reaching the requested index
+			word = "";
+		}
+		
+		return word;
+	}
+	
 	Result execute(Context & context) override {
 		
-		std::string var = context.getWord();
-		std::string val = context.getWord();
+		Entity * entReadFrom = context.getEntity();
+		Entity * entWriteTo  = context.getEntity();
+		std::string strEntityCheck;
+		char mode = '.';
+		bool bReadFrom=false;
+		bool bWriteTo=false;
+		
+		HandleFlags("hrwavx") {
+			if(flg & flag('h')) {
+				LogHelp("command " + getName(), R"(
+	Set [-rw] <w?entWriteTo> <r?entReadFrom> <var> <val>
+			<entReadFrom> entity to read 'val' from
+			<entWriteTo> entity to write 'var' at
+	
+	The Modes below are exclusive. Use only one.
+	
+	 <-v> Mode: Array of words: assigns to var the array entry at index
+	Set -v[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array...> ;
+			<index> array index that begins in 0.
+			<array...> are words terminated with ';' word
+			; is required to know the list ended
+			returns "void" meaning index out of bounds
+	
+	 <-a> Mode: Array concatenated in a string: assigns to var the array entry at index
+	Set -a[rw] <w?entWriteTo> <r?entReadFrom> <var> <a?index> <a?array>
+			<index> array index that begins in 0
+			<array> is a string that contains words separated by spaces ' '
+	
+	 <-x> Mode: Replaces a string in a string var matching a regex
+	Set -x[rw] <w?entWriteTo> <r?entReadFrom> <var> <x?regex> <x?replaceWith>
+	
+	Usage examples:
+	Set <var> <val>
+	Set -r <entReadFrom> <var> <val>
+	Set -w <entWriteTo> <var> <val>
+	Set -rw <entWriteTo> <entReadFrom> <var> <val> //with both rw, first w then r, matching var val order
+	Set -a <var> <index> <arrayString> 
+	Set -v <var> <index> <array...> ;
+	Set -rwv <entWriteTo> <entReadFrom> <var> <index> <array...> ;
+)");
+				return Success;
+			}
+			if(flg & flag('r')) {
+				bReadFrom=true;
+			}
+			if(flg & flag('w')) {
+				bWriteTo=true;
+			}
+			if(flg & flag('a')) {
+				mode = 'a';
+			}
+			if(flg & flag('v')) {
+				mode = 'v';
+			}
+			if(flg & flag('x')) {
+				mode = 'x';
+			}
+		}
+		
+		//keep this order: WriteTo ReadFrom, to match this order: var val
+		bool bFail=false;
+		if(bWriteTo) {
+			strEntityCheck = context.getStringVar(context.getWord());
+			entWriteTo = entities.getById(strEntityCheck);
+			if(!entWriteTo) {
+				ScriptWarning << "Invalid entity to write variable to " << strEntityCheck;
+				bFail=true;
+			}
+		}
+		if(bReadFrom) {
+			strEntityCheck = context.getStringVar(context.getWord());
+			entReadFrom = entities.getById(strEntityCheck);
+			if(!entReadFrom) {
+				ScriptWarning << "Invalid entity to read variable from " << strEntityCheck;
+				bFail=true;
+			}
+		}
+		
+		if(bFail) { // discards following words coherently
+			context.skipWord(); // var
+			if(mode != '.') {
+				switch(mode) {
+					// array mode
+					case 'a': 
+						context.skipWord(); // index
+						context.skipWord(); // array
+						break;
+					case 'v': 
+						context.skipWord(); // index
+						while(context.getWord() != ";"); // array... and terminator ;
+						break;
+					case 'x': 
+						context.skipWord(); // regex
+						context.skipWord(); // replaceWith
+						break;
+					default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
+				}
+			} else {
+				context.skipWord(); // val
+			}
+			return Failed;
+		}
+		
+		std::string var = context.autoVarNameForScope(true, context.getWord());
+		
+		std::string val;
+		switch(mode) {
+			case '.': { // simple value mode
+				val = context.getWord();
+			}; break;
+			
+			case 'a': { // array in a string mode
+				long index = long(context.getFloatVar(context.getWord(), entReadFrom));
+				std::string array = context.getStringVar(context.getWord(), entReadFrom);
+				val = getWordAtIndex(array, index); 
+			}; break;
+			
+			case 'v': { // array of words mode
+				long index = long(context.getFloatVar(context.getWord(), entReadFrom));
+				std::string word = "void"; // means index out of bounds, index not set, index doesnt exist, like a var that doesnt exist at getStringVar()
+				long count = 0;
+				while(true) {
+					word = context.getStringVar(context.getWord(), entReadFrom);
+					if(word == ";") break; // must continue til the end of the list
+					if(count == index) {
+						val = word;
+					}
+					count++;
+				}
+			}; break;
+			
+			case 'x': { // replace mode
+				std::string strRegexMatch = context.getStringVar(context.getWord(), entReadFrom);
+				std::string strReplace = context.getStringVar(context.getWord(), entReadFrom);
+				val = context.getStringVar(var, entReadFrom);
+				
+				DebugScript(' ' << strRegexMatch << ' ' << strReplace << ' ' << val);
+				
+				static std::regex * re = nullptr;
+				re = util::prepareRegex(re, strRegexMatch);
+				if(!re) {
+					ScriptError << "invalid regex: " << strRegexMatch;
+					return Failed;
+				}
+				
+				val = std::regex_replace(val, *re, strReplace.c_str());
+			}; break;
+			
+			default: arx_assert_msg(false, "Invalid mode used in SetCommand: %c", mode); break;
+		}
 		
 		DebugScript(' ' << var << " \"" << val << '"');
 		
@@ -75,26 +303,26 @@ public:
 			return Failed;
 		}
 		
-		SCRIPT_VARIABLES & variables = isLocalVariable(var) ? context.getEntity()->m_variables : svar;
+		SCRIPT_VARIABLES & variablesWriteTo = isLocalVariable(var) ? entWriteTo->m_variables : svar;
 		
 		SCRIPT_VAR * sv = nullptr;
 		switch(var[0]) {
 			
 			case '$':      // global text
 			case '\xA3': { // local text
-				sv = SETVarValueText(variables, var, context.getStringVar(val));
+				sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val, entReadFrom));
 				break;
 			}
 			
 			case '#':      // global long
 			case '\xA7': { // local long
-				sv = SETVarValueLong(variables, var, long(context.getFloatVar(val)));
+				sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val, entReadFrom)));
 				break;
 			}
 			
 			case '&':      // global float
 			case '@': {    // local float
-				sv = SETVarValueFloat(variables, var, context.getFloatVar(val));
+				sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val, entReadFrom));
 				break;
 			}
 			
@@ -115,6 +343,138 @@ public:
 	
 };
 
+class EnvironmentCommand : public Command {
+	
+public:
+	
+	EnvironmentCommand() : Command("env") { }
+	
+	Result execute(Context & context) override {
+		
+		enum EnvMode{
+			NONE,
+			SET,
+			GET,
+			RESET,
+			LIST,
+		};
+		EnvMode em = NONE;
+		
+		bool bListAsEnvVar = false;
+		bool bListShowDescription = false;
+		
+		HandleFlags("hrsglvd") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	This is intended to tweak env vars in memory to avoid having to restart the game.
+	This is currently not intended to set permanent env vars on the system nor to prepare the environment for sub proccesses.
+	This should be 100% safe as checks performed during normal env var initialization shall be performed again like limits, conversions and proper timing to allow these vars to be modified.
+		env -l[vd]  // list all in console log: v: as environment variable, d: show description
+		env -r <envVarId>  // reset it to default value
+		env -s <envVarId> <value>  // set EnvVar to <value>
+		env -g <envVarId> <scriptVariable>  // get EnvVar value into <scriptVariable>
+		env -h  // show this help
+)");
+				return Success;
+			}
+			if(flg & flag('r')) {
+				em = RESET;
+			}
+			if(flg & flag('s')) {
+				em = SET;
+			}
+			if(flg & flag('g')) {
+				em = GET;
+			}
+			if(flg & flag('l')) {
+				em = LIST;
+			}
+			if(flg & flag('v')) {
+				bListAsEnvVar = true;
+			}
+			if(flg & flag('d')) {
+				bListShowDescription = true;
+			}
+		}
+		
+		std::string envVar;
+		platform::EnvVarHandler * ev = nullptr;
+		switch(em) {
+			case SET: case GET: case RESET:
+				ev = platform::EnvVarHandler::getEVH( context.getStringVar(context.getWord()) );
+				break;
+			case LIST: case NONE: break;
+		}
+		
+		switch(em) {
+			case SET: {
+				std::string val = context.getStringVar(context.getWord());
+				
+				if(!ev) return Failed;
+				ev->setAuto(val);
+				
+				return Success;
+			}
+			case GET: {
+				std::string var = context.autoVarNameForScope(true, context.getWord());
+				
+				if(!ev) return Failed;
+				
+				std::string val = ev->toString();
+				
+				Entity * entWriteTo = context.getEntity();
+				Entity * entReadFrom = context.getEntity();
+				
+				SCRIPT_VARIABLES & variablesWriteTo = isLocalVariable(var) ? entWriteTo->m_variables : svar;
+				
+				SCRIPT_VAR * sv = nullptr;
+				switch(var[0]) {
+					case '$':      // global text
+					case '\xA3': { // local text
+						sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val, entReadFrom));
+						break;
+					}
+					
+					case '#':      // global long
+					case '\xA7': { // local long
+						sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val, entReadFrom)));
+						break;
+					}
+					
+					case '&':      // global float
+					case '@': {    // local float
+						sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val, entReadFrom));
+						break;
+					}
+					
+					default: {
+						ScriptWarning << "Unknown variable type: " << var;
+						return Failed;
+					}
+				}
+				
+				if(!sv) {
+					ScriptWarning << "Unable to set variable " << var;
+					return Failed;
+				}
+				
+				return Success;
+			}
+			case RESET: {
+				ev->reset();
+				break;
+			}
+			case LIST: {
+				platform::EnvVarHandler::getEnvVarHandlerList(bListAsEnvVar, bListShowDescription);
+				return Success;
+			}
+			case NONE: return Failed;
+		}
+		
+		return Failed;
+	}
+};
+
 class ArithmeticCommand : public Command {
 	
 public:
@@ -123,17 +483,122 @@ public:
 		Add,
 		Subtract,
 		Multiply,
-		Divide
+		Divide,
+		Remainder,
+		Power,
+		NthRoot,
+		Calc,
 	};
 	
 private:
 	
-	float calculate(float left, float right) {
-		switch(op) {
-			case Add: return left + right;
-			case Subtract: return left - right;
-			case Multiply: return left * right;
-			case Divide: return (right == 0.f) ? 0.f : left / right;
+	/**
+	 * TODO: LogHelp()
+	 * if a var is expanded like ~@test1~ (at getWord()), it will NOT be read from entReadFrom, but from current/self entity
+	 */
+	float calc(Context & context, Entity * entReadFrom) {
+		float fCalc = 0.f;
+		
+		std::string strCalcMsg;
+		std::string strWord = context.getWord();
+		char cOperator = '.'; // init to invalid
+		float fWorkWithValue = 0.f;
+		size_t positionBeforeWord;
+		
+		if(strWord != "[") {
+			ScriptError << "Malformed calculation: calc must start with '[' " << strCalcMsg;
+			return 99999999999.f;
+		} else {
+			strCalcMsg = "[ ";
+		}
+		
+		int iWordCount = 0;
+		char cMode = 'v';
+		while(true) {
+			DebugScript(", cMode=" << cMode << ", cOperator=" << cOperator << ", iWordCount=" << iWordCount << ", fCalc=" << fCalc << ", fWorkWithValue=" << fWorkWithValue);
+			
+			context.skipWhitespacesCommentsAndNewLines();
+			positionBeforeWord = context.getPosition(); //Put after skip new lines.
+			strWord = context.getWord();
+			strCalcMsg += strWord + " ";
+			
+			switch(cMode) {
+				case 'v': // value
+					if(strWord == "[") { // calc value from nested
+						context.seekToPosition(positionBeforeWord);
+						fWorkWithValue = calc(context, entReadFrom);
+					} else {
+						fWorkWithValue = context.getFloatVar(strWord,entReadFrom);
+					}
+					
+					if(iWordCount == 0) {
+						fCalc = fWorkWithValue;
+					} else {
+						switch(cOperator) { // the previous word was operator
+							case '+': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Add,       context, entReadFrom); break;
+							case '-': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Subtract,  context, entReadFrom); break;
+							case '*': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Multiply,  context, entReadFrom); break;
+							case '/': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Divide,    context, entReadFrom); break;
+							case '%': fCalc = calculate(fCalc, fWorkWithValue, ArithmeticCommand::Remainder, context, entReadFrom); break;
+							case '^':
+								fCalc = calculate(
+									fCalc,
+									fWorkWithValue >= 1.0f ? fWorkWithValue : 1.0f/fWorkWithValue,
+									fWorkWithValue >= 1.0f ? ArithmeticCommand::Power : ArithmeticCommand::NthRoot,
+									context,
+									entReadFrom);
+								break;
+							default:
+								ScriptWarning << "Unexpected calculation operator '" << cOperator << "' at " << strCalcMsg; // TODO use arx_assert_msg as below `case 'o'` should grant this?
+								return 99999999999.f;
+						}
+						
+						cOperator = '.'; // reset to invalid
+					}
+					
+					cMode = 'o';
+					break;
+				
+				case 'o': // operation
+					if(strWord == "]") {
+						DebugScript( ": " << strCalcMsg << " = " << fCalc);
+						return fCalc;
+					}
+					
+					switch(strWord[0]) {
+						case '+': case '-': case '*': case '/': case '%': case '^':
+							cOperator = strWord[0];
+							break;
+							
+						default:
+							ScriptWarning << "Invalid calculation operator '" << strWord << "' at " << strCalcMsg;
+							return 99999999999.f;
+					}
+					
+					cMode = 'v';
+					break;
+			}
+			
+			iWordCount++;
+		}
+		
+		ScriptError << "Malformed calculation: calc must end with ']' " << strCalcMsg;
+		return 99999999999.f;
+	}
+	
+	float calculate(float left, float right, Operator opOverride, Context & context, Entity * entReadFrom) {
+		switch(opOverride) {
+			case Add:        return left + right;
+			case Subtract:   return left - right;
+			case Multiply:   return left * right;
+			case Divide:     return (right == 0.f) ? 0.f : left / right;
+			case Remainder:  return (right == 0.f) ? 0.f : std::fmod(left, right);
+			case Power:      return static_cast<float> ( std::pow(left,right) );
+			case NthRoot:
+				// pow only works with positive left, this avoids being limited by sqtr/cbrt nesting
+				if(left < 0.f) return -( static_cast<float> (std::pow(-left, 1.0f/right)) );
+				return static_cast<float> ( std::pow(left, 1.0f/right) );
+			case Calc:       return calc(context, entReadFrom);
 		}
 		arx_assert_msg(false, "Invalid op used in ArithmeticCommand: %d", int(op));
 		return 0.f;
@@ -147,8 +612,8 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		std::string var = context.getWord();
-		float val = context.getFloat();
+		std::string var = context.autoVarNameForScope(true, context.getWord());
+		float val = op == ArithmeticCommand::Calc ? 0.f : context.getFloatVar(context.getWord(), context.getEntity());
 		
 		DebugScript(' ' << var << ' ' << val);
 		
@@ -170,15 +635,15 @@ public:
 			
 			case '#':      // global long
 			case '\xA7': { // local long
-				long old = GETVarValueLong(variables, var);
-				sv = SETVarValueLong(variables, var, long(calculate(float(old), val)));
+				long old = op == ArithmeticCommand::Calc ? 0 : GETVarValueLong(variables, var);
+				sv = SETVarValueLong(variables, var, long(calculate(float(old), val, op, context, context.getEntity())));
 				break;
 			}
 			
 			case '&':   // global float
 			case '@': { // local float
-				float old = GETVarValueFloat(variables, var);
-				sv = SETVarValueFloat(variables, var, calculate(old, val));
+				float old = op == ArithmeticCommand::Calc ? 0.f : GETVarValueFloat(variables, var);
+				sv = SETVarValueFloat(variables, var, calculate(old, val, op, context, context.getEntity()));
 				break;
 			}
 			
@@ -248,7 +713,7 @@ public:
 	
 	Result execute(Context & context) override {
 		
-		std::string var = context.getWord();
+		std::string var = context.autoVarNameForScope(true, context.getWord());
 		
 		DebugScript(' ' << var);
 		
@@ -303,12 +768,19 @@ void setupScriptedVariable() {
 	
 	ScriptEvent::registerCommand(std::make_unique<SetCommand>());
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("inc", ArithmeticCommand::Add));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("add", ArithmeticCommand::Add));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("dec", ArithmeticCommand::Subtract));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("sub", ArithmeticCommand::Subtract));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("mul", ArithmeticCommand::Multiply));
 	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("div", ArithmeticCommand::Divide));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("mod", ArithmeticCommand::Remainder));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("pow", ArithmeticCommand::Power));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("nthroot", ArithmeticCommand::NthRoot));
+	ScriptEvent::registerCommand(std::make_unique<ArithmeticCommand>("calc", ArithmeticCommand::Calc));
 	ScriptEvent::registerCommand(std::make_unique<UnsetCommand>());
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("++", 1));
 	ScriptEvent::registerCommand(std::make_unique<IncrementCommand>("--", -1));
+	ScriptEvent::registerCommand(std::make_unique<EnvironmentCommand>());
 	
 }
 

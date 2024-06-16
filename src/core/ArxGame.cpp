@@ -110,6 +110,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "gui/Console.h"
 #include "gui/Cursor.h"
+#include "gui/Dragging.h"
 #include "gui/Hud.h"
 #include "gui/Interface.h"
 #include "gui/LoadLevelScreen.h"
@@ -126,6 +127,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "gui/debug/DebugHudAudio.h"
 #include "gui/debug/DebugHudCulling.h"
 #include "gui/hud/PlayerInventory.h"
+#include "gui/hud/SecondaryInventory.h"
 
 #include "input/Input.h"
 #include "input/Keyboard.h"
@@ -147,6 +149,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "io/log/Logger.h"
 
 #include "platform/Dialog.h"
+#include "platform/Environment.h"
 #include "platform/Platform.h"
 #include "platform/Process.h"
 #include "platform/ProgramOptions.h"
@@ -554,36 +557,48 @@ GameFlow::Transition GameFlow::s_currentTransition = GameFlow::FirstLogo;
 
 static AreaId g_areaToLoad = AreaId(10);
 static bool g_initialPlayerCollision = true;
+static bool g_skipStartupIntroCinematics = false;
 
 static void skipLogo() {
 	if(GameFlow::getTransition() != GameFlow::LoadingScreen) {
 		GameFlow::setTransition(GameFlow::LoadingScreen);
+		LogInfo << "Skiping Logos";
 	}
 }
 ARX_PROGRAM_OPTION("skiplogo", "", "Skip logos at startup", &skipLogo)
 
 static void startWithNoclip() {
 	g_initialPlayerCollision = false;
+	LogInfo << "NoClipping enabled";
 }
 ARX_PROGRAM_OPTION("noclip", "", "Start the game with noclipping enabled", &startWithNoclip)
 
 static void loadLevel(u32 level) {
 	g_areaToLoad = AreaId(level);
+	LogInfo << "Loading level area: " + level;
 	skipLogo();
 }
 ARX_PROGRAM_OPTION_ARG("loadlevel", "", "Load a specific level", &loadLevel, "LEVELID")
 
 static void loadSlot(u32 saveSlot) {
 	LOADQUEST_SLOT = SavegameHandle(saveSlot);
+	LogInfo << "Loading savegame slot: " + saveSlot;
 	GameFlow::setTransition(GameFlow::InGame);
 }
 ARX_PROGRAM_OPTION_ARG("loadslot", "", "Load a specific savegame slot", &loadSlot, "SAVESLOT")
 
 static void loadSave(const std::string & saveFile) {
 	g_saveToLoad = saveFile;
+	LogInfo << "Loading savegame file: " + saveFile;
 	GameFlow::setTransition(GameFlow::InGame);
 }
 ARX_PROGRAM_OPTION_ARG("loadsave", "", "Load a specific savegame file", &loadSave, "SAVEFILE")
+
+static void skipStartupIntroCinematics() {
+	LogInfo << "Skip intro cinematics.";
+	g_skipStartupIntroCinematics = true;
+}
+ARX_PROGRAM_OPTION("skipintro", "", "Skip startup intro cinematics", &skipStartupIntroCinematics)
 
 static bool HandleGameFlowTransitions() {
 	
@@ -594,10 +609,11 @@ static bool HandleGameFlowTransitions() {
 		return false;
 	}
 
-	if(GInput->isAnyKeyPressed()) {
+	if(GInput->isAnyKeyPressed() || g_skipStartupIntroCinematics) {
 		ARXmenu.requestMode(Mode_MainMenu);
 		ARX_MENU_Launch(false);
 		GameFlow::setTransition(GameFlow::InGame);
+		g_skipStartupIntroCinematics = false;
 	}
 		
 	if(GameFlow::getTransition() == GameFlow::FirstLogo) {
@@ -1598,6 +1614,213 @@ void ArxGame::updateInput() {
 
 extern int iHighLight;
 
+class LODarxGame {
+	std::vector<Entity*> sortedEntitiesByPlayerProximity;
+	
+	// helper vars
+	LODFlag useWorstFromLOD;
+	Vec3f playerMovedRecalcLODposPrevious;
+	Entity * entityChangedLODthisTime;
+	PlatformInstant frameTimeNow;
+	PlatformInstant lodDelayCalc;
+	PlatformInstant lodUpdateCalc;
+	
+	// env vars cfg
+	platform::EnvVarHandler * nearHighQualityAmount;
+	platform::EnvVarHandler * distBetweenLODs;
+	platform::EnvVarHandler * minFPS;
+	platform::EnvVarHandler * deltaFPS;
+	FpsCounter evFPS;
+	platform::EnvVarHandler * playerMovedRecalcLODmoveMinDist;
+	platform::EnvVarHandler * lodRecalcDelay;
+	platform::EnvVarHandler * lodUpdateDelay;
+	
+public:
+	
+	LODarxGame() {
+		useWorstFromLOD = LOD_ICON;
+		playerMovedRecalcLODposPrevious = Vec3f();
+		entityChangedLODthisTime = nullptr;
+		
+		// init env vars
+		nearHighQualityAmount = evh_Create("ARX_LODNearHighQualityAmount", "how many nearby entities will be granted high LOD quality", 1, 0);
+		
+		distBetweenLODs = evh_Create("ARX_LODDistStep", "this is the distance between each LOD activation", 300, 1);
+		
+		minFPS = evh_Create("ARX_LODMinimumFPS", "this is the minimum FPS you think is acceptable to play the game at any time", 15, 1);
+		
+		deltaFPS = evh_Create("ARX_LODDeltaFPS", "this is how much FPS above the minimum that will allow LOD to be improved for one item per iteration and for the distant LOD levels thru ARX_LODDistStep", 10, 1);
+		
+		evFPS = [this](){  evh_CreateS("ARX_LODFPSdelay", "a more responsive FPS check (less than 1s), so LOD can change faster", 0.33f, 0.1f, 1.f)->setConverter( [this](){this->evFPS.setDelay(evh->getF());} ); return evh->getF();  }();
+		
+		playerMovedRecalcLODmoveMinDist = evh_Create("ARX_LODPlayerMoveDistToRecalcLOD", "how far shall player move to recalculate LOD after player moves this distance", 25.f, 10.f);
+		
+		lodRecalcDelay = evh_Create("ARX_LODRecalcDelay", "after this delay in seconds, LOD distance will be recalculated", 0.5f, 0.1f);
+		
+		lodUpdateDelay = evh_Create("ARX_LODFullUpdateDelay", "instead of every frame, LOD will be computed after this delay in seconds", 0.25f, 0.f);
+	}
+	
+	bool BeforeAllEntitiesLoop() {
+		frameTimeNow = g_platformTime.frameStart();
+		
+		// tweak worst LOD dist based on performance
+		if(evFPS.CalcFPS(false)) {
+			if(evFPS.FPS < minFPS->getI()) {
+				if(useWorstFromLOD > LOD_HIGH) {
+					useWorstFromLOD = static_cast<LODFlag>(useWorstFromLOD >> 1);
+					LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD));
+				}
+			} else
+			if(evFPS.FPS >= (minFPS->getI() + deltaFPS->getI())) {
+				if(useWorstFromLOD < LOD_ICON) {
+					useWorstFromLOD = static_cast<LODFlag>(useWorstFromLOD << 1);
+					LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD));
+				}
+			}
+			
+			LogDebug("useWorstFromLOD=" << LODtoStr(useWorstFromLOD) << ", evFloatFPS=" << evFPS.FPS);
+			
+			entityChangedLODthisTime = nullptr;
+		}
+		
+		// recalc LOD by delay or dist
+		bool lodCalcNow = frameTimeNow > lodDelayCalc;
+		if(lodCalcNow) lodDelayCalc += PlatformDuration(1s * lodRecalcDelay->getF()); // TODO cast lodRecalcDelay->getF() to duration or DurationType?
+		if(lodCalcNow || fdist(player.pos, playerMovedRecalcLODposPrevious) > playerMovedRecalcLODmoveMinDist->getF()) {
+			for(Entity & entity : entities.inScene(IO_ITEM)) {
+				sortedEntitiesByPlayerProximity.push_back(&entity);
+				entity.playerDistLastCalcLOD = fdist(player.pos, entity.pos);
+			}
+			std::sort(sortedEntitiesByPlayerProximity.begin(), sortedEntitiesByPlayerProximity.end(), [](const auto * l, const auto * r) {
+				return l->playerDistLastCalcLOD < r->playerDistLastCalcLOD;
+			});
+			
+			playerMovedRecalcLODposPrevious = player.pos;
+		}
+		
+		bool lodUpdateNow = frameTimeNow > lodUpdateCalc;
+		if(lodUpdateNow) lodUpdateCalc += PlatformDuration(1s * lodUpdateDelay->getF()); // TODO cast lodUpdateDelay->getF() to duration or DurationType?
+		return lodUpdateNow;
+	}
+	
+	void ForEntity(Entity & entity, size_t nearIndex) {
+		
+		/////////////////// preventers
+		
+		// only items for now
+		if(!(entity.ioflags & IO_ITEM)) {
+			return;
+		}
+		
+		// prevent change obj if it is being used for something special TODO copy required data to all LOD objs
+		if(entity.ignition > 0.f || (entity.ioflags & IO_FIERY)) {
+			return;
+		}
+		
+		/////////////////// temporary
+		
+		// fixer. remove if/when not required anymore.
+		if(entity.currentLOD == LOD_NONE) {
+			if(entity.obj) {
+				entity.setLOD(LOD_PERFECT);
+				LogDebug("fixing entity LOD " << entity.idString() << ". TODO: Improve LOD loading/preparing code to prevent this?");
+			}
+			return;
+		}
+		
+		/////////////////// LOD work high priority
+		
+		// simple ICON looks at player
+		if(entity.iconLODFlags & entity.currentLOD) { // TODO should also look upwards downwards
+			float yawNew = MAKEANGLE(Camera::getLookAtAngle(entity.pos, player.pos).getYaw());
+			if(entity.lodYawBeforeLookAtCam == 999999999.f) {
+				entity.lodYawBeforeLookAtCam = entity.angle.getYaw(); // backup rotation before becoming icon
+				LogDebug(entity.idString() << ", lodYawBeforeLookAtCam=" << entity.lodYawBeforeLookAtCam << ", yawNew=" << yawNew);
+			}
+			entity.angle.setYaw(yawNew);
+		} else {
+			if(entity.lodYawBeforeLookAtCam != 999999999.f) {
+				entity.angle.setYaw(entity.lodYawBeforeLookAtCam); // restore rotation of before it became icon
+				entity.lodYawBeforeLookAtCam = 999999999.f;
+			}
+		}
+		
+		// by combat mode
+		if(player.Interface & INTER_COMBATMODE) {
+			entity.setLOD(LOD_ICON); // maximum performance
+			return;
+		}
+		
+		/////////////////// LOD work low priority
+		
+		// by focus
+		if(&entity == FlyingOverIO) {
+			entity.setLOD(LOD_PERFECT);
+			return;
+		//} else { // this flickers with "only the nearest"
+			//if(entity.currentLOD == LOD_PERFECT) {
+				//entity.setLOD(LOD_HIGH);
+				//return;
+			//}
+		}
+		
+		// dragging many (to throw and avoid lag)
+		if(&entity == g_draggedEntity && entity._itemdata->count > 1 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())) {
+			entity.setLOD(LOD_ICON);
+			return;
+		}
+		
+		// only the nearest
+		if( entity.playerDistLastCalcLOD < distBetweenLODs->getI() && nearIndex <= static_cast<size_t>(nearHighQualityAmount->getI() - ( FlyingOverIO ? 1 : 0)) ) { // only the ones really near the player are within first distBetweenLODs->getI() best quality for LODs
+			entity.setLOD(LOD_PERFECT);
+			return;
+		}
+		
+		///////////////////////// dynamic LODs
+		
+		// this is the specific LOD based on distance
+		int iModLOD = static_cast<int>(entity.playerDistLastCalcLOD / distBetweenLODs->getI()) + 1; // begins at LOD_HIGH
+		LODFlag requestLOD = static_cast<LODFlag>(1 << iModLOD);
+		
+		// by FPS performance, tweaks the request
+		if(requestLOD >= useWorstFromLOD) { // ex.: useWorstFromLOD=LOD_LOW will set all requests for LOD_LOW, LOD_BAD, LOD_FLAT to LOD_ICON
+			LogDebugIf(entity.currentLOD != LOD_ICON, "changing LOD " << LODtoStr(entity.currentLOD) << " to LOD_ICON for " << entity.idString() << " (useWorstFromLOD=" << LODtoStr(useWorstFromLOD) << ")");
+			requestLOD = LOD_ICON;
+		}
+		
+		if(requestLOD > entity.currentLOD) {
+			entity.setLOD(requestLOD); // can always lower quality 
+		} else
+		if(requestLOD < entity.currentLOD) { // can only carefully increase quality
+			if(!entityChangedLODthisTime && evFPS.FPS >= (minFPS->getI() + deltaFPS->getI())) {
+				LogDebug("improve LOD from " << LODtoStr(entity.currentLOD) << " to " << LODtoStr(requestLOD) << " for " << entity.idString());
+				entity.setLOD(requestLOD);
+				entityChangedLODthisTime = &entity;
+			}
+		}
+	}
+	
+	void AfterEntity(Entity & entity) {
+		entity.previousPosForLOD = entity.pos;
+	}
+	
+	void AfterAllEntitiesLoop() {
+		sortedEntitiesByPlayerProximity.clear();
+	}
+	
+	void Work() {
+		if(BeforeAllEntitiesLoop()) {
+			for(size_t i = 0; i < sortedEntitiesByPlayerProximity.size(); i++) {
+				Entity * entity = sortedEntitiesByPlayerProximity[i];
+				ForEntity(*entity, i);
+				AfterEntity(*entity);
+			}
+			AfterAllEntitiesLoop();
+		}
+	}
+	
+};
+
 void ArxGame::updateLevel() {
 
 	arx_assert(entities.player());
@@ -1618,7 +1841,6 @@ void ArxGame::updateLevel() {
 		ARX_PROFILE("Entity preprocessing");
 		
 		for(Entity & entity : entities) {
-			
 			if(entity.ignition > 0.f || (entity.ioflags & IO_FIERY)) {
 				ManageIgnition(entity);
 			}
@@ -1646,9 +1868,10 @@ void ArxGame::updateLevel() {
 			speedModifier += spells.getTotalSpellCasterLevelOnTarget(entity.index(), SPELL_SPEED) * 0.1f;
 			speedModifier -= spells.getTotalSpellCasterLevelOnTarget(entity.index(), SPELL_SLOW_DOWN) * 0.05f;
 			entity.speed_modif = speedModifier;
-			
 		}
 		
+		static LODarxGame LOD;
+		LOD.Work();
 	}
 	
 	ARX_PLAYER_Manage_Movement();
@@ -1893,6 +2116,8 @@ void ArxGame::renderLevel() {
 
 void ArxGame::render() {
 	
+	g_fpsCounter.CalcFPS(); //this here makes the script var "^fps" work
+	
 	ARX_PROFILE_FUNC();
 	
 	SetActiveCamera(&g_playerCamera);
@@ -1964,7 +2189,6 @@ void ArxGame::render() {
 	if(g_debugInfo != InfoPanelNone) {
 		switch(g_debugInfo) {
 		case InfoPanelFramerate: {
-			g_fpsCounter.CalcFPS();
 			ShowFPS();
 			break;
 		}

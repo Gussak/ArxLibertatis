@@ -82,6 +82,9 @@ public:
 	//! Release all resources held by this threads random generator
 	static void shutdown();
 	
+	static float Mt19937();
+	static float Mt19937plus(int max = 10);
+	
 private:
 	
 	typedef std::mt19937 Generator;

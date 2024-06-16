@@ -47,6 +47,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "scene/Object.h"
 
 #include <cstdio>
+#include <fstream>
 #include <memory>
 #include <vector>
 
@@ -58,6 +59,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "game/Entity.h"
 #include "game/EntityManager.h"
+
+#include "gui/Cursor.h"
 
 #include "graphics/GraphicsTypes.h"
 #include "graphics/Math.h"
@@ -72,6 +75,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "physics/CollisionShapes.h"
 #include "physics/Physics.h"
+
+#include "platform/Environment.h"
 
 #include "scene/LinkedObject.h"
 #include "scene/GameSound.h"
@@ -173,8 +178,10 @@ void MakeUserFlag(TextureContainer * tc) {
 }
 
 EERIE_3DOBJ * Eerie_Copy(const EERIE_3DOBJ * obj) {
-	
 	EERIE_3DOBJ * nouvo = new EERIE_3DOBJ();
+	return Eerie_CopyTo(obj, nouvo);
+}
+EERIE_3DOBJ * Eerie_CopyTo(const EERIE_3DOBJ * obj, EERIE_3DOBJ * nouvo) {
 	
 	nouvo->vertexlist = obj->vertexlist;
 	nouvo->vertexWorldPositions.resize(nouvo->vertexlist.size());
@@ -182,6 +189,7 @@ EERIE_3DOBJ * Eerie_Copy(const EERIE_3DOBJ * obj) {
 	nouvo->vertexColors.resize(nouvo->vertexlist.size());
 	
 	nouvo->file = obj->file;
+	nouvo->fileUniqueRelativePathName = obj->fileUniqueRelativePathName;
 	
 	nouvo->origin = obj->origin;
 	
@@ -328,14 +336,281 @@ void EERIE_CreateCedricData(EERIE_3DOBJ * eobj) {
 	
 }
 
-std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox) {
+std::string LODtoStr(LODFlag lt) {
+	switch(lt) {
+		case LOD_NONE: LogWarning << "LOD 'none' should not be used."; return "none";
+		case LOD_PERFECT: return "perfect";
+		case LOD_HIGH: return "high";
+		case LOD_MEDIUM: return "medium";
+		case LOD_LOW: return "low";
+		case LOD_BAD: return "bad";
+		case LOD_FLAT: return "flat";
+		case LOD_ICON: return "icon";
+	}
+	return std::string("ERROR: Unrecognized LOD = ") + std::to_string(static_cast<int>(lt));
+}
+LODFlag strToLOD(std::string str, std::string strDefault) {
+	strDefault = util::toLowercase(strDefault);
+	str = util::toLowercase(str);
+	LODFlag lt = LOD_PERFECT;
+	for(int i = 0; i < 2; i++) {
+		if(str == "perfect") lt = LOD_PERFECT;
+		else
+		if(str == "high"   ) lt = LOD_HIGH;
+		else
+		if(str == "medium" ) lt = LOD_MEDIUM;
+		else
+		if(str == "low"    ) lt = LOD_LOW;
+		else
+		if(str == "bad"    ) lt = LOD_BAD;
+		else
+		if(str == "flat"   ) lt = LOD_FLAT;
+		else
+		if(str == "icon"   ) lt = LOD_ICON;
+		else
+		if(str == "none"   ) { lt = LOD_NONE; LogWarning << "LOD 'none' should not be used."; }
+		else {
+			if(i == 0) {
+				LogWarning << "fixing invalid LOD '" << str << "' to '" << strDefault << "'";
+				str = strDefault;
+				continue;
+			} else {
+				LogError << "Invalid default LOD " << strDefault;
+			}
+		}
+		
+		break;
+	}
+	return lt;
+}
+res::path fix3DModelFilename(Entity & io, const res::path & fileRequest) { // tries to guess where is the valid model filename
+	//PakFile * pf = g_resources->getFile(io.usemesh); // TODO use this instead?
+	//if(pf) return io.usemesh;
+	//if(io.obj) {
+		//pf = g_resources->getFile(io.obj->fileUniqueRelativePathName);
+		//if(pf) return io.obj->fileUniqueRelativePathName;
+	//}
 	
-	std::unique_ptr<EERIE_3DOBJ> object = ARX_FTL_Load(file);
-	if(object && pbox) {
-		EERIE_PHYSICS_BOX_Create(object.get());
+	// TODO all below may be unnecessary?
+	res::path fileOk;
+	std::string strErrMsg;
+	std::ifstream fileValidate;
+	char cCheck;
+	
+	std::vector<std::string> vFiles; // priority is by most probable request
+	vFiles.push_back(fileRequest.string());
+	vFiles.push_back(io.usemesh.string());
+	if(io.obj) {
+		vFiles.push_back(io.obj->fileUniqueRelativePathName.string());
+		vFiles.push_back(io.obj->file.string());
+		vFiles.push_back(io.classPath().string()); //overkill as 3D model may have changed
 	}
 	
-	return object;
+	bool bCanMsg = false;
+	res::path fileChk;
+	for(std::string strFlChk : vFiles) {
+		if(strFlChk.size() == 0) continue;
+		bCanMsg = true;
+		if(boost::starts_with(strFlChk, "graph/")) {
+			fileChk = std::string() + "game/" + strFlChk;
+		}
+		// fileChk.set_ext(".ftl"); // a file with a dot, other than for the extension, would break with this.
+		if(!boost::ends_with(fileChk.string(), ".ftl")) {
+			fileChk.append(".ftl");
+		}
+		LogDebug("Trying: " << fileChk);
+		fileValidate.open(fileChk.string().c_str(), std::ifstream::in);
+		cCheck = fileValidate.get();
+		if(fileValidate.good()) {
+			fileOk = strFlChk;
+			fileValidate.close();
+			break;
+		} else {
+			strErrMsg += " '" + strFlChk + "'" + (cCheck = '.');
+		}
+	}
+	
+	if(bCanMsg && io.obj->fileUniqueRelativePathName.string().size() == 0) { // this means the main model was never loaded before, so this could be the first time TODO any better hint?
+		bCanMsg = false;
+	}
+	
+	if(bCanMsg && fileOk.string().size() == 0) {
+		LogError << "3D Model not found for " << io.idString() << " (all filenames should be lower case). Failed: " << strErrMsg;
+	}
+	
+	return fileOk;
+}
+
+void LODIconAsSkin(EERIE_3DOBJ * obj, TextureContainer * tex) {
+	res::path skintochange = "graph/obj3d/textures/arx_icon_lod"; // TODO load arx_icon_lod_debug if in debug mode as it calls a lot of attention to missing icons.
+	
+	//if(!tex) LogError << "icon not set";
+	arx_assert(tex);
+	
+	if(tex->m_texName != cursorMovable->m_texName) {
+		static platform::EnvVarHandler * allowUpscaledIconsAsLODtexture = evh_Create("ARX_LODallowUpscaledIcons", "upscaled icons can be placed at graph/obj3d/textures/ and will be used instead of normal icons", true);
+		if(allowUpscaledIconsAsLODtexture->getB()) { // tries upscaled icons as textures
+			res::path flTex = std::string("graph/obj3d/textures/") + std::string(tex->m_texName.basename());
+			LogDebug("Try load icon texture upscaled for LOD_ICON: " << flTex);
+			TextureContainer * texAlt = TextureContainer::Load(flTex, TextureContainer::ForceColorKey); // ForceColorKey turns black into transparent
+			if(texAlt) {
+				tex = texAlt;
+				LogDebug("Loaded upscaled icon image to use as texture for LOD_ICON: " << tex->m_texName);
+			} else {
+				LogDebug("FAILED to load alternative icon texture upscaled for LOD_ICON: " << flTex);
+			}
+		}
+		
+		// change texture to requested
+		ReplaceTexture(obj, tex, skintochange);
+		LogDebug("icon skin " << tex->m_texName);
+	}
+	
+	LogDebugIf(tex->m_texName == cursorMovable->m_texName, "icon LOD skin/texture not changed as is red cross cursorMovable");
+}
+
+bool load3DModelAndLOD(Entity & io, const res::path & fileRequest, bool pbox) {
+	static platform::EnvVarHandler * allowLOD = evh_Create("ARX_LODenabled", "", true);
+	if(!allowLOD->getB()) return false;
+	
+	// TODO substitute everywhere using loadObject() for items at least ? but only where the returned unique_ptr is release() ! but... this is lazy load and will work anytime anyway.
+	arx_assert_msg(io.obj, "This lazy LOD initializer shall only be called after the entity 3D model is initialized elsewhere.");
+	arx_assert_msg(!io.objLOD[LOD_PERFECT] && !io.objLOD[LOD_HIGH] && !io.objLOD[LOD_MEDIUM] && !io.objLOD[LOD_LOW] && !io.objLOD[LOD_BAD] && !io.objLOD[LOD_FLAT] && !io.objLOD[LOD_ICON], "Some LOD was incorrectly initialized elsewhere.");
+	if(!(io.ioflags & IO_ITEM)) return false; // only items for now
+	
+	static std::vector<LODFlag> ltOrderedList = {LOD_PERFECT, LOD_ICON, LOD_FLAT, LOD_BAD, LOD_LOW, LOD_MEDIUM, LOD_HIGH}; // from worst to best: this is intended to prioritize performance, so missing LODs will be a copy of nearest lower quality. LOD_PERFECT and LOD_ICON will always exist. Also, LOD_PERFECT must be the first to be setup as it is the io.obj already.
+	
+	//previousLOD = currentLOD;
+	//objLOD[LOD_PERFECT] = obj; // grants main/original/vanilla/correct model is the LOD_PERFECT
+	//currentLOD = LOD_PERFECT;
+
+	res::path fileOk = fix3DModelFilename(io, fileRequest);
+	if(fileRequest.string().size() == 0) return false;
+	
+	res::path fileChkLOD;
+	std::string strLOD;
+	size_t facesChk = 0;
+	for(LODFlag ltCfgLOD : ltOrderedList) {
+		// TODO limit LOD loading? least worst and best: if(ltCfgLOD != LOD_PERFECT && ltCfgLOD != LOD_ICON && ((ltCfgLOD < ltMaxLoadQuality) || (ltCfgLOD > ltMinLoadQuality)) continue; // this would improve RAM usage and game load time
+		
+		strLOD = "";
+		
+		switch(ltCfgLOD) {
+			case LOD_PERFECT: break;
+			case LOD_HIGH:    strLOD = "[LODH]"; facesChk = 1000; break;
+			case LOD_MEDIUM:  strLOD = "[LODM]"; facesChk =  500; break;
+			case LOD_LOW:     strLOD = "[LODL]"; facesChk =  250; break;
+			case LOD_BAD:     strLOD = "[LODB]"; facesChk =  150; break;
+			case LOD_FLAT:    strLOD = "[LODF]"; facesChk =   13; break;
+			case LOD_ICON:    strLOD = "[LODI]"; facesChk =    3; break;
+			default: arx_assert_msg(false, "not implemented LOD %d", ltCfgLOD); break;
+		}
+		
+		//if(strLOD.size() > 0) {
+			// TODO ? create a func that grants sync with FTL.cpp:ARX_FTL_Load:fileUniqueRelativePathName (that removes prepended "game/" and grants ".ftl" ext)
+			fileChkLOD = fileOk;
+			if(boost::ends_with(fileChkLOD.string(), ".ftl")) {
+				fileChkLOD.remove_ext();
+			}
+			fileChkLOD.append( util::toLowercase(strLOD) ).append( ".ftl" );
+		//}
+		
+		EERIE_3DOBJ * objLoad = nullptr;
+		if(ltCfgLOD == LOD_PERFECT) { // LOD_PERFECT (original/vanilla/main) must be initialized elsewhere
+			objLoad = io.obj;
+		} else {
+			objLoad = loadObject(fileChkLOD, pbox, Logger::LogLevel::None).release();
+			LogDebugIf(objLoad, "LOD file loaded: " << fileChkLOD);
+			LogDebugIf(!objLoad, "LOD file not found: " << fileChkLOD);
+		}
+		
+		if(!objLoad && ltCfgLOD == LOD_ICON) { // LOD_ICON may be customized by mod developer
+			// otherwise it shall always exist
+			fileChkLOD = "graph/obj3d/interactive/system/lod/arx_icon_lod_32x32.ftl"; // TODO other sizes matching icons and models on floor (needs "rotate" 90o, just chose the equivalent ex 32x96 would use 96x32)
+			objLoad = loadObject(fileChkLOD, pbox).release();
+			if(!objLoad) {
+				LogCritical << "the required fast LOD file " << fileChkLOD << " could not be loaded, try restoring a backup";
+			} else {
+				LODIconAsSkin(objLoad, io.m_icon);
+			}
+		}
+		
+		if(!objLoad) { // re-uses lower quality LOD in higher ones if they are not available
+			LODFlag ltReuseLOD = static_cast<LODFlag>(ltCfgLOD << 1);
+			static platform::EnvVarHandler * allowPerfectOnHighLOD = evh_Create("ARX_LODallowPerfectOnHigh", "", true);
+			if(io.objLOD[LOD_PERFECT]->facelist.size() <= static_cast<size_t>(facesChk*1.25f) || (allowPerfectOnHighLOD->getB() && ltCfgLOD == LOD_HIGH)) { // TODOA faces multiplier as envvar
+				ltReuseLOD = LOD_PERFECT; // As all vanilla items are very low poly, this suffices for now. TODOA another loop with all LODs, just after this loop, to reuse nearest better LOD into lower ones, based on faces count. 
+			}
+			arx_assert_msg(io.objLOD[ltReuseLOD], "LOD to reuse %s is not set", LODtoStr(ltReuseLOD).c_str());
+			objLoad = io.objLOD[ltReuseLOD];
+			LogDebug("reused LOD " << LODtoStr(ltReuseLOD) << " at LOD " << LODtoStr(ltCfgLOD));
+		}
+		
+		if(objLoad) {
+			io.objLOD[ltCfgLOD] = objLoad;
+		}
+		
+		if(io.objLOD[ltCfgLOD]) { // update flags
+			io.availableLODFlags |= ltCfgLOD;
+			if(io.objLOD[ltCfgLOD] == io.objLOD[LOD_ICON]) {
+				io.iconLODFlags |= ltCfgLOD;
+				LogDebug("added LOD " << LODtoStr(ltCfgLOD) << " to " << io.idString());
+			}
+		}
+		
+		LogDebugIf(!io.objLOD[ltCfgLOD], "3D Model not found for " << io.idString() << " " << fileChkLOD << " (pbox:" << pbox << ")");
+		arx_assert(io.objLOD[ltCfgLOD]);
+	}
+	
+	LogDebugIf(io.usemesh.string().size() && io.obj->fileUniqueRelativePathName.string().size() && io.usemesh != io.obj->fileUniqueRelativePathName, "3DModel filenames for " << io.idString() << " differ objFile=" << io.obj->fileUniqueRelativePathName << " usemesh=" << io.usemesh << " ");
+	
+	return true;
+}
+
+std::unique_ptr<EERIE_3DOBJ> loadObject(const res::path & file, bool pbox, Logger::LogLevel log) {
+	
+	static std::map<std::string, EERIE_3DOBJ*> fltCache; // TODO check if meshes accept unique dynamic tweaks that could be saved, but anyway the initial load can still re-use the original mesh.
+	
+	std::string id = res::path(file).remove_ext().string();
+	if(!fltCache[id]) {
+		std::unique_ptr<EERIE_3DOBJ> objUniquePtr = ARX_FTL_Load(file);
+		if(objUniquePtr && pbox) {
+			EERIE_PHYSICS_BOX_Create(objUniquePtr.get());
+		}
+		
+		LogDebugIf(objUniquePtr, "faces=" << objUniquePtr->facelist.size() << ", pbox.radius=" << (pbox ? objUniquePtr->pbox->radius : 0.f) << ", file=" << objUniquePtr->fileUniqueRelativePathName );
+		
+		if(objUniquePtr) {
+			static platform::EnvVarHandler * allowModelCache = evh_Create("ARX_Allow3DModelsCache", "all 3D models will be in a cache to duplicate from speeding up entity spawning", false); // TODO set to true after it is working w/o breaking the game
+			if(allowModelCache->getB() && !g_allowExperiments->getB()) { // TODO RM after it is working w/o breaking the game
+				LogCritical << allowModelCache->id() << " is experimental. It currently breaks reloading the game.";
+				allowModelCache->setB(false); // protects players from messing the savegame
+			}
+			
+			if(allowModelCache->getB()) {
+				fltCache[id] = objUniquePtr.get(); //release();
+			} else {
+				return objUniquePtr;
+			}
+		}
+	}
+	
+	if(fltCache[id]) {
+		std::unique_ptr<EERIE_3DOBJ> objCopyFromCache = std::make_unique<EERIE_3DOBJ>();
+		Eerie_CopyTo(fltCache[id], objCopyFromCache.get());
+		return objCopyFromCache;
+	}
+	
+	std::string strMsg = "failed to load 3D model: " + id;
+	switch(log) {
+		case Logger::LogLevel::Info: LogInfo << strMsg; break;
+		case Logger::LogLevel::Warning: LogWarning << strMsg; break;
+		case Logger::LogLevel::Error: LogError << strMsg; break;
+		case Logger::LogLevel::Critical: LogCritical << strMsg; break;
+		case Logger::LogLevel::Debug: case Logger::LogLevel::Console: case Logger::LogLevel::None: break;
+	}
+	
+	return { };
 }
 
 void EERIE_OBJECT_CenterObjectCoordinates(EERIE_3DOBJ * ret) {

@@ -141,8 +141,9 @@ bool TextureContainer::LoadFile(const res::path & strPathname) {
 	
 	Texture::TextureFlags flags = 0;
 	
-	if(!(m_dwFlags & NoColorKey) && tempPath.ext() == ".bmp") {
-		flags |= Texture::ApplyColorKey;
+	if(!(m_dwFlags & NoColorKey)) { // mandatory denier takes precedence over ForceColorKey
+		if(tempPath.ext() == ".bmp")  flags |= Texture::ApplyColorKey;
+		if(m_dwFlags & ForceColorKey) flags |= Texture::ForceColorKey; // wont work with images that have alpha channel tho
 	}
 	
 	if(!(m_dwFlags & NoMipmap)) {

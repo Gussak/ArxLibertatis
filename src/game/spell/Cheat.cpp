@@ -300,14 +300,16 @@ static void ApplySPMax() {
 	ARX_SPSound();
 	DisplayCheatText("!!!_FaNt0mAc1e_!!!");
 	
-	player.skin = 4;
+	player.skin = MAX_CHEAT_PLAYER_SKIN;
 	
 	ARX_EQUIPMENT_RecreatePlayerMesh();
 	
 	ARX_PLAYER_Rune_Add_All();
 	notification_add("!!!!!!! FanTomAciE !!!!!!!");
 	player.Attribute_Redistribute += 10;
+	player.Attribute_TotalEarnt += 10;
 	player.Skill_Redistribute += 50;
+	player.Skill_TotalEarnt += 50;
 	player.level = std::max(player.level, short(10));
 	player.xp = GetXPforLevel(10);
 }
@@ -553,11 +555,11 @@ void handleCheatRuneDetection(CheatRune rune) {
 		case CheatRune_ChangeSkin: {
 			player.skin++;
 
-			if(player.skin == 4 && Random::getf() < 0.9f) {
+			if(player.skin == MAX_CHEAT_PLAYER_SKIN && Random::getf() < 0.9f) {
 				player.skin++;
 			}
 			
-			if(player.skin > 5) {
+			if(player.skin > EXTRA_PLAYER_SKIN) {
 				player.skin = 0;
 			}
 			ARX_EQUIPMENT_RecreatePlayerMesh();

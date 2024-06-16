@@ -27,6 +27,7 @@
 #include <stdlib.h>
 
 #include "Configure.h"
+#include "io/log/Logger.h"
 #include "platform/Platform.h"
 
 #if ARX_PLATFORM == ARX_PLATFORM_WIN32
@@ -399,6 +400,18 @@ int runHelper(const char * const args[], bool wait, bool detach) {
 		closeProcessHandle(process);
 		return 0;
 	}
+}
+
+/**
+ * TODO try to adapt this to platform::run, auto splitting a custom command in the required run() params must consider open/close "" '', and may become overly complicated tho...
+ */
+int runUserCommand(std::string strCmd) {
+	//LogDebug("RunCustomUserCommand: " << strCmd);
+	int retCmd = std::system(strCmd.c_str());
+	if(retCmd != 0) {
+		LogError << "[RunCustomUserCommand] " << strCmd << "; FAILED:ReturnValue=" << retCmd;
+	}
+	return retCmd;
 }
 
 #if ARX_PLATFORM == ARX_PLATFORM_WIN32

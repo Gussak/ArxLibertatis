@@ -69,6 +69,8 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "io/log/Logger.h"
 
+#include "platform/Environment.h"
+
 #include "scene/ChangeLevel.h"
 #include "scene/GameSound.h"
 #include "scene/Interactive.h"
@@ -153,6 +155,17 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	
 	std::fill(anims.begin(), anims.end(), nullptr);
 	
+	lodYawBeforeLookAtCam = 999999999.f; // something impossible like as in it could be considered as not initialized
+	arx_assert(lodYawBeforeLookAtCam == 999999999.f);
+	playerDistLastCalcLOD = 0.f;
+	LODpreventDegradeDelayUntil = 0;
+	lodLastCalcTime = time(0);
+	lodCooldownUntil = time(0);
+	lodImproveWaitUntil = time(0);
+	previousPosForLOD = Vec3f(0.f);
+	
+	resetLOD(false);
+	
 	for(size_t l = 0; l < MAX_ANIM_LAYERS; l++) {
 		animlayer[l] = AnimLayer();
 	}
@@ -175,6 +188,48 @@ Entity::Entity(const res::path & classPath, EntityInstance instance)
 	halo_native.flags = 0;
 	ARX_HALO_SetToNative(this);
 	
+}
+
+void Entity::resetLOD(bool bDelete) {
+	if(bDelete) {
+		//for(auto it1 : objLOD) {
+			//if(!it1.second) continue;
+			//if(it1.second == objLOD[LOD_PERFECT]) continue; // LOD_PERFECT is the main model and shall not be touched here
+			//EERIE_3DOBJ * objChk = it1.second;
+			//for(auto it2 : objLOD) {
+				//if(it2.second == objChk) it2.second = nullptr; // it1.second will end up as nullptr too and be skipped
+			//}
+			//delete objChk;
+		//}
+		for(LODFlag lodChk1 : LODList) {
+			if(!objLOD[lodChk1]) continue;
+			if(objLOD[lodChk1] == objLOD[LOD_PERFECT]) continue; // LOD_PERFECT is the main model and shall not be touched here
+			
+			// can delete
+			EERIE_3DOBJ * objChk1 = objLOD[lodChk1];
+			for(LODFlag lodChk2 : LODList) {
+				if(objLOD[lodChk2] == objChk1) {
+					LogDebug("nullptr to LOD " << LODtoStr(lodChk2) << ", file=" << objLOD[lodChk2]->fileUniqueRelativePathName);
+					objLOD[lodChk2] = nullptr;
+				}
+			}
+			LogDebug("deleting " << LODtoStr(lodChk1) << ", file=" << objChk1->fileUniqueRelativePathName);
+			delete objChk1;
+		}
+	}
+	currentLOD = LOD_NONE;
+	previousLOD = currentLOD;
+	// TODO something like std::fill(aObjLOD.begin(), aObjLOD.end(), nullptr); ?
+	objLOD.clear();
+	objLOD.emplace(LOD_PERFECT, nullptr);
+	objLOD.emplace(LOD_HIGH, nullptr);
+	objLOD.emplace(LOD_MEDIUM, nullptr);
+	objLOD.emplace(LOD_LOW, nullptr);
+	objLOD.emplace(LOD_BAD, nullptr);
+	objLOD.emplace(LOD_FLAT, nullptr);
+	objLOD.emplace(LOD_ICON, nullptr);
+	availableLODFlags = 0;
+	iconLODFlags = 0;
 }
 
 Entity::~Entity() {
@@ -243,6 +298,11 @@ Entity::~Entity() {
 		entities.remove(m_index);
 	}
 	
+}
+
+void Entity::setObjMain(EERIE_3DOBJ * o) {
+	objMain = o;
+	obj = objMain;
 }
 
 res::path Entity::instancePath() const {
@@ -408,4 +468,79 @@ bool Entity::isInvulnerable() {
 	
 	return durability >= 100.f;
 	
+}
+
+bool Entity::setLOD(const LODFlag lodRequest) {
+	if(currentLOD == lodRequest) return true;
+	if(!(ioflags & IO_ITEM)) return false; // only items for now
+	if(currentLOD == LOD_NONE) {
+		if(!obj) return false; // wait it be initialized elsewhere
+		if(lodRequest != LOD_PERFECT) return false; // wait first proper request happen
+	}
+	if(currentLOD != LOD_NONE) if(previousPosForLOD != pos) return false; // wait physics rest. wont work with: if(lastpos != pos) if(obj->pbox->active)
+	
+	LODFlag lodChk = lodRequest;
+	
+	
+	static LODFlag evLODMax = LOD_PERFECT;
+	static LODFlag evLODMin = LOD_ICON;
+	
+	{ // config and fix after updating if necessary
+		static platform::EnvVarHandler * evStrLODMax = evh_Create("ARX_LODMax", "set max LOD allowed", LODtoStr(evLODMax))->setConverter( [](){evLODMax = strToLOD(evStrLODMax->getS());} );
+		
+		static platform::EnvVarHandler * evStrLODMin = evh_Create("ARX_LODMin", "set min LOD allowed", LODtoStr(evLODMin))->setConverter( [](){evLODMin = strToLOD(evStrLODMin->getS());} );
+		
+		if(evLODMin < evLODMax) {
+			evStrLODMin->setAuto(LODtoStr(evLODMin = evLODMax));
+			LogWarning << "fixed LOD min to '" << evStrLODMin->getS() << "'";
+		}
+		
+		if(evLODMax > evLODMin) {
+			evStrLODMax->setAuto(LODtoStr(evLODMax = evLODMin));
+			LogWarning << "fixed LOD max to '" << evStrLODMax->getS() << "'";
+		}
+	}
+	
+	if(!obj) {
+		return false;
+	}
+	
+	if(availableLODFlags == 0) {
+		if(!load3DModelAndLOD(*this, obj->fileUniqueRelativePathName, obj->pbox != nullptr)) {
+			return false;
+		}
+	}
+	
+	// because max quality is lowest flag value
+	if(lodChk < evLODMax) lodChk = evLODMax;
+	if(lodChk > evLODMin) lodChk = evLODMin;
+	
+	// seek available LOD if requested not found
+	if(!(availableLODFlags & lodChk)) {
+		if(lodChk < currentLOD) { // requested to improve LOD
+			while(lodChk) {
+				if(availableLODFlags & lodChk) break;
+				// if requested LOD is not available
+				lodChk = static_cast<LODFlag>(lodChk >> 1); // will improve LOD more than requested
+			}
+			arx_assert_msg(lodChk,"LOD_PERFECT shall always be available (original 3D model) but was not found! entity='%s'", idString().c_str());
+		}
+		
+		if(lodChk > currentLOD) { // requested to lower LOD quality
+			while(lodChk != LOD_ICON) { // limit to worst quality LOD
+				if(availableLODFlags & lodChk) break;
+				lodChk = static_cast<LODFlag>(lodChk << 1);
+			}
+		}
+	}
+	
+	if(lodChk && (availableLODFlags & lodChk)) {
+		currentLOD = lodChk;
+		obj = objLOD[currentLOD];
+		//TODO *(obj->pbox) = *(objLOD[currentLOD]->pbox); // TODO not working, should continue a physics impulse from the other lod. use a part of Eerie_Copy ?
+		usemesh = obj->fileUniqueRelativePathName;
+		return true;
+	}
+	
+	return false;
 }

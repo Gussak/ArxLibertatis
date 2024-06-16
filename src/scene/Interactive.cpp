@@ -108,6 +108,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "physics/CollisionShapes.h"
 #include "physics/Physics.h"
 
+#include "platform/Environment.h"
 #include "platform/Thread.h"
 #include "platform/profiler/Profiler.h"
 
@@ -145,7 +146,7 @@ bool ValidIOAddress(const Entity * io) {
 	return false;
 }
 
-s32 ARX_INTERACTIVE_GetPrice(Entity * io, Entity * shop) {
+s32 ARX_INTERACTIVE_GetBuyPrice(Entity * io, Entity * shop) {
 	
 	if(!io || !(io->ioflags & IO_ITEM)) {
 		return 0;
@@ -154,12 +155,24 @@ s32 ARX_INTERACTIVE_GetPrice(Entity * io, Entity * shop) {
 	float shop_multiply = shop ? shop->shop_multiply : 1.f;
 	float durability_ratio = io->durability / io->max_durability;
 	
-	return s32(float(io->_itemdata->price) * shop_multiply * durability_ratio);
+	return s32(float(io->_itemdata->buyPrice) * shop_multiply * durability_ratio);
+}
+
+s32 ARX_INTERACTIVE_GetSellPrice(Entity * io, Entity * shop) {
+	
+	if(!io || !(io->ioflags & IO_ITEM)) {
+		return 0;
+	}
+	
+	float shop_multiply = shop ? shop->shop_multiply : 1.f;
+	float durability_ratio = io->durability / io->max_durability;
+	
+	return s32(float(io->_itemdata->sellPrice) * shop_multiply * durability_ratio);
 }
 
 s32 ARX_INTERACTIVE_GetSellValue(Entity * item, Entity * shop, long count) {
 	
-	float price = float(ARX_INTERACTIVE_GetPrice(item, shop) / 3 * count);
+	float price = float(ARX_INTERACTIVE_GetSellPrice(item, shop) / 3 * count);
 	
 	return s32(price + price * player.m_skillFull.intuition * 0.005f);
 }
@@ -585,26 +598,50 @@ bool ARX_INTERACTIVE_USEMESH(Entity * io, const res::path & temp) {
 		return false;
 	}
 	
-	if(io->ioflags & IO_NPC) {
-		io->usemesh = "graph/obj3d/interactive/npc" / temp;
-	} else if(io->ioflags & IO_FIX) {
-		io->usemesh = "graph/obj3d/interactive/fix_inter" / temp;
-	} else if(io->ioflags & IO_ITEM) {
-		io->usemesh = "graph/obj3d/interactive/items" / temp;
-	} else {
-		io->usemesh.clear();
+	if(io->obj && io->usemesh.string() != io->obj->file.string()) { // TODO this ever happens?
+		LogWarning << "At entity '" << io->idString() << "', io->usemesh '" << io->usemesh.string() << "' differs from mesh file io->obj->file '" << io->obj->file.string() << "' ! (requested change to '" << temp.string() << "')";
 	}
 	
-	if(io->usemesh.empty()) {
+	res::path usemesh;
+	if(io->ioflags & IO_NPC) {
+		usemesh = "graph/obj3d/interactive/npc" / temp;
+	} else if(io->ioflags & IO_FIX) {
+		usemesh = "graph/obj3d/interactive/fix_inter" / temp;
+	} else if(io->ioflags & IO_ITEM) {
+		usemesh = "graph/obj3d/interactive/items" / temp;
+	} else {
+		std::stringstream ssMsg;
+		ssMsg << "Ivalid entity '" << io->idString() << "', has not the required flags (" << io->ioflags << ")."; // TODO use flagNames(EntityFlagNames, io->ioflags) #include "gui/debug/DebugPanel.h", EntityFlagNames -> debughud.h
+		if(io->obj) {
+			ssMsg << " Has mesh '" << io->obj->file.string() << "' that will be kept.";
+		}
+		ssMsg << " Existing mesh path '" << io->usemesh.string() << "' will be emptied.";
+		LogWarning << ssMsg.str();
+		io->usemesh.clear();
+		return false;
+	}
+	
+	bool pbox = (!(io->ioflags & IO_FIX) && !(io->ioflags & IO_NPC));
+	EERIE_3DOBJ * obj = loadObject(usemesh, pbox).release();
+	if(!obj) {
+		std::stringstream ssMsg;
+		ssMsg << "Failed to load new mesh file '" << usemesh.string() << "' for entity '" << io->idString() << "'. Existing usemesh path '" << io->usemesh.string() << "' kept.";
+		if(io->obj) {
+			ssMsg << " Keeping existing mesh obj '" << io->obj->file.string() << "'."; // io->usemesh == io->obj->file.string()
+		}
+		LogError << ssMsg.str();
 		return false;
 	}
 	
 	delete io->obj, io->obj = nullptr;
+	io->resetLOD(true);
 	
-	bool pbox = (!(io->ioflags & IO_FIX) && !(io->ioflags & IO_NPC));
-	io->obj = loadObject(io->usemesh, pbox).release();
-	
+	io->usemesh = usemesh;
+	io->obj = obj;
 	EERIE_COLLISION_Cylinder_Create(io);
+	
+	load3DModelAndLOD(*io, usemesh, pbox);
+	
 	return true;
 }
 
@@ -931,7 +968,8 @@ Entity * CloneIOItem(Entity * src) {
 	delete dest->obj;
 	dest->obj = Eerie_Copy(src->obj);
 	CloneLocalVars(dest, src);
-	dest->_itemdata->price = src->_itemdata->price;
+	dest->_itemdata->buyPrice = src->_itemdata->buyPrice;
+	dest->_itemdata->sellPrice = src->_itemdata->sellPrice;
 	dest->_itemdata->maxcount = src->_itemdata->maxcount;
 	dest->_itemdata->count = src->_itemdata->count;
 	dest->_itemdata->food_value = src->_itemdata->food_value;
@@ -951,6 +989,8 @@ Entity * CloneIOItem(Entity * src) {
 		*dest->obj->pbox = *src->obj->pbox;
 		dest->obj->pbox->vert = src->obj->pbox->vert;
 	}
+	
+	SendIOScriptEvent(src, dest, SM_CLONE); // to let the script perform extra initializations independent of the local vars values cloned from src
 	
 	return dest;
 }
@@ -1073,6 +1113,16 @@ void ComputeVVPos(Entity * io) {
 		} else {
 			io->_npcdata->vvpos = io->pos.y - fdiff;
 		}
+	}
+}
+
+void ARX_INTERACTIVE_TeleportSafe(Entity * io, const Vec3f & target, bool flag) {
+	if(!(io->ioflags & IO_NPC) || io->_npcdata->lifePool.current > 0) {
+		io->setOwner(nullptr);
+		if(io->show != SHOW_FLAG_HIDDEN && io->show != SHOW_FLAG_MEGAHIDE) {
+			io->show = SHOW_FLAG_IN_SCENE;
+		}
+		ARX_INTERACTIVE_Teleport(io, target, flag);
 	}
 }
 
@@ -1242,7 +1292,7 @@ Entity * AddFix(const res::path & classPath, EntityInstance instance, AddInterac
 	io->ioflags = IO_FIX;
 	io->_fixdata->trapvalue = -1;
 	
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, script);
 	
 	if(!(flags & NO_ON_LOAD)) {
 		SendIOScriptEvent(nullptr, io, SM_LOAD);
@@ -1253,7 +1303,7 @@ Entity * AddFix(const res::path & classPath, EntityInstance instance, AddInterac
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
 	
-	io->lastpos = io->initpos = io->pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos;
 	io->lastpos.x = io->initpos.x = glm::abs(io->initpos.x / 20) * 20.f;
 	io->lastpos.z = io->initpos.z = glm::abs(io->initpos.z / 20) * 20.f;
 	
@@ -1304,12 +1354,12 @@ static Entity * AddCamera(const res::path & classPath, EntityInstance instance) 
 	
 	Entity * io = new Entity(classPath, instance);
 	
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, script);
 	
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
 	
-	io->lastpos = io->initpos = io->pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos;
 	io->lastpos.x = io->initpos.x = glm::abs(io->initpos.x / 20) * 20.f;
 	io->lastpos.z = io->initpos.z = glm::abs(io->initpos.z / 20) * 20.f;
 	
@@ -1356,12 +1406,12 @@ static Entity * AddMarker(const res::path & classPath, EntityInstance instance) 
 	
 	Entity * io = new Entity(classPath, instance);
 	
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, script);
 	
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
 	
-	io->lastpos = io->initpos = io->pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos;
 	io->lastpos.x = io->initpos.x = glm::abs(io->initpos.x / 20) * 20.f;
 	io->lastpos.z = io->initpos.z = glm::abs(io->initpos.z / 20) * 20.f;
 	
@@ -1462,7 +1512,7 @@ Entity * AddNPC(const res::path & classPath, EntityInstance instance, AddInterac
 	io->_npcdata = new IO_NPCDATA;
 	io->ioflags = IO_NPC;
 	
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, script);
 	
 	io->spellcast_data.castingspell = SPELL_NONE;
 	io->_npcdata->manaPool.current = io->_npcdata->manaPool.max = 10.f;
@@ -1477,7 +1527,7 @@ Entity * AddNPC(const res::path & classPath, EntityInstance instance, AddInterac
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
 	
-	io->lastpos = io->initpos = io->pos;
+	io->detectMovePos = io->lastpos = io->initpos = io->pos;
 	io->lastpos.x = io->initpos.x = glm::abs(io->initpos.x / 20) * 20.f;
 	io->lastpos.z = io->initpos.z = glm::abs(io->initpos.z / 20) * 20.f;
 	
@@ -1551,14 +1601,17 @@ Entity * AddItem(const res::path & classPath_, EntityInstance instance, AddInter
 	io->_itemdata->food_value = 0;
 	io->_itemdata->LightValue = -1;
 
-	if(io->ioflags & IO_GOLD)
-		io->_itemdata->price = 1;
-	else
-		io->_itemdata->price = 10;
+	if(io->ioflags & IO_GOLD) {
+		io->_itemdata->buyPrice = 1;
+		io->_itemdata->sellPrice = 1;
+	} else {
+		io->_itemdata->buyPrice = 10;
+		io->_itemdata->sellPrice = 10;
+	}
 
 	io->_itemdata->playerstacksize = 1;
 
-	loadScript(io->script, g_resources->getFile(script));
+	loadScript(io->script, script);
 	
 	if(!(flags & NO_ON_LOAD)) {
 		SendIOScriptEvent(nullptr, io, SM_LOAD);
@@ -1568,6 +1621,7 @@ Entity * AddItem(const res::path & classPath_, EntityInstance instance, AddInter
 	
 	io->pos = player.pos;
 	io->pos += angleToVectorXZ(player.angle.getYaw()) * 140.f;
+	io->detectMovePos = io->pos;
 	
 	io->lastpos.x = io->initpos.x = std::floor(io->pos.x / 20.f) * 20.f;
 	io->lastpos.z = io->initpos.z = std::floor(io->pos.z / 20.f) * 20.f;
@@ -1624,7 +1678,7 @@ Entity * AddItem(const res::path & classPath_, EntityInstance instance, AddInter
 /*!
  * \brief Returns nearest interactive object found at position x, y
  */
-Entity * GetFirstInterAtPos(const Vec2s & pos) {
+Entity * GetFirstInterAtPos(const Vec2s & pos, float fForceMaxDist) {
 	
 	float _fdist = 9999999999.f;
 	float fdistBB = 9999999999.f;
@@ -1634,6 +1688,10 @@ Entity * GetFirstInterAtPos(const Vec2s & pos) {
 	
 	if(player.m_telekinesis) {
 		fMaxDist = 850;
+	}
+	
+	if(fForceMaxDist > 0.0f) {
+		fMaxDist = fForceMaxDist;
 	}
 	
 	for(Entity & entity : entities) {
@@ -1931,6 +1989,12 @@ void UpdateInter() {
 	
 	for(Entity & entity : entities.inScene()) {
 		
+		static platform::EnvVarHandler * detectMoveDist = evh_Create("ARX_MovementDetectedDistance", "", 3.0f, 0.5f); // TODO this could be configurable per entity, thru a script command: DetectMove -e <entityID> <floatDist>
+		if((entity.pos != entity.detectMovePos) && (fdist(entity.pos, entity.detectMovePos) >= detectMoveDist->getF())) {
+			SendIOScriptEvent(&entity == g_draggedEntity ? entities.player() : nullptr, &entity, SM_MOVEMENTDETECTED);
+			entity.detectMovePos = entity.pos;
+		}
+		
 		if(&entity == g_draggedEntity
 		   || !(entity.gameFlags & GFLAG_ISINTREATZONE)
 		   || (entity.ioflags & (IO_CAMERA | IO_MARKER))
@@ -2046,9 +2110,7 @@ void ARX_INTERACTIVE_DestroyIOdelayedRemove(Entity * entity) {
 
 void ARX_INTERACTIVE_DestroyIOdelayedExecute() {
 	
-	if(!toDestroy.empty()) {
-		LogDebug("executing delayed entity destruction");
-	}
+	LogDebugIf(!toDestroy.empty(), "executing delayed entity destruction");
 	
 	for(Entity * entity : toDestroy) {
 		if(entity) {
@@ -2180,13 +2242,13 @@ void UpdateGoldObject(Entity * io) {
 	if(io->ioflags & IO_GOLD) {
 		
 		long num = 0;
-		if(io->_itemdata->price <= 3) {
-			num = io->_itemdata->price - 1;
-		} else if(io->_itemdata->price <= 8) {
+		if(io->_itemdata->buyPrice <= 3) {
+			num = io->_itemdata->buyPrice - 1;
+		} else if(io->_itemdata->buyPrice <= 8) {
 			num = 3;
-		} else if(io->_itemdata->price <= 20) {
+		} else if(io->_itemdata->buyPrice <= 20) {
 			num = 4;
-		} else if(io->_itemdata->price <= 50) {
+		} else if(io->_itemdata->buyPrice <= 50) {
 			num = 5;
 		} else {
 			num = 6;

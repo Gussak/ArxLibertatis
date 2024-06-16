@@ -43,6 +43,7 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 
 #include "script/ScriptedInventory.h"
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -238,7 +239,8 @@ class InventoryCommand : public Command {
 				DebugScript(' ' << file << ' ' << count);
 				
 				if(ioo->ioflags & IO_GOLD) {
-					ioo->_itemdata->price = static_cast<long>(count);
+					ioo->_itemdata->buyPrice = static_cast<long>(count);
+					ioo->_itemdata->sellPrice = static_cast<long>(count);
 				} else {
 					ioo->_itemdata->maxcount = 9999;
 					ioo->_itemdata->count = std::max(util::to<short>(count), short(1));
@@ -298,11 +300,29 @@ class InventoryCommand : public Command {
 		
 		Result execute(Context & context) override {
 			
-			res::path file = res::path::load(context.getWord());
+			Entity * entInventory = context.getEntity();
+			std::string strEntId;
 			
-			Entity * io = context.getEntity();
+			HandleFlags("e") {
+				if(flg & flag('e')) {
+					strEntId = context.getStringVar(context.getWord());
+					entInventory = entities.getById(strEntId);
+				}
+			}
 			
-			if(FORBID_SCRIPT_IO_CREATION || !io->inventory) {
+			std::string strItem = context.getWord();
+			
+			if(!entInventory) {
+				ScriptWarning << "Invalid target entity " << strEntId;
+				if(multi) {
+					context.skipWord();
+				}
+				return Failed;
+			}
+			
+			res::path file = res::path::load(strItem);
+			
+			if(FORBID_SCRIPT_IO_CREATION || !entInventory->inventory) {
 				if(multi) {
 					context.skipWord();
 				}
@@ -339,20 +359,147 @@ class InventoryCommand : public Command {
 			
 			if(multi) {
 				if(item->ioflags & IO_GOLD) {
-					item->_itemdata->price = count;
+					item->_itemdata->buyPrice = count;
+					item->_itemdata->sellPrice = count;
 				} else {
 					item->_itemdata->maxcount = 9999;
 					item->_itemdata->count = std::max(util::to<short>(count), short(1));
 				}
 			}
 			
-			if(!context.getEntity()->inventory || !context.getEntity()->inventory->insert(item)) {
-				PutInFrontOfPlayer(item);
+			if(!entInventory->inventory || !entInventory->inventory->insert(item)) {
+				if(entities.player() == entInventory) {
+					PutInFrontOfPlayer(item);
+				} else {
+					PutInFrontOfEntity(item, entInventory);
+				}
 			}
 			
 			return Success;
 		}
 		
+	};
+	
+	class GetItemCommand : public SubCommand {
+		
+		const char mode;
+		
+	public:
+		
+		GetItemCommand(std::string_view name, char _mode) : SubCommand(name), mode(_mode) { }
+		
+		std::string getItemListAtInventory(Entity * ent, std::string prefix, bool getCountToo=false) {
+			std::string list;
+			if(ent && ent->inventory) {
+				for(auto slot : ent->inventory->slots()) {
+					if(slot.entity && (boost::starts_with(slot.entity->idString(), prefix) || prefix == "*" || prefix == "all")) {
+						if(list != "") {
+							list += " ";
+						}
+						
+						list += slot.entity->idString();
+						
+						if(getCountToo) {
+							list += " " + slot.entity->_itemdata->count;
+						}
+					}
+				}
+			}
+			return list;
+		}
+		
+		int getItemCountAtInventory(Entity * ent, std::string prefix) {
+			int count = 0;
+			if(ent && ent->inventory) {
+				for(auto slot : ent->inventory->slots()) {
+					if(slot.entity && boost::starts_with(slot.entity->idString(), prefix)) {
+						count += slot.entity->_itemdata->count;
+					}
+				}
+			}
+			return count;
+		}
+		
+		Result execute(Context & context) override {
+			
+			Entity * entInvReadFrom = context.getEntity();
+			Entity * entWriteTo = context.getEntity();
+			std::string strEntId;
+			
+			HandleFlags("he") {
+				if(flg & flag('h')) {
+					LogHelp("command " << getName(), R"(
+		 * INVENTORY GetItemCount     [-e] <e?entInvReadFrom> <IntVar> <strItemIdPrefix>
+		 * INVENTORY GetItemList      [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
+		 * INVENTORY GetItemCountList [-e] <e?entInvReadFrom> <StrVar> <strItemIdPrefix|all|*>
+		 * Obs.: if <strItemIdPrefix> is "*" or "all" it will match all entities.
+	)");
+					return Success;
+				}
+				if(flg & flag('e')) {
+					strEntId = context.getStringVar(context.getWord());
+					entInvReadFrom = entities.getById(strEntId);
+				}
+			}
+			
+			std::string var = context.autoVarNameForScope(true, context.getWord());
+			std::string strItemIdPrefix = context.getStringVar(context.getWord());
+			
+			if(!entInvReadFrom) {
+				ScriptWarning << "Invalid target entity " << strEntId;
+				return Failed;
+			}
+			
+			std::string val;
+			switch(mode) {
+				case 'c': { // GetItemCount
+					val = getItemCountAtInventory(entInvReadFrom, strItemIdPrefix); 
+					break;
+				}
+				case 'l': { // GetItemList
+					val = getItemListAtInventory(entInvReadFrom, strItemIdPrefix); 
+					break;
+				}
+				case 'a': { // GetItemCountList
+					val = getItemListAtInventory(entInvReadFrom, strItemIdPrefix, true); 
+					break;
+				}
+				default: arx_assert_msg(false, "invalid inventory GetItem mode '%c'", mode);
+			}
+			
+			SCRIPT_VARIABLES & variablesWriteTo = isLocalVariable(var) ? entWriteTo->m_variables : svar;
+			SCRIPT_VAR * sv = nullptr;
+			switch(var[0]) {
+				case '$':      // global text
+				case '\xA3': { // local text
+					sv = SETVarValueText(variablesWriteTo, var, context.getStringVar(val,entInvReadFrom));
+					break;
+				}
+				
+				case '#':      // global long
+				case '\xA7': { // local long
+					sv = SETVarValueLong(variablesWriteTo, var, long(context.getFloatVar(val,entInvReadFrom)));
+					break;
+				}
+				
+				case '&':      // global float
+				case '@': {    // local float
+					sv = SETVarValueFloat(variablesWriteTo, var, context.getFloatVar(val,entInvReadFrom));
+					break;
+				}
+				
+				default: {
+					ScriptWarning << "Unknown variable type: " << var;
+					return Failed;
+				}
+			}
+			if(!sv) {
+				ScriptWarning << "Unable to set variable " << var;
+				return Failed;
+			}
+			
+			return Success;
+		}
 	};
 	
 	class OpenCommand : public SubCommand {
@@ -409,6 +556,9 @@ public:
 		addCommand(new DestroyCommand);
 		addCommand(new OpenCommand);
 		addCommand(new CloseCommand);
+		addCommand(new GetItemCommand("getitemcount", 'c'));
+		addCommand(new GetItemCommand("getitemlist", 'l'));
+		addCommand(new GetItemCommand("getitemcountlist", 'a'));
 	}
 	
 	Result execute(Context & context) override {
@@ -472,12 +622,31 @@ public:
 	WeaponCommand() : Command("weapon", IO_NPC) { }
 	
 	Result execute(Context & context) override {
+		bool draw = false;
+		std::string strEntId;
+		Entity * io = context.getEntity();
 		
-		bool draw = context.getBool();
+		HandleFlags("he") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * weapon [-e <applyAtEntityID>] <draw>
+)");
+				return Success;
+			}
+			if(flg & flag('e')) {
+				strEntId = context.getStringVar(context.getWord());
+				io = entities.getById(strEntId);
+			}
+		}
+		
+		draw = context.getBool();
+		
+		if(!io) { //after collecting all params
+			ScriptWarning << "invalid entity id " << strEntId;
+			return Failed;
+		}
 		
 		DebugScript(' ' << draw);
-		
-		Entity * io = context.getEntity();
 		
 		if(draw) {
 			if(io->_npcdata->weaponinhand == 0) {
@@ -528,6 +697,102 @@ public:
 	
 };
 
+class DropItemCommand : public Command {
+	
+public:
+	
+	DropItemCommand() : Command("dropitem") { }
+	
+	bool DropItem(Context & context, Entity * entDropFromInventory, std::string strItemID, bool bInFrontOfPlayer) { // context is used by ScriptWarning
+		Entity * entToDrop = entities.getById( strItemID );
+		
+		if(!entToDrop) {
+			ScriptWarning << " invalid " << strItemID;
+			return false;
+		}
+		
+		if(entToDrop->owner() != entDropFromInventory) {
+			ScriptWarning << entDropFromInventory->idString() << "is not owner of " << strItemID;
+			return false;
+		}
+		
+		PutInFrontOfEntity(entToDrop, bInFrontOfPlayer ? entities.player() : entDropFromInventory);
+		
+		return true;
+	}
+	
+	Result execute(Context & context) override {
+		
+		bool bInFrontOfPlayer = false;
+		std::string strEntId;
+		
+		HandleFlags("hep") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * dropitem [-pe] <e?entityID> <"all"|*|itemID|itemIdList>
+	 * -e: to drop from chosen entity inventory instead of self
+	 * -p: drop in front of player (without it will drop in front of entityID)
+	 * entityID: entity ID to drop items from
+	 * "all" or "*": to drop all items from entityID
+	 * itemID: item ID to be dropped
+	 * itemIdList: item IDs separated by " "
+)");
+				return Success;
+			}
+			if(flg & flag('e')) {
+				strEntId = context.getStringVar(context.getWord());
+			}
+			if(flg & flag('p')) {
+				bInFrontOfPlayer = true;
+			}
+		}
+		
+		std::string strDropChoice = context.getWord();
+		
+		DebugScript(' ' << strEntId << ' ' << strDropChoice);
+		
+		Entity * entDropFromInventory = context.getEntity();
+		if(strEntId != "") {
+			entDropFromInventory = entities.getById(strEntId);
+			if(!entDropFromInventory) {
+				ScriptWarning << "invalid entity id to drop from inventory " << strEntId;
+				return Failed;
+			}
+		}
+		
+		if(strDropChoice == "all" || strDropChoice == "*") {
+			DropAllItemsInFrontOfEntity( entDropFromInventory, bInFrontOfPlayer ? entities.player() : entDropFromInventory );
+		} else {
+			if(boost::contains(strDropChoice, " ")) {
+				size_t iStrPosIni = 0;
+				size_t iStrPosNext = 0;
+				std::string strItemID;
+				while(true) {
+					iStrPosNext = strDropChoice.find(' ', iStrPosIni);
+					if(iStrPosNext == std::string::npos) {
+						iStrPosNext = strDropChoice.size();
+					}
+					
+					strItemID = strDropChoice.substr(iStrPosIni, iStrPosNext-iStrPosIni);
+					if(!DropItem(context, entDropFromInventory, strItemID, bInFrontOfPlayer)) {
+						return Failed;
+					}
+					
+					if(iStrPosNext == strDropChoice.size()) break;
+					iStrPosIni = iStrPosNext+1; //skip ' '
+				}
+			} else {
+				if(!DropItem(context, entDropFromInventory, strDropChoice, bInFrontOfPlayer)) {
+					return Failed;
+				}
+			}
+		}
+		
+		return Success;
+	}
+	
+};
+
 } // anonymous namespace
 
 void setupScriptedInventory() {
@@ -536,6 +801,7 @@ void setupScriptedInventory() {
 	ScriptEvent::registerCommand(std::make_unique<EquipCommand>());
 	ScriptEvent::registerCommand(std::make_unique<WeaponCommand>());
 	ScriptEvent::registerCommand(std::make_unique<SetWeaponCommand>());
+	ScriptEvent::registerCommand(std::make_unique<DropItemCommand>());
 	
 }
 

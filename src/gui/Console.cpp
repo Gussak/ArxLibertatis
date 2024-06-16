@@ -20,8 +20,10 @@
 #include "gui/Console.h"
 
 #include <algorithm>
-#include <sstream>
 #include <cctype>
+#include <fstream>
+#include <regex>
+#include <sstream>
 
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -37,13 +39,31 @@
 #include "gui/Interface.h"
 #include "gui/Text.h"
 #include "input/Input.h"
+#include "io/fs/Filesystem.h"
+#include "io/fs/SystemPaths.h"
 #include "io/log/Logger.h"
 #include "math/Rectangle.h"
+#include "platform/Environment.h"
 #include "script/ScriptEvent.h"
 #include "util/Unicode.h"
 #include "window/RenderWindow.h"
 
 // TODO Share some of this with the save name entry field
+
+std::string previousConsoleCommand;
+fs::path historyFile;
+void ScriptConsole::loadHistoryFile() {
+	historyFile = fs::getUserDir() / "consolehistory.txt";
+	std::ifstream flHistoryLoad(historyFile.string());
+	if(flHistoryLoad.is_open()) {
+		std::string line;
+		while(std::getline(flHistoryLoad, line)) {
+			m_history.push_back(line.c_str());
+			previousConsoleCommand = line;
+		}
+		flHistoryLoad.close();
+	}
+}
 
 void ConsoleBuffer::append(std::string_view text) {
 	
@@ -130,13 +150,19 @@ bool ScriptConsole::keyPressed(Keyboard::Key key, KeyModifiers mod) {
 			break;
 		}
 		
-		case Keyboard::Key_PageUp:
+		case Keyboard::Key_PageUp: {
+			select(-10);
+			return true;
+		}
 		case Keyboard::Key_UpArrow: {
 			select(-1);
 			return true;
 		}
 		
-		case Keyboard::Key_PageDown:
+		case Keyboard::Key_PageDown: {
+			select(10);
+			return true;
+		}
 		case Keyboard::Key_DownArrow: {
 			select(1);
 			return true;
@@ -362,7 +388,27 @@ void ScriptConsole::paste(std::string_view text) {
 }
 
 void ScriptConsole::open() {
+	evh_CreateSNm(evhLines, "ARX_ConsoleLines", "how many text lines shall the console show", 10, 10, 50)->
+		setConverter( [this](){
+				bool b = this->m_enabled; 
+				if(b)this->close(); 
+				ScrollbackLines = evhLines->getI(); 
+				this->m_buffer.resize(ScrollbackLines, ScrollbackColumns); 
+				if(b)this->open();
+			}
+		);
+	evh_CreateSNm(evhColumns, "ARX_ConsoleColumns", "how many text lines shall the console show", 100, 50)->
+		setConverter( [this](){
+				bool b = this->m_enabled; 
+				if(b)this->close(); 
+				ScrollbackColumns = evhColumns->getI(); 
+				this->m_buffer.resize(ScrollbackLines, ScrollbackColumns); 
+				if(b)this->open();
+			}
+		);
+	
 	if(!m_enabled) {
+		if(historyFile.string().size() == 0)loadHistoryFile();
 		config.input.allowConsole = true;
 		m_enabled = true;
 		m_wasPaused = (g_gameTime.isPaused() & GameTime::PauseUser) != 0;
@@ -392,11 +438,53 @@ Entity * ScriptConsole::contextEntity() {
 	return entity;
 }
 
+int ScriptConsole::list(std::string filter, bool execOnSingleMatch) {
+	static std::regex * re = nullptr;
+	re = util::prepareRegex(re, filter);
+	if(!re) {
+		LogError << "invalid regex: " << filter;
+		return 0;
+	}
+	
+	std::string strList;
+	int iCount = 0;
+	std::string strCmd;
+	for(std::string cmd: m_history) {
+		if (std::regex_search(cmd, *re)) {
+			if(cmd != strCmd && !boost::starts_with(cmd, "hist ")) { // TODO get history command string properly, to skip them here
+				iCount++; // ignoring dups
+				strCmd = cmd;
+				strList += "\t" + cmd + "\n";
+			}
+		}
+	}
+	LogInfo << "Console commands history:\n" << strList;
+	
+	LogDebug("count=" << iCount << ", cmd=" << strCmd);
+	
+	if(strCmd.size() > 0 && iCount == 1 && execOnSingleMatch) {
+		setText(strCmd);
+		execute();
+	}
+	
+	return iCount;
+}
+
 void ScriptConsole::execute() {
 	
 	if(!text().empty()) {
 		m_history.erase(std::remove(m_history.begin(), m_history.end(), text()), m_history.end());
 		m_history.push_back(text());
+		
+		std::string newCommandLine = text();
+		if(newCommandLine != previousConsoleCommand) {
+			static std::ofstream flConsoleHistory;
+			flConsoleHistory.open(historyFile.string(), std::ios_base::app);
+			flConsoleHistory << text() << "\n";
+			flConsoleHistory.flush();
+			flConsoleHistory.close();
+		}
+		
 		if(m_history.size() > MaxHistorySize) {
 			m_history.pop_front();
 		}

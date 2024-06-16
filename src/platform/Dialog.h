@@ -141,6 +141,8 @@ bool askYesNoWarning(const std::string & question, const std::string & title = "
  */
 bool askOkCancel(const std::string & question, const std::string & title = "Ok/Cancel?");
 
+bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails = "", const std::string strFileToEdit = "", size_t lineAtFileToEdit = 0);
+
 } // namespace platform
 
 #endif // ARX_PLATFORM_DIALOG_H

@@ -924,7 +924,9 @@ static int view_player(SaveBlock & save, const char * dat, size_t size) {
 	std::cout << "Magic resistance: " << asp.resist_magic << '\n';
 	std::cout << "Poison resistance: " << asp.resist_poison << '\n';
 	if(asp.Attribute_Redistribute) std::cout << "Available attribute points: " << asp.Attribute_Redistribute << '\n';
+	if(asp.Attribute_TotalEarnt) std::cout << "Total earn attribute points: " << asp.Attribute_TotalEarnt << '\n';
 	if(asp.Skill_Redistribute) std::cout << "Available skill points: " << asp.Skill_Redistribute << '\n';
+	if(asp.Skill_TotalEarnt) std::cout << "Total earn skill points: " << asp.Skill_TotalEarnt << '\n';
 	
 	if(asp.rune_flags) {
 		std::cout << "Runes:";
@@ -1642,7 +1644,8 @@ static void print_io_item(const ARX_CHANGELEVEL_IO_SAVE & ais,
 	
 	std::cout << "\nItem Data:\n";
 	
-	std::cout << "  Price: " << ai->price << '\n';
+	std::cout << "  Buy price: " << ai->buyPrice << '\n';
+	std::cout << "  Sell price: " << ai->sellPrice << '\n';
 	if(ai->count != 1 || ai->maxcount != 1) {
 		std::cout << "  Count: " << ai->count << " / " << ai->maxcount << '\n';
 	}

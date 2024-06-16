@@ -39,6 +39,7 @@
 #include "math/Vector.h"
 #include "physics/Collisions.h"
 #include "physics/Physics.h"
+#include "platform/Environment.h"
 #include "platform/Platform.h"
 #include "platform/profiler/Profiler.h"
 #include "scene/GameSound.h"
@@ -83,12 +84,14 @@ void setDraggedEntity(Entity * entity) {
 			}
 		}
 		entity->show = g_draggedItemPreviousPosition ? SHOW_FLAG_ON_PLAYER : SHOW_FLAG_IN_SCENE;
+		LogDebug("drag init " << entity->idString());
 	} else {
 		g_draggedItemPreviousPosition = InventoryPos();
 		g_draggedIconOffset = Vec2f(0.f);
 		g_draggedObjectOffset = Vec2f(0.f);
 	}
 	
+	LogDebugIf(!entity && g_draggedEntity, "drag end " << g_draggedEntity->idString());
 	g_draggedEntity = entity;
 	
 	if(entity && entity->obj && entity->obj->pbox) {
@@ -184,6 +187,17 @@ EntityDragResult findSpotForDraggedEntity(Vec3f origin, Vec3f dir, Entity * enti
 	return result;
 }
 
+float calcAimAndVelocity(Vec3f * direction, float fPrecision) {
+	if(direction) {
+		direction->x += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
+		direction->y += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
+		direction->z += Random::getf(-fPrecision, fPrecision) / player.m_attribute.dexterity;
+		*direction = glm::normalize(*direction);
+	}
+	
+	return (1.f + player.m_attribute.strength/10.f)*Random::getf(0.9f,1.1f);
+}
+
 void updateDraggedEntity() {
 	
 	Entity * entity = g_draggedEntity;
@@ -206,12 +220,14 @@ void updateDraggedEntity() {
 	if(g_secondaryInventoryHud.containsPos(Vec2s(mouse))) {
 		if(drop) {
 			g_secondaryInventoryHud.dropEntity();
+			//entity->pos = Vec3f();  // fixes the dragging out displacement
 		}
 		return;
 	}
 	if(g_playerInventoryHud.containsPos(Vec2s(mouse))) {
 		if(drop) {
 			g_playerInventoryHud.dropEntity();
+			//entity->pos = Vec3f();  // fixes the dragging out displacement
 		}
 		return;
 	}
@@ -264,6 +280,10 @@ void updateDraggedEntity() {
 		g_dragStatus = EntityDragStatus_Invalid;
 		return;
 	}
+	
+	#define LogXY(VEC) #VEC << ".xy=(" << VEC.x << ", " << VEC.y << "); "
+	#define LogXYZ(VEC) #VEC << ".xyz=(" << VEC.x << ", " << VEC.y << ", " << VEC.z << "); "
+	LogDebug("drag result: " << LogXY(g_draggedObjectOffset) << LogXYZ(origin) << LogXYZ(dir) << LogXYZ(dest) << LogXYZ(g_playerCameraStablePos) << LogXYZ(result.pos) << LogXYZ(result.offset));
 	
 	Vec3f pos = result.pos;
 	
@@ -336,8 +356,10 @@ void updateDraggedEntity() {
 		
 		Vec3f start = player.pos + Vec3f(0.f, 80.f, 0.f) - toXZ(result.offset);
 		Vec3f direction = glm::normalize(entity->pos - start);
+		float fVelocity = calcAimAndVelocity(&direction);
 		entity->pos = start;
-		EERIE_PHYSICS_BOX_Launch(entity->obj, entity->pos, entity->angle, direction);
+		LogDebug(entity->idString()<<": fVelocity="<<fVelocity<<", direction="<<direction.x<<","<<direction.y<<","<<direction.z);
+		EERIE_PHYSICS_BOX_Launch(entity->obj, entity->pos, entity->angle, direction, fVelocity);
 		ARX_SOUND_PlaySFX(g_snd.WHOOSH, &entity->pos);
 		
 	} else if(glm::abs(result.offsetY) > threshold) {

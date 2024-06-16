@@ -39,3 +39,17 @@ void Random::shutdown() {
 	delete rng;
 	rng = nullptr;
 }
+
+float Random::Mt19937() {
+	static std::random_device rndDev;
+	static std::mt19937 rngMt19937{rndDev()}; 
+	static std::uniform_real_distribution<float> urd(0.0, 1.0);
+	return urd(rngMt19937);
+}
+float Random::Mt19937plus(int max) {
+	float rnf = 0.f;
+	int iTotRnd = Random::get(1, max);
+	for(int iR2 = 0; iR2 < iTotRnd; iR2++) rnf += Random::Mt19937(); // trying to increase unpredictability
+	rnf = static_cast<float>(std::fmod(rnf, 1.0));
+	return rnf;
+}

@@ -103,7 +103,7 @@ struct RenderMaterial;
 
 void Draw3DObject(EERIE_3DOBJ * eobj, const Anglef & angle, const Vec3f & pos, const Vec3f & scale, const Color4f & coll, RenderMaterial mat);
 
-long MakeTopObjString(Entity * entity, std::string & dest);
+long MakeTopObjString(Entity * entity, std::string & dest, float distExtraBoundaryXZ = 0.f);
 
 Vec2f getWaterFxUvOffset(float watereffect, const Vec3f & odtv);
 

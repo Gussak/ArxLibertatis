@@ -44,9 +44,12 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "script/ScriptedLang.h"
 
 #include <memory>
+#include <regex>
 #include <string>
 
+#include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/split.hpp> // Include for boost::split
 
 #include "ai/Paths.h"
 #include "core/GameTime.h"
@@ -55,10 +58,12 @@ ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
 #include "game/Equipment.h"
 #include "game/Inventory.h"
 #include "graphics/Math.h"
+#include "platform/Environment.h"
 #include "scene/Interactive.h"
 #include "script/ScriptEvent.h"
 #include "script/ScriptUtils.h"
 #include "util/Number.h"
+#include "util/String.h"
 
 
 namespace script {
@@ -92,11 +97,106 @@ public:
 	
 	GotoCommand(std::string_view command, bool _sub = false) : Command(command), sub(_sub) { }
 	
+	Result createParamVar(Context & context, std::string label, std::string var, std::string val) {
+		arx_assert(var.size() > 0);
+		arx_assert(val.size() > 0);
+		Entity* io = context.getEntity();
+		
+		if(sub) {
+			// private variables easily accessible only in GoSub scope, never need to prefix with label at .asl
+			// ex.: GoSub -p FUNCwork \xA3\xBBmode="init" ; // becomes \xA3FUNCwork\xABmode, can be accessed that way anywhere, but inside the current GoSub call you just need to use \xA3\xABmode
+			// ex.: Set \xA3\xABtest "dummy" // becomes \xA3FUNCwork\xABtest if used inside FUNCwork
+			var = context.autoVarNameForScope(false, var, label, true);
+		} else {
+			static platform::EnvVarHandler * goToWithParams = evh_Create("ARX_WarnGoToWithParams", "", false);
+			if(goToWithParams->getB()) {
+				ScriptWarning << "pseudo private scope variable creation \"" << var[0] << "\" at \"" << var << "=" << val << "\", only GoSub (that create a call stack) should create them.";
+			}
+		}
+		
+		DebugScript(' ' << var << ' ' << val);
+		
+		SCRIPT_VAR * sv = nullptr;
+		switch(var[0]) {
+			case '\xA3': sv = SETVarValueText(io->m_variables, var, context.getStringVar(val,io)); break;
+			case '\xA7': sv = SETVarValueLong(io->m_variables, var, long(context.getFloatVar(val,io))); break;
+			case '@':    sv = SETVarValueFloat(io->m_variables, var, context.getFloatVar(val,io)); break;
+			default:
+				ScriptError << "invalid param local variable type \"" << var[0] << "\" at \"" << var << "=" << val << "\"";
+				return AbortError;
+		}
+		if(!sv) {
+			ScriptWarning << "Unable to create variable " << var;
+			return Failed;
+		}
+		
+		return Success;
+	}
+	
 	Result execute(Context & context) override {
 		
-		std::string label = context.getWord();
+		bool hasParams = false;
+		bool warnUglyCoding = true;
+		HandleFlags("hpw") {
+			if(flg & flag('h')) {
+				LogHelp("command " << getName(), R"(
+	 * <GoTo|GoSub> [-pw] <label> <p?params... ;>
+	 * ex.: GoSub -p FUNCTarget @testFloat=10.3 \xA7testFloat2=5 \xA3TestString="a b c" ; // it will create localvars (not globals) so only use localvar token chars for float, int and string.
+	 *  required single word as ';' is required to know when to stop collecting params
+	 *  it will automatically create the following local vars that you can use at the GoTo/GoSub target: 
+	 *   @FUNCTarget_testFloat1 = 10.3
+	 *   \xA7FUNCTarget_testFloat2 = 5.7
+	 *   \xA3FUNCTarget_TestString = "a b c"
+	 * -w will ignore coding non conformant with expected
+)");
+				return Success;
+			}
+			if(flg & flag('p')) {
+				hasParams = true;
+			}
+			if(flg & flag('w')) {
+				warnUglyCoding = false;
+			}
+		}
 		
+		std::string label = context.getStringVar(context.getWord());
 		DebugScript(' ' << label);
+		
+		if(warnUglyCoding && context.isCheckTimerIdVsGoToLabelOnce()) {
+			static platform::EnvRegex erWarnTimerCallingGoSubScriptName = [](){ evh_CreateS("ARX_TimerCallingGoSubWarn", "(coding style suggestion) Timers should only call GoTo. This regex filters what scripts will show the warning.", "")->setConverter( [](){erWarnTimerCallingGoSubScriptName.setRegex(evh->getS());} ); return evh->getS(); }();
+			if(erWarnTimerCallingGoSubScriptName.isSet() && sub && erWarnTimerCallingGoSubScriptName.matchRegex(context.getScript()->file)) {
+				ScriptWarning << erWarnTimerCallingGoSubScriptName.getMsg() << "ExtraInfo: timer '" << context.getTimerName() << "', first target label '" << label << "'";
+			}
+			
+			static platform::EnvRegex erWarnTimerIdMismatchCallLabel = [](){ evh_CreateS("ARX_TimerLabelMismatchWarn", "(coding style suggestion) Timer label should match the begin of GoTo label. This regex filters what scripts will show the warning.", "")->setConverter( [](){erWarnTimerCallingGoSubScriptName.setRegex(evh->getS());} ); return evh->getS(); }();
+			if(erWarnTimerIdMismatchCallLabel.isSet() && erWarnTimerIdMismatchCallLabel.matchRegex(context.getScript()->file)) {
+				std::string labelChk = label;
+				labelChk.resize(std::remove(labelChk.begin(), labelChk.end(), '_') - labelChk.begin());
+				if(!boost::starts_with(context.getTimerName(), labelChk)) { // there can have many timers to the same target
+					ScriptWarning << "A timer is being run but it's name '" << context.getTimerName() << "' doesn't match the first GoTo target label '" << label << "' ('" << labelChk << "')";
+				}
+			}
+			
+			context.clearCheckTimerIdVsGoToLabelOnce(); // only the first shall be checked, is the nearest to the timer
+		}
+		
+		if(hasParams) {
+			Result resParams = Success;
+			std::string strVar; // see Script.cpp::detectAndFixGoToGoSubParam()
+			std::string strValue;
+			while(true) { // collect all params before checking if any of them failed
+				strVar = context.getWord();
+				if(strVar == ";") break;
+				
+				strValue = context.getWord(); // value may be inside double quotes
+				
+				Result resChk = createParamVar(context, label, strVar, strValue);
+				if(resChk != Success) resParams = resChk;
+			}
+			if(resParams != Success) {
+				return resParams;
+			}
+		}
 		
 		if(!sub) {
 			size_t pos = context.skipCommand();
@@ -171,7 +271,7 @@ public:
 		DebugScript("");
 		
 		if(!context.returnToCaller()) {
-			ScriptError << "return failed";
+			ScriptError << "Return failed. If it was a timer, only use GoTo because it ends with ACCEPT, for GoSub (ends with RETURN), just wrap it with a GoTo.";
 			return AbortError;
 		}
 		
@@ -461,7 +561,8 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA7': {
-				f = GETVarValueLong(context.getEntity()->m_variables, var);
+				std::string name = context.autoVarNameForScope(true, var);
+				f = GETVarValueLong(context.getEntity()->m_variables, name);
 				return TYPE_FLOAT;
 			}
 			
@@ -471,7 +572,8 @@ class IfCommand : public Command {
 			}
 			
 			case '@': {
-				f = GETVarValueFloat(context.getEntity()->m_variables, var);
+				std::string name = context.autoVarNameForScope(true, var);
+				f = GETVarValueFloat(context.getEntity()->m_variables, name);
 				return TYPE_FLOAT;
 			}
 			
@@ -481,7 +583,8 @@ class IfCommand : public Command {
 			}
 			
 			case '\xA3': {
-				s = GETVarValueText(context.getEntity()->m_variables, var);
+				std::string name = context.autoVarNameForScope(true, var);
+				s = GETVarValueText(context.getEntity()->m_variables, name);
 				return TYPE_TEXT;
 			}
 			
@@ -743,20 +846,22 @@ public:
 		addOperator(new GreaterOperator);
 	}
 	
-	Result execute(Context & context) override {
-		
-		std::string left = context.getWord();
-		
-		std::string op = context.getWord();
-		
+	Result compare(Context & context, bool & condition, bool & comparisonDetected, bool & bJustConsumeTheWords) {
+		std::string left  = context.getWord();
+		std::string op    = context.getWord();
 		std::string right = context.getWord();
-		
 		auto it = m_operators.find(op);
 		if(it == m_operators.end()) {
 			ScriptWarning << "unknown operator: " << op;
+			comparisonDetected = false;
 			return Failed;
+		}else{
+			comparisonDetected = true;
 		}
-		
+		if(bJustConsumeTheWords){
+			return Success;
+		}
+
 		float f1, f2;
 		std::string s1, s2;
 		ValueType t1 = getVar(context, left, s1, f1, it->second->getType());
@@ -764,17 +869,165 @@ public:
 		
 		if(t1 != t2) {
 			ScriptWarning << "incompatible types: \"" << left << "\" (" << (t1 == TYPE_TEXT ? "text" : "number") << ") and \"" << right << "\" (" << (t2 == TYPE_TEXT ? "text" : "number") << ')';
-			context.skipBlock();
 			return Failed;
 		}
 		
-		bool condition;
 		if(t1 == TYPE_TEXT) {
 			condition = it->second->text(context, s1, s2);
 			DebugScript(" \"" << left << "\" " << op << " \"" << right << "\"  ->  \"" << s1 << "\" " << op << " \"" << s2 << "\"  ->  " << (condition ? "true" : "false")); // TODO fix formatting in Logger and use std::boolalpha
 		} else {
 			condition = it->second->number(context, f1, f2);
 			DebugScript(" \"" << left << "\" " << op << " \"" << right << "\"  ->  " << f1 << " " << op << " " << f2 << "  ->  " << (condition ? "true" : "false"));
+		}
+		
+		return Success;
+	}
+	
+	bool recursiveLogicOperationByWord(Context & context, std::string & wordCheck, bool & condition, Result & res, bool & bJustConsumeTheWords) {
+		if(boost::equals(wordCheck, "and")) {
+			res = recursiveLogicOperation(context, condition, 'a', bJustConsumeTheWords);
+		} else
+		if(boost::equals(wordCheck, "or")) {
+			res = recursiveLogicOperation(context, condition, 'o', bJustConsumeTheWords);
+		} else
+		if(boost::equals(wordCheck, "not")) {
+			res = recursiveLogicOperation(context, condition, 'n', bJustConsumeTheWords);
+		}else{
+			return false;
+		}
+		return true;
+	}
+	/**
+	 * TODO LogHelp()
+	 * it is always 'if(and(...))' or 'if(or(...))' or the default 'if(SomeComparison)'
+	 * so all nested 'and()' or 'or()' or 'comparison' must be inside a initial abrangent/top 'and()' or 'or()' 
+	 */
+	Result recursiveLogicOperation(Context & context, bool & condition, char logicOp, bool & bJustConsumeTheWords) {
+		Result res = Success;
+		size_t positionBeforeWord;
+		std::string wordCheck;
+		int iCount=0;
+		bool bJustConsumeTheWordsThisLoopAndNestedOnly = bJustConsumeTheWords;
+		bool bSquareBracketsMode = false;
+		while(true){
+			if(res != Success) {return res;}; // in case of errors found in the script.
+			iCount++;
+			context.skipWhitespacesCommentsAndNewLines();
+			positionBeforeWord = context.getPosition(); //Put after skip new lines.
+			wordCheck = context.getWord();
+			
+			if(wordCheck == "[") { // nesting always happens thru some control word: and|or|not so this opening can be ignored but commands further formatting
+				bSquareBracketsMode = true;
+				break;
+			}
+			
+			//logic operation loop end detected. this is not required in the script if the next thing to be found is a '{'
+			if(wordCheck == ";") {
+				if(bSquareBracketsMode) {
+					ScriptWarning << "logic block started with '[' so it should end with ']'";
+				}
+				break;
+			}
+			if(wordCheck == "]") { 
+				if(!bSquareBracketsMode) {
+					ScriptWarning << "logic block did not start with '[' so it should end with ';'";
+				}
+				break;
+			}
+			
+			//block begin detected, end recursive logic
+			if( boost::equals(wordCheck, "{") ) { 
+				context.seekToPosition(positionBeforeWord); //to let the block be proccessed or skipped properly later
+				break;
+			}
+			
+			//         ex.: if(comparison && comparison && comparison) {
+			//                      1     2       3     4      5       6
+			// iCount%2             1     0       1     0      1       0
+			if(iCount%2 == 1){ //comparison or recursive logic nesting
+				if(recursiveLogicOperationByWord(context, wordCheck, condition, res, bJustConsumeTheWordsThisLoopAndNestedOnly)){
+					if(logicOp == 'n') { //not
+						condition = !condition;
+						break; //this break breaks the loop. logic NOT accepts only one comparison or nested logical operator
+					}
+					continue;
+				} else { //check for normal comparison
+					//recursive logic operators or blanks were not detected. undo the wordCheck position
+					context.seekToPosition(positionBeforeWord);
+					// it needs to determine if the next thing is a comparison as the block begin char was not detected
+					bool comparisonDetected = false;
+					res = compare(context, condition, comparisonDetected, bJustConsumeTheWordsThisLoopAndNestedOnly);
+					if(comparisonDetected){
+						if(!bJustConsumeTheWordsThisLoopAndNestedOnly) {
+							if( logicOp == 'n') { //not
+								condition = !condition; 
+								break; //this break breaks the loop. logic NOT accepts only one comparison or nested logical operator
+							}
+							switch(logicOp) { //this is just an optimization
+								//if logic AND fails or if logic OR succeeds, the remaining comparisons in this loop (and everything else nested) only will be skipped
+								case 'a': if(!condition) bJustConsumeTheWordsThisLoopAndNestedOnly=true; break;
+								case 'o': if( condition) bJustConsumeTheWordsThisLoopAndNestedOnly=true; break;
+								default: arx_assert_msg(false, "Invalid logical operator mode: %c", logicOp); break;
+							}
+						}
+						continue;
+					} else {
+						// it is not a comparison, this is a command outside of a block, so restore position and end the loop
+						context.seekToPosition(positionBeforeWord);
+						break;
+					}
+				}
+			}
+			
+			// logic connector say the next thing is a logical result to process. They also make reading the script more clear. they are always in-between: 2nd 4th 6th...
+			if(iCount%2 == 0){
+				if(logicOp == 'n') { //not
+					ScriptError << "the not() logical operator only accepts one comparison or nested logic operator";
+					return Failed;
+				}
+				
+				switch(logicOp) {
+					case 'a': //and
+						if( wordCheck[0] == ',' || boost::equals(wordCheck, "&&") ) continue; 
+						break;
+					case 'o': //or
+						if( wordCheck[0] == ',' || boost::equals(wordCheck, "||") ) continue;
+						break;
+					default: arx_assert_msg(false, "Invalid logical operator mode: %c", logicOp); break;
+				}
+				
+				// the absense of a coherent logic connector is expected and means the end of a nesting ex.: if( AND( ... && or(...) && not(and(...)) ) ){...} //at '){' or some command like 'Set' also ends the logic
+				context.seekToPosition(positionBeforeWord);
+				break;
+			}
+			
+		} //end while
+		
+		return Success;
+	}
+	Result execute(Context & context) override {
+		Result res; //this overrides processing condition result, in case of Failed
+		bool condition = false; //this will be set by the function calls
+		bool bJustConsumeTheWords = false; //when a multi nested condition can quickly end, this will be set to true so all words (related to logic operations and comparisons) are consumed and the block/command can be safely reached and processed or skipped.
+		context.skipWhitespacesCommentsAndNewLines();
+		size_t positionBeforeWord = context.getPosition(); //this is used to undo the wordCkeck position. Put after skip new lines.
+		std::string wordCheck = context.getWord();
+		if(wordCheck == "[") {
+			positionBeforeWord = context.getPosition();
+			wordCheck = context.getWord();
+		}
+		if(recursiveLogicOperationByWord(context, wordCheck, condition, res, bJustConsumeTheWords)){
+			// all work already done at recursiveLogicOperationByWord(...)
+		} else {
+			context.seekToPosition(positionBeforeWord); //is a simple check, so restore the position
+			bool comparisonDetected = false; //dummy required param
+			res = compare(context, condition, comparisonDetected, bJustConsumeTheWords);
+		}
+		
+		if(res == Failed) { 
+			//not mixed with !condition to isolate what shall be done on script interpreting failure
+			context.skipBlock();
+			return Failed;
 		}
 		
 		if(!condition) {
@@ -855,6 +1108,7 @@ void timerCommand(std::string_view name, Context & context) {
 	
 	SCR_TIMER & timer = createScriptTimer(context.getEntity(), std::move(timername));
 	timer.es = context.getScript();
+	
 	if(mili) {
 		timer.interval = std::chrono::duration<float, std::milli>(interval);
 	} else {

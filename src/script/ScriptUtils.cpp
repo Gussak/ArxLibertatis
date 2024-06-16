@@ -19,14 +19,27 @@
 
 #include "script/ScriptUtils.h"
 
+#include <execinfo.h>
+#include <fstream>
+#include <iostream>
 #include <set>
 #include <utility>
 
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/stacktrace.hpp> // boost::stacktrace::stacktrace()
 
+#include "core/Core.h"
 #include "game/Entity.h"
 #include "graphics/data/Mesh.h"
+#include "platform/Dialog.h"
+#include "platform/Environment.h"
+#include "platform/Process.h"
+#include "script/Script.h"
+#include "script/ScriptEvent.h"
 #include "util/Number.h"
+#include "util/String.h"
 
 
 namespace script {
@@ -47,48 +60,282 @@ std::string_view toLocalizationKey(std::string_view string) {
 }
 
 Context::Context(const EERIE_SCRIPT * script, size_t pos, Entity * sender, Entity * entity,
-                 ScriptMessage msg, ScriptParameters parameters)
+                 ScriptMessage msg, ScriptParameters parameters, const SCR_TIMER * timer)
 	: m_script(script)
+	, precS(precScripts[m_script->file])
 	, m_pos(pos)
 	, m_sender(sender)
 	, m_entity(entity)
 	, m_message(msg)
 	, m_parameters(std::move(parameters))
-{ }
+	, m_timer(timer)
+{
+	updateNewLinesList();
+}
 
-std::string Context::getStringVar(std::string_view name) const {
+void Context::updateNewLinesList() {
+	size_t posNL = 0;
+	while(true) {
+		posNL = m_script->data.find('\n', posNL);
+		if(posNL == std::string::npos) {
+			break;
+		}else{
+			m_vNewLineAt.push_back(posNL);
+			posNL++;
+		}
+	}
+}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+std::string Context::formatString(std::string format, float var) const {
+	std::string strTmp(256, '\0');
+	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), static_cast<double>(var) );
+	strTmp.resize(size_t(written));
+	return strTmp;
+}
+std::string Context::formatString(std::string format, long var) const {
+	std::string strTmp(256, '\0');
+	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var);
+	strTmp.resize(size_t(written));
+	return strTmp;
+}
+std::string Context::formatString(std::string format, std::string var) const {
+	std::string strTmp(256, '\0');
+	auto written = std::snprintf(&strTmp[0], strTmp.size(), format.c_str(), var.c_str());
+	strTmp.resize(size_t(written));
+	return strTmp;
+}
+#pragma GCC diagnostic pop
+
+/*  toggleCommentBlock 1st is working, 2nd experimental
+std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, bool bCreatingVar) const {
+	std::string nameAuto = std::string(name);
+	if(!isLocalVariable(nameAuto)) {
+		return nameAuto; //keep on top to be quick, no warning
+	}
+	
+	char cTokenCheck = bCreatingVar ? '\xBB' : '\xAB'; // tiny '>>' : '<<'
+	if(privateScopeOnly) { // only if pseudo-private scope is requested on the var name thru the special char
+		if(nameAuto[1] != cTokenCheck) {
+			return nameAuto; //keep on top to be quick, no warning
+		}
+	}
+	
+	std::string label;
+	if(labelOverride.size() > 0){
+		label = labelOverride;
+	} else {
+		if(m_stackIdCalledFromPos.size() == 0) {
+			if(m_message < SM_MAXCMD) {
+				label = ScriptEvent::name(m_message);
+				label[2] = '_'; // ex.: "on main" becomes "on_main"
+			}
+		} else {
+			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
+		}
+	}
+	if(label.size() == 0) {
+		LogWarning << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", Empty label for: " << nameAuto;
+		return nameAuto;
+	}
+	
+	if(bCreatingVar) {
+		if(nameAuto[1] == '\xAB') {
+			LogError << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", At GoSub param var name to be created/set, it is expected the tiny symbol \xBB '>>', but found \xAB '<<': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
+	} else {
+		if(nameAuto[1] == '\xBB') {
+			LogError << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", In a \"function\", pseudo-private var name shall use the tiny symbol \xAB '<<', but found \xBB '>>': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
+	}
+	
+	char cSeparator = '_'; // local scope
+	size_t posID = 1;
+	if(nameAuto[1] == cTokenCheck) {
+		cSeparator = '\xAB'; // pseudo-private scope tiny '<<' char. vars are ALWAYS created with this, and never with \xBB '>>'
+		posID = 2;
+	}
+	if(cSeparator == '_') {
+		static platform::EnvVarHandler * warnLocalScopeParams = evh_Create("ARX_WarnGoSubWithLocalScopeParams", "", false);
+		if(warnLocalScopeParams->getB()) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
+			LogWarning << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
+		}
+	}
+	
+	if(!boost::starts_with(nameAuto.substr(1), label)) { // only prefix with label if not already
+		nameAuto = std::string() + nameAuto[0] + label + cSeparator + nameAuto.substr(posID);
+	}
+	
+	return nameAuto;
+}
+/*/
+std::string Context::autoVarNameForScope(bool privateScopeOnly, std::string_view name, std::string labelOverride, bool bCreatingVar) const {
+	std::string nameAuto = std::string(name);
+	if((const_cast<Context*>(this))->PrecDecompileVarName(const_cast<std::string&>(nameAuto))) {
+		return nameAuto;
+	}
+	
+	if(!isLocalVariable(nameAuto)) {
+		return nameAuto; //keep on top to be quick, no warning
+	}
+	
+	char cTokenCheck = bCreatingVar ? '\xBB' : '\xAB'; // tiny '>>' : '<<'
+	if(privateScopeOnly) { // only if pseudo-private scope is requested on the var name thru the special char
+		if(nameAuto[1] != cTokenCheck) {
+			return nameAuto; //keep on top to be quick, no warning
+		}
+	}
+	
+	std::string label;
+	if(labelOverride.size() > 0){
+		label = labelOverride;
+	} else {
+		if(m_stackIdCalledFromPos.size() == 0) {
+			if(m_message < SM_MAXCMD) {
+				label = ScriptEvent::name(m_message);
+				label[2] = '_'; // ex.: "on main" becomes "on_main" base scope for pseudo-private var
+			}
+		} else {
+			label = m_stackIdCalledFromPos[m_stackIdCalledFromPos.size()-1].second;
+		}
+	}
+	if(label.size() == 0) {
+		LogWarning << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", Empty label for: " << nameAuto;
+		return nameAuto;
+	}
+	
+	if(bCreatingVar) {
+		if(nameAuto[1] == '\xAB') {
+			LogError << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", At GoSub param var name to be created/set, it is expected the tiny symbol \xBB '>>', but found \xAB '<<': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
+	} else {
+		if(nameAuto[1] == '\xBB') {
+			LogError << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", In a \"function\", pseudo-private var name shall use the tiny symbol \xAB '<<', but found \xBB '>>': " << nameAuto << ", " << labelOverride;
+			return nameAuto;
+		}
+	}
+	
+	char cSeparator = '_'; // local scope
+	size_t posID = 1;
+	if(nameAuto[1] == cTokenCheck) {
+		cSeparator = '\xAB'; // pseudo-private scope tiny '<<' char. vars are ALWAYS created with this, and never with \xBB '>>'
+		posID = 2;
+	}
+	if(cSeparator == '_') {
+		static platform::EnvVarHandler * warnLocalScopeParams = evh_Create("ARX_WarnGoSubWithLocalScopeParams", "Local scope are the vanilla vars w/o tiny '>>'. You should prefer requesting the creation of pseudo-private scope vars by using that symbol.", false);
+		if(warnLocalScopeParams->getB()) { // a mod developer may want prevent self confusion by only wanting to use pseudo-private scope vars on params
+			LogWarning << getPosLineColumnInfo(true) << getGoSubCallStack("{CallStackId(FromPosition):","}") << ", GoSub params should only be of the pseudo-private kind by using '" << '\xBB' << "' char 0xBB, tiny '>>'";
+		}
+	}
+	
+	if(!boost::starts_with(nameAuto.substr(1), label)) { // only prefix with label if not already
+		nameAuto = std::string() + nameAuto[0] + label + cSeparator + nameAuto.substr(posID);
+	}
+	
+	PrecCompileQueueAdd(this, PrecData(
+		m_pos - name.size(), size_t(-1), "",
+		nullptr, "", nameAuto
+	)); // good to test the static queue, but could be this also: (const_cast<Context*>(this))->PrecCompile(true, PrecData(...));
+	
+	return nameAuto;
+}
+//*/
+
+std::string Context::getStringVar(std::string_view name, Entity * entOverride) const {
 	
 	if(name.empty()) {
 		return std::string();
-	} else if(name[0] == '^') {
+	}
+	
+	std::string format;
+	if(name[0] == '%') { // printf format syntax. ex.: this happens when using var expansion like ~%.2f,@var~
+		format = name.substr( 0, name.find(',', 0) );
+		name   = name.substr( format.size() + 1 ); // +1 skips the ','
+	}
+	
+	std::string nameAuto = autoVarNameForScope(true, name);
+	
+	if(nameAuto[0] == '^') {
 		long lv;
 		float fv;
 		std::string tv;
-		switch(getSystemVar(*this, name, tv, &fv, &lv)) {
-			case TYPE_TEXT: return tv;
-			case TYPE_LONG: return std::to_string(lv);
-			default: return std::to_string(fv);
+		switch(getSystemVar(*this, nameAuto, tv, &fv, &lv)) {
+			case TYPE_TEXT: return format.size() > 0 ? formatString(format, tv) : tv;
+			case TYPE_LONG: return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
+			default: return format.size() > 0 ? formatString(format, fv) : std::to_string(fv);
 		}
-	} else if(name[0] == '#') {
-		return std::to_string(GETVarValueLong(svar, name));
-	} else if(name[0] == '\xA7') {
-		return std::to_string(GETVarValueLong(getEntity()->m_variables, name));
-	} else if(name[0] == '&') {
-		return boost::lexical_cast<std::string>(GETVarValueFloat(svar, name));
-	} else if(name[0] == '@') {
-		return boost::lexical_cast<std::string>(GETVarValueFloat(getEntity()->m_variables, name));
-	} else if(name[0] == '$') {
-		const SCRIPT_VAR * var = GetVarAddress(svar, name);
-		return var ? var->text : "void";
-	} else if(name[0] == '\xA3') {
-		const SCRIPT_VAR * var = GetVarAddress(getEntity()->m_variables, name);
-		return var ? var->text : "void";
+	} else if(nameAuto[0] == '#') {
+		long lv = GETVarValueLong(svar, nameAuto);
+		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
+	} else if(nameAuto[0] == '\xA7') {
+		long lv = GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
+		return format.size() > 0 ? formatString(format, lv) : std::to_string(lv);
+	} else if(nameAuto[0] == '&') {
+		float fv = GETVarValueFloat(svar, nameAuto);
+		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
+	} else if(nameAuto[0] == '@') {
+		float fv = GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
+		return format.size() > 0 ? formatString(format, fv) : boost::lexical_cast<std::string>(fv);
+	} else if(nameAuto[0] == '$') {
+		const SCRIPT_VAR * var = GetVarAddress(svar, nameAuto);
+		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
+	} else if(nameAuto[0] == '\xA3') {
+		const SCRIPT_VAR * var = GetVarAddress((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
+		return var ? (format.size() > 0 ? formatString(format, var->text) : var->text) : "void";
 	}
 	
-	return std::string(name);
+	return nameAuto;
 }
 
 #define ScriptParserWarning ARX_LOG(isSuppressed(*this, "?") ? Logger::Debug : Logger::Warning) << ScriptContextPrefix(*this) << ": "
+
+bool detectAndSkipComment(Context * context, const std::string_view & esdat, size_t & pos, bool skipNewlines) {
+	if(context && context->PrecDecompileCommentSkip()) {
+		return true;
+	}
+	
+	if(esdat[pos] == '/' && pos + 1 != esdat.size() && esdat[pos + 1] == '/') {
+		static size_t posBefore;
+		if(context) posBefore = pos;
+		
+		pos = esdat.find('\n', pos + 2);
+		if(pos == std::string::npos) {
+			pos = esdat.size();
+		} else {
+			if(skipNewlines) {
+				pos++; //after \n
+			}
+		}
+		
+		if(context) {
+			context->PrecCompile(
+				PrecData(posBefore, pos, "",	nullptr, "", "").setJustSkip().appendCustomInfo(
+					[&](){
+						std::string str; // TODO fix, is showing garbage and not the comments..
+						// str = std::string(esdat).substr(posBefore, pos - posBefore);
+						// boost::replace_all(str, "\r\n\x0A\x0D", " ");
+						return str;
+					}()
+				)
+			);
+		}
+		
+		return true;
+	}
+	
+	return false;
+}
+
+void Context::skipWhitespacesCommentsAndNewLines() {
+	skipWhitespace(true);
+	while(script::detectAndSkipComment(this, m_script->data, m_pos, true)) {
+		skipWhitespace(true);
+	}
+}
 
 std::string Context::getCommand(bool skipNewlines) {
 	
@@ -108,11 +355,7 @@ std::string Context::getCommand(bool skipNewlines) {
 			ScriptParserWarning << "unexpected '~' in command name";
 		} else if(c == '\n') {
 			break;
-		} else if(c == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-			m_pos = esdat.find('\n', m_pos + 2);
-			if(m_pos == std::string::npos) {
-				m_pos = esdat.size();
-			}
+		} else if(script::detectAndSkipComment(this, esdat, m_pos, false)) {
 			if(!word.empty()) {
 				break;
 			}
@@ -125,19 +368,254 @@ std::string Context::getCommand(bool skipNewlines) {
 	return word;
 }
 
-std::string Context::getWord() {
+std::string Context::getPosLineColumnInfo(bool compact, size_t pos) const {
+	std::stringstream s;
 	
-	std::string_view esdat = m_script->data;
+	if(pos == static_cast<size_t>(-1)) {
+		pos = m_pos;
+	}
+	
+	s << "(" << (compact ? "p=" : "Position ") << pos;
+	
+	size_t iLine, iColumn;
+	getLineColumn(iLine, iColumn, pos);
+	
+	s << (compact ? ",l=" : ", Line ") << iLine << (compact ? ",c=" : ", Column ") << iColumn << ")";
+	return s.str();
+}
+
+void Context::getLineColumn(size_t & iLine, size_t & iColumn, size_t pos) const {
+	if(pos == static_cast<size_t>(-1)) {
+		pos = m_pos;
+	}
+	
+	iLine = 0;
+	iColumn = 1;
+	for(size_t i = 0; i < m_vNewLineAt.size(); i++) {
+		if(pos > m_vNewLineAt[i]) {
+			iLine = i + 1;
+			iColumn = pos - m_vNewLineAt[i];
+			iLine++;
+			iColumn--;
+		} else {
+			break;
+		}
+	}
+}
+
+size_t Context::getGoSubCallFromPos(size_t indexFromLast) const {
+	if(m_stackIdCalledFromPos.size() == 0) {
+		return static_cast<size_t>(-1); // means invalid
+	}
+	
+	if(indexFromLast >= m_stackIdCalledFromPos.size()) {
+		indexFromLast = m_stackIdCalledFromPos.size() - 1;
+	}
+	
+	return m_stackIdCalledFromPos[m_stackIdCalledFromPos.size() - indexFromLast - 1].first;
+}
+
+std::string Context::getGoSubCallStack(std::string_view prepend, std::string_view append, std::string_view between, size_t indexFromLast) const {
+	std::stringstream ss;
+	
+	if(m_message < SM_MAXCMD || m_stackIdCalledFromPos.size() > 0) {
+		ss << prepend;
+	}
+	
+	int indexHighlight = -2; // to be ignored must be out of recognized range: -1 0 1 2 ...
+	if(m_stackIdCalledFromPos.size() > 0) {
+		if(indexFromLast != size_t(-1)) {
+			if(indexFromLast > m_stackIdCalledFromPos.size() && m_message < SM_MAXCMD) {
+				indexHighlight = -1; // is the event
+			} else
+			if(indexFromLast >= m_stackIdCalledFromPos.size()) {
+				indexHighlight = 0;
+			} else {
+				indexHighlight = static_cast<int>(m_stackIdCalledFromPos.size() - indexFromLast - 1);
+			}
+		}
+	}
+	
+	if(m_message < SM_MAXCMD) {
+		std::string strEvent = std::string(ScriptEvent::name(m_message));
+		strEvent[2] = '_'; // ex.: "on main" becomes "on_main". This is important to retrieve a string of pseudo private script variables' prefix that matches "function"/event's name, see autoVarNameForScope().
+		if(indexHighlight == -1) ss << strCallStackHighlight;
+		ss << strEvent;
+		if(indexHighlight == -1) ss << strCallStackHighlight;
+		ss << between;
+	}
+	
+	if(m_stackIdCalledFromPos.size() > 0) {
+		size_t index = 0;
+		for(auto pair : m_stackIdCalledFromPos) {
+			if(index >= 1) ss << between;
+			if(indexHighlight == static_cast<int>(index)) ss << strCallStackHighlight;
+			ss << pair.second;
+			if(indexHighlight == static_cast<int>(index)) ss << strCallStackHighlight;
+			ss << getPosLineColumnInfo(true, m_stackIdCalledFromPos[index].first);
+			index++;
+		}
+	}
+	
+	if(m_message < SM_MAXCMD || m_stackIdCalledFromPos.size() > 0) {
+		ss << append;
+	}
+	
+	return ss.str();
+}
+
+void Context::seekToPosition(size_t pos) { 
+	m_pos=pos; 
+}
+
+static const char* pcDbgAlert3 = "\x1b[1;31m[D3]\x1b[0;31m\x1b[m";
+static const char* pcDbgAlert2 = "\x1b[1;33m[D2]\x1b[0;33m\x1b[m";
+static const char* pcDbgAlert1 = "\x1b[1;32m[D2]\x1b[0;32m\x1b[m";
+std::string PrecData::info() const {
+	return std::string() + "PreCD{" +
+		" pB=" + std::to_string(posBefore) + ":" + std::to_string(lineBefore) + ":" + std::to_string(columnBefore) + "," + // line and column -1 is to just mean it was not set as they can be 0
+		(posAfter != size_t(-1) ?
+			(" pA=" + std::to_string(posAfter) + ",") : "") +
+		
+		(strWord.size() > 0 ?
+			(" W=\"" + strWord    + "\",") : "") +
+		(cmd ?
+			(" C=" + cmd->getName() + ",") : "") +
+		(varName.size() > 0 ?
+			(" V=" + varName        + ",") : "") +
+		(bJustSkip ?
+			(" S=" + std::string("JustSkip") + ",") : "") +
+		
+		(strCustomInfo.size() > 0 ?
+			(" Info=\"" + strCustomInfo  + "\",") : "") +
+		
+		" fl=\"" + file + "\"" + // moved file to last to compact more useful data above in the first log line
+		" }";
+}
+
+bool Context::PrecDecompileWord(std::string & word) {
+	return PrecDecompile(m_pos,
+		&word, nullptr, nullptr, false);
+}
+bool Context::PrecDecompileCmd(Command ** cmdPointer) {
+	return PrecDecompile(m_pos,
+		nullptr, cmdPointer, nullptr, false);
+}
+bool Context::PrecDecompileVarName(std::string & varName) {
+	return PrecDecompile(m_pos - varName.size(),
+		nullptr, nullptr, &varName, false);
+}
+bool Context::PrecDecompileCommentSkip() {
+	return PrecDecompile(m_pos,
+		nullptr, nullptr, nullptr, true);
+}
+bool Context::PrecDecompile(size_t pos, std::string * word, Command ** cmdPointer, std::string * varName, bool justSkip) {
+	if(getEntity() == entities.player()) return false;
+	
+	#ifdef ARX_DEBUG
+	static platform::EnvVarHandler * evhPrecClear = evh_Create("ARX_PrecompileClearAllOnce", "remove all pre-compilations (for tests, no need to restart the game, just spawn a new entity instance like unstacking an item)", false);
+	if(evhPrecClear->getB()) {
+		precScripts.clear();
+		LogInfo << "Cleared all pre-compiled script data. Disable other pre-compile vars to prevent pre-compilation, and re-spawn entities after that.";
+		evhPrecClear->setB(false);
+	}
+	#endif
+	
+	if(precS.contains(pos)) {
+		PrecData & psD = *precS[pos];
+		arx_assert(psD.posBefore == pos);
+		
+		#ifdef ARX_DEBUG
+		static platform::EnvVarHandler * evhShowDecompile = evh_Create("ARX_PrecompileShowDecompileLog", "", false);
+		LogDebugIf(evhShowDecompile->getB(), "PreCDeCompile TRY " << m_entity->idString() << " (pos=" << pos << ") " << " (m_pos=" << m_pos << ") " << psD.info());
+		#endif
+		
+		std::string strMsg = std::string() + pcDbgAlert2 + " ignoring PreCDeCompile request (pos=" + std::to_string(pos) + "):";
+		if(word && psD.strWord.size() == 0) {
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "WRD: " << psD.info()); // << "\n" << boost::stacktrace::stacktrace();
+			return false;
+		} else
+		if(cmdPointer && !psD.cmd) {
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "CMD: " << psD.info());
+			return false;
+		} else
+		if(varName && psD.varName.size() == 0) { // the var can at least have a short var name to be replaced, so show it
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "VAR=\"" << *varName << "\": " << psD.info());
+			return false;
+		} else
+		if(justSkip && !(psD.bJustSkip)) {
+			LogDebugIf(evhShowDecompile->getB(), strMsg << "SKP: " << psD.info()); // there is a skip attempt before useful code, so this can be ignored
+			return false;
+		} else
+		if(!word && !cmdPointer && !varName && !justSkip) {
+			LogCritical << strMsg << "???: " << psD.info(); // this means there is something wrong in the script decompile cpp code flow or support to a new pre-compile kind is missing
+			return false;
+		}
+		
+		if(word      ) *word       = psD.strWord;
+		if(cmdPointer) *cmdPointer = psD.cmd;
+		if(varName   ) *varName    = psD.varName;
+		
+		LogDebugIf(psD.varName.size() > 0 && psD.strWord.size() == 0, pcDbgAlert3 << "var should always end up mixed with a word: " << psD.info());
+		
+		if(psD.bJustSkip && psD.posAfter == size_t(-1)) {
+			LogDebugIf(evhShowDecompile->getB(), pcDbgAlert2 << "asked SKP but no pos was set to skip to: " << psD.info());
+		}
+		
+		// seek to pos after, keep as LAST thing
+		if(psD.posAfter != size_t(-1) && (word || cmdPointer)) { // not allowed for var
+			if(pos == m_pos) {
+				if(psD.posAfter > m_pos) {
+					m_pos = psD.posAfter;
+				} else {
+					LogCritical << "Script decompile posAfter (" << psD.posAfter << ") should always be AFTER m_pos (" << m_pos << "): " << psD.info();
+				}
+			} else {
+				if(psD.posAfter != m_pos) { // may already be where it should in case of alt pos
+					LogCritical << "Script decompile was requested for alt pos (" << pos << ") than expected current (" << m_pos << "). In this case seeking to posAfter should not have also been requested: " << psD.info();
+				}
+			}
+		}
+		
+		return true;
+	}
+	
+	return false;
+}
+
+enum EPrecStaticStr { EPSSInit, EPSSAllowStatic, EPSSDenyDynamic, EPSSDenyAll };
+struct PrecWord{
+	size_t precPosBefore; // before whitespaces' before word
+	bool bPrecompileWord;
+	EPrecStaticStr eprecSS;
+	void init(size_t _precPosBefore) {
+		precPosBefore=(_precPosBefore);
+		
+		bPrecompileWord = false;
+		
+		static platform::EnvVarHandler * evhPrecAllowText = evh_Create("ARX_PrecompileAllowStaticText", "allow pre-compilation of words to include static text that are between \"...\"", false);
+		if(evhPrecAllowText->getB() && !g_allowExperiments->getB()) { // TODO RM after it is working w/o breaking the game
+			LogCritical << evhPrecAllowText->id() << " is experimental. It currently breaks the game.";
+			evhPrecAllowText->setB(false); // protects players
+		}
+		eprecSS = evhPrecAllowText->getB() ? EPrecStaticStr::EPSSInit : EPrecStaticStr::EPSSDenyAll;
+	}
+};
+std::string Context::getWord(bool evaluateVars) {
+	std::string word;
+	
+	if(PrecDecompileWord(word)) return word;
+	static PrecWord precw; precw.init(m_pos);
 	
 	skipWhitespace(false, true);
 	
+	std::string_view esdat = m_script->data;
 	if(m_pos >= esdat.size()) {
 		return std::string();
 	}
 	
 	bool tilde = false; // number of tildes
 	
-	std::string word;
 	std::string var;
 	
 	if(esdat[m_pos] == '"') {
@@ -149,14 +627,18 @@ std::string Context::getWord() {
 				}
 				return word;
 			} else if(esdat[m_pos] == '~') {
+				precw.eprecSS = EPrecStaticStr::EPSSDenyDynamic;
 				if(tilde) {
-					word += getStringVar(var);
-					var.clear();
+					if(evaluateVars) {
+						word += getStringVar(var);
+						var.clear();
+					}
 				}
 				tilde = !tilde;
 			} else if(tilde) {
-				var.push_back(esdat[m_pos]);
+				if(evaluateVars) var.push_back(esdat[m_pos]);
 			} else {
+				if(precw.eprecSS == EPrecStaticStr::EPSSInit) precw.eprecSS = EPrecStaticStr::EPSSAllowStatic;
 				word.push_back(esdat[m_pos]);
 			}
 		}
@@ -176,22 +658,20 @@ std::string Context::getWord() {
 				ScriptParserWarning << "unexpected '\"' inside token";
 			} else if(esdat[m_pos] == '~') {
 				if(tilde) {
-					word += getStringVar(var);
-					var.clear();
+					if(evaluateVars) {
+						word += getStringVar(var);
+						var.clear();
+					}
 				}
 				tilde = !tilde;
 			} else if(tilde) {
-				var.push_back(esdat[m_pos]);
-			} else if(esdat[m_pos] == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-				m_pos = esdat.find('\n', m_pos + 2);
-				if(m_pos == std::string::npos) {
-					m_pos = esdat.size();
-				}
+				if(evaluateVars) var.push_back(esdat[m_pos]);
+			} else if(script::detectAndSkipComment(this, esdat, m_pos, false)) {
 				break;
 			} else {
 				word.push_back(esdat[m_pos]);
+				precw.bPrecompileWord = true;
 			}
-			
 		}
 		
 	}
@@ -200,7 +680,238 @@ std::string Context::getWord() {
 		ScriptParserWarning << "unmatched '~'";
 	}
 	
+	if(
+		getEntity() != entities.player() &&
+		( precw.bPrecompileWord || precw.eprecSS == EPrecStaticStr::EPSSAllowStatic )
+	) {
+		PrecCompile( PrecData(
+				precw.precPosBefore, m_pos, "",
+				nullptr, word, ""
+			).appendCustomInfo(precw.eprecSS == EPrecStaticStr::EPSSAllowStatic ? "text" : "")
+		);
+	}
+	
 	return word;
+}
+
+std::vector<PrecCQ> Context::precCompileQueue;
+void Context::PrecCompileQueueProcess(Context & context) {
+	if(Context::precCompileQueue.size() == 0) return;
+	
+	auto it = Context::precCompileQueue.begin();
+	while(it != Context::precCompileQueue.end()) {
+		if(it->context == &context) {
+			if(context.PrecCompile(it->data)) {
+				LogDebug("PrecQueue process m_pos=" << it->data.posBefore);
+			}
+			// always remove as it will be re-queued
+			it = Context::precCompileQueue.erase(it); // 'it' becomes next one
+		} else {
+			++it;
+		}
+	}
+}
+void Context::PrecCompileQueueAdd(const Context * context, const PrecData data) {
+	Context::precCompileQueue.push_back(PrecCQ{ const_cast<Context*>(context), data });
+}
+
+void Context::PrecUpdatePosAfter(PrecData & pd) {
+	if(pd.posAfter == 0) {
+		pd.posAfter = m_pos; // initialize to expected default
+	} else if(pd.posAfter != size_t(-1) && pd.posAfter != m_pos) {
+		LogWarning << "instead of capturing m_pos, is using a custom posAfter=" << pd.posAfter;
+	}
+}
+
+bool Context::PrecCompile(const PrecData data) {  // pre-compile only static code
+	if(getEntity() == entities.player()) return false; // TODO could instead just deny console commands at ScriptConsole::execute() -> ScriptEvent::resume(&es, entity, pos);
+	
+	if(data.posBefore == size_t(-1)) {
+		LogDebug("invalid data.posBefore == size_t(-1), m_pos=" << m_pos << ", " << data.info()); // << boost::stacktrace::stacktrace()); // TODO find a way to dump some readable callstack in this case...
+		return false;
+	}
+	
+	#ifdef ARX_DEBUG
+		int iParamsOk = 0;
+		if(data.strWord.size() > 0) iParamsOk++;
+		if(data.cmd) iParamsOk++;
+		if(data.varName.size() > 0) iParamsOk++;
+		if(data.bJustSkip) iParamsOk++;
+		if(iParamsOk != 1) LogCritical << boost::stacktrace::stacktrace();
+		arx_assert_msg(iParamsOk == 1,
+			"set only word(%s) or cmd(%p) or varName(%s) or commentSkip(%d), %d",
+			data.strWord.c_str(), static_cast<const void*>(data.cmd), data.varName.c_str(), data.bJustSkip?1:0, iParamsOk);
+	#endif
+	
+	if(precS.contains(data.posBefore)) {
+		PrecData & pdE = *precS[data.posBefore];
+		/*TODORM
+		/ * mixing word & new var: from autoVarNameForScope()
+		 *  for this to work well, it should be coded like ex.:
+		 * 		f = getFloatVar(getWord()); // because m_pos will remain the same (getFloat() is equivalent)
+		 *  otherwise, coding like this (worst case) will lead to a clash in posBefore key preventing pre-compilation ex.:
+		 * 		strVarA = getWord(); // fA should come just after this
+		 * 		strVarB = getWord(); // fB should come just after this
+		 * 		strC = getWord();
+		 * 		fA = getFloatVar(strVarA); // fails as this var precomp would not match the precompiled word as has m_pos of C
+		 * 		fB = getFloatVar(strVarB); // fails too like above
+		 * /
+		if(
+				pdE.strWord.size() > 0 && // there is word
+				pdE.varName.size() == 0 && // and var is available
+				data.varName.size() > 0 // and new var is requested
+		) {
+			// the new var full name may refer to a pseudo-private scope short var name ex.: @'<<'test1 ('<<' is the tiny 1 char) @FUNCtst'<<'test1 this could be the full var name, so "'<<'test1" matches
+			if( boost::contains(data.varName, pdE.strWord.substr(1)) ) {
+				pdE.varName = data.varName;
+				pdE.appendCustomInfo("mixed word with compatible expanded var name");
+				LogDebug("PreC:PrecData: mixed existing word with new var: " << pdE.info());
+				return true;
+			}
+		}
+		*/
+		
+		/*TODO RETHINK
+		// convert to more relevant types
+		if(pdE.bJustSkip && !data.bJustSkip) {
+			pdE.strWord = data.strWord;
+			pdE.varName = data.varName;
+			pdE.cmd = data.cmd;
+			pdE.appendCustomInfo("converted JustSkip to better match");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.bJustSkip = false;
+			PrecUpdatePosAfter(pdE);
+			return true;
+		} else
+		if(pdE.varName.size() > 0 && data.cmd) { // cmd over var
+			pdE.cmd = data.cmd;
+			pdE.appendCustomInfo("converted var \"" + pdE.varName + "\" hit to cmd hit");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.varName = "";
+			PrecUpdatePosAfter(pdE);
+			return true;
+		} else
+		if( pdE.strWord.size() > 0 && data.cmd ) { // cmd over word
+			pdE.cmd = data.cmd;
+			pdE.appendCustomInfo("converted word \"" + pdE.strWord + "\" hit to cmd hit");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.strWord = "";
+			PrecUpdatePosAfter(pdE);
+			return true;
+		} else
+		if( pdE.strWord.size() > 0 && data.varName.size() > 0 ) { // var over word
+			pdE.varName = data.varName;
+			pdE.appendCustomInfo("converted word \"" + pdE.strWord + "\" hit to var hit");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			pdE.strWord = "";
+			PrecUpdatePosAfter(pdE);
+			return true;
+		} else
+		{}
+		*/
+		
+		if( pdE.strWord.size() > 0 && data.cmd ) { // TODO can this ever happen? as commands arent retrieved thru getWord()
+			pdE.cmd = data.cmd;
+			pdE.appendCustomInfo("mixed word+cmd");
+			LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+			return true;
+		} else
+		if( pdE.strWord.size() > 0 && data.varName.size() > 0 ) { // this will happen
+			if( pdE.strWord == data.varName || boost::contains(data.varName, pdE.strWord.substr(1)) ) {
+				pdE.varName = data.varName;
+				pdE.appendCustomInfo("mixed word+var");
+				LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+				return true;
+			}
+		} else
+		if( pdE.varName.size() > 0 && data.strWord.size() > 0) { // TODO how this happens?
+			if( pdE.strWord == data.varName || boost::contains(data.varName, pdE.strWord.substr(1)) ) {
+				pdE.strWord = data.strWord;
+				pdE.posAfter = data.posAfter; // needed for word but not allowed for var, see decompile
+				pdE.appendCustomInfo("mixed var+word");
+				LogDebug(pcDbgAlert1 << "PreC:" << pdE.info());
+				return true;
+			}
+		} else
+		{}
+		
+		LogDebug(pcDbgAlert3 << "PreC: existing data at ["<< data.posBefore<<"] " << pdE.info() << " can't be replaced by " << data.info());
+		return false;
+	}
+	
+	if(data.strWord.size() > 0) {
+		if(data.strWord.find_first_of("abcdefghijklmnopqrstuvwxyz_0123456789") == std::string_view::npos) return false;
+		static platform::EnvVarHandler * evhAllowWords = evh_Create("ARX_PrecompileAllowWords", "", false);
+		if(evhAllowWords->getB() && !g_allowExperiments->getB()) {
+			LogCritical << evhAllowWords->id() << " is experimental, may crash the game!";
+			evhAllowWords->setB(false); // protects players
+		}
+		if(!evhAllowWords->getB()) return false;
+	}
+	
+	if(data.cmd) {
+		static platform::EnvVarHandler * evhAllowCmds = evh_Create("ARX_PrecompileAllowCommands", "", false);
+		if(evhAllowCmds->getB() && !g_allowExperiments->getB()) {
+			LogCritical << evhAllowCmds->id() << " is experimental, may crash the game!";
+			evhAllowCmds->setB(false); // protects players
+		}
+		if(!evhAllowCmds->getB()) return false;
+	}
+	
+	if(data.varName.size() > 0) {
+		static platform::EnvVarHandler * evhAllowVarNames = evh_Create("ARX_PrecompileAllowVarNames", "", false);
+		if(evhAllowVarNames->getB() && !g_allowExperiments->getB()) {
+			LogCritical << evhAllowVarNames->id() << " is experimental, may crash the game!";
+			evhAllowVarNames->setB(false); // protects players
+		}
+		if(!evhAllowVarNames->getB()) return false;
+	}
+	
+	if(data.bJustSkip) {
+		static platform::EnvVarHandler * evhAllowSkip = evh_Create("ARX_PrecompileAllowSkip", "comments", false);
+		if(evhAllowSkip->getB() && !g_allowExperiments->getB()) {
+			LogCritical << evhAllowSkip->id() << " is experimental, may crash the game!";
+			evhAllowSkip->setB(false); // protects players
+		}
+		if(!evhAllowSkip->getB()) return false;
+	}
+	
+	///////////////////////////////////////////////////////////////
+	///////////////////// create prec data
+	precS[data.posBefore] = new PrecData(data);
+	PrecData & pdN = *precS[data.posBefore];
+	arx_assert(precS[data.posBefore]->posBefore == data.posBefore);
+	arx_assert(precS[data.posBefore]->posBefore == pdN.posBefore);
+	
+	PrecUpdatePosAfter(pdN);
+	//if(pdN.posAfter == 0) {
+		//pdN.posAfter = m_pos; // initialize to expected default
+	//} else if(pdN.posAfter != size_t(-1) && pdN.posAfter != m_pos) {
+		//LogWarning << "instead of capturing m_pos, is using a custom posAfter=" << pdN.posAfter;
+	//}
+	
+	pdN.file = m_script->file;
+	
+	size_t l, c;
+	getLineColumn(l, c, pdN.posBefore);
+	pdN.lineBefore = static_cast<int>(l);
+	pdN.columnBefore = static_cast<int>(c);
+	
+	// obs.: writing a pre-compiled cache would speed up only the first time that part of the script is executed by avoiding the script interpretation. In a development environment it is pointless, but for release there is almost also no gain, and even the end user may try to manually patch the scripts...
+	
+	LogDebug( "PreC[" << pdN.posBefore << "]" << precS.size() << ":"
+		<< [&](){
+				if(pdN.cmd)return "CMD";
+				if(pdN.strWord.size() > 0)return "WRD";
+				if(pdN.varName.size() > 0)return "VAR";
+				if(pdN.bJustSkip)return "SKP";
+				return "???"; // means missing detection above
+			}() << ":"
+		<< " ent=" << m_entity->idString() << ", m_pos=" << m_pos << ", "
+		<< pdN.info()
+	);
+	
+	return true;
 }
 
 void Context::skipWord() {
@@ -230,11 +941,7 @@ void Context::skipWord() {
 		for(; m_pos != esdat.size() && !isWhitespace(esdat[m_pos]); m_pos++) {
 			if(esdat[m_pos] == '"') {
 				ScriptParserWarning << "unexpected '\"' inside token";
-			} else if(esdat[m_pos] == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
-				m_pos = esdat.find('\n', m_pos + 2);
-				if(m_pos == std::string::npos) {
-					m_pos = esdat.size();
-				}
+			} else if(script::detectAndSkipComment(this, esdat, m_pos, false)) {
 				break;
 			}
 		}
@@ -251,6 +958,12 @@ void Context::skipWhitespace(bool skipNewlines, bool warnNewlines) {
 		if(esdat[m_pos] == '\n') {
 			if(warnNewlines) {
 				ScriptParserWarning << "unexpected newline";
+				LogDebug("unexpected newline at this line data: " << [&](){
+					size_t p = m_pos - 1;
+					while(esdat[p] != '\n' && p > 0) p--;
+					p++;
+					return "p=" + std::to_string(p) + "; m_pos=" + std::to_string(m_pos) + ": <beginOfLine>={" + std::string(esdat.substr(p, m_pos - p)) + "}=<EndOfLine>";
+				}());
 				if(isBlockEndSuprressed(*this, "?")) {
 					// Ignore the newline
 					continue;
@@ -278,14 +991,18 @@ float Context::getFloat() {
 	return getFloatVar(getWord());
 }
 
+int Context::getInteger() {
+	return static_cast<int>(getFloat());
+}
+
 bool Context::getBool() {
 	
 	std::string word = getWord();
 	
-	return (word == "on" || word == "yes");
+	return (word == "on" || word == "yes" || word == "enable" || word == "true");
 }
 
-float Context::getFloatVar(std::string_view name) const {
+float Context::getFloatVar(std::string_view name, Entity * entOverride) const {
 	
 	if(name.empty()) {
 		return 0.f;
@@ -304,11 +1021,13 @@ float Context::getFloatVar(std::string_view name) const {
 	} else if(name[0] == '#') {
 		return float(GETVarValueLong(svar, name));
 	} else if(name[0] == '\xA7') {
-		return float(GETVarValueLong(getEntity()->m_variables, name));
+		std::string nameAuto = autoVarNameForScope(true, name);
+		return float(GETVarValueLong((entOverride ? entOverride : getEntity())->m_variables, nameAuto));
 	} else if(name[0] == '&') {
 		return GETVarValueFloat(svar, name);
 	} else if(name[0] == '@') {
-		return GETVarValueFloat(getEntity()->m_variables, name);
+		std::string nameAuto = autoVarNameForScope(true, name);
+		return GETVarValueFloat((entOverride ? entOverride : getEntity())->m_variables, nameAuto);
 	}
 	
 	return util::parseFloat(name);
@@ -326,23 +1045,106 @@ size_t Context::skipCommand() {
 	
 	size_t oldpos = m_pos;
 	
-	if(esdat[m_pos] == '/' && m_pos + 1 != esdat.size() && esdat[m_pos + 1] == '/') {
+	if(script::detectAndSkipComment(this, esdat, m_pos, false)) {
 		oldpos = size_t(-1);
-		m_pos += 2;
-	}
-	
-	m_pos = esdat.find('\n', m_pos);
-	if(m_pos == std::string::npos) {
-		m_pos = esdat.size();
+	} else { // skips to the end of the line even if it is not commented
+		m_pos = esdat.find('\n', m_pos);
+		if(m_pos == std::string::npos) {
+			m_pos = esdat.size();
+		}
 	}
 	
 	return oldpos;
 }
 
+size_t seekBackwardsForCommentToken(const std::string_view & esdat, const size_t posToBackTrackFrom) {
+	for(size_t p = posToBackTrackFrom;; p--) {
+		if(esdat[p] == '/' && (p + 1 != esdat.size()) && esdat[p + 1] == '/') {
+			return p;
+		}
+		//if(esdat[p] == '/' && esdat[p + 1] == '*') { // multiline comments are dynamically pre-applied to become single line comments now, therefore they do not exist
+			//return p;
+		//}
+		if(esdat[p] == '\n' || p == 0) {
+			break;
+		}
+	}
+	return size_t(-1); // is not commented, therefore is a valid code line
+}
+
+bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, const std::string strScriptStringVariableID, const Context * context, size_t callStackIndexFromLast) {
+	std::stringstream ssPopupMsg; ssPopupMsg << strCustomMessage << "\n";
+	
+	std::stringstream ssWarn;
+	std::stringstream ssError;
+	if(boost::starts_with(util::toLowercase(strCustomMessage), "warn:" )) ssWarn  << strCustomMessage.substr(5);
+	if(boost::starts_with(util::toLowercase(strCustomMessage), "error:")) ssError << strCustomMessage.substr(6);
+	
+	std::stringstream ssFlInfo; ssFlInfo << " at \"" << strFileToEdit << "\"";
+	
+	size_t lineAtFileToEdit = 0;
+	if(context) {
+		std::string strScriptMsg = context->getStringVar(std::string() + '\xA3' + util::toLowercase(strScriptStringVariableID)); // must become lowercase or wont match
+		
+		ssFlInfo << " " << context->getPosLineColumnInfo(true) << context->getGoSubCallStack("{CallStackId(FromPosition):","}");
+		
+		if(boost::starts_with(util::toLowercase(strScriptMsg), "warn:" )) ssWarn  << " " << strScriptMsg.substr(5);
+		if(boost::starts_with(util::toLowercase(strScriptMsg), "error:")) ssError << " " << strScriptMsg.substr(6);
+		
+		size_t columnDummy;
+		context->getLineColumn(lineAtFileToEdit, columnDummy, context->getGoSubCallFromPos(callStackIndexFromLast));
+		
+		ssPopupMsg << ScriptContextPrefix(*context) << " [CallStackIndexFromLast=" << callStackIndexFromLast << "]\n"
+			 << " [!!!ScriptDebugMessage!!!] " << strScriptMsg << "\n";
+	}
+	
+	if(ssWarn.str().size()  > 0) LogWarning << ssWarn.str()  << ssFlInfo.str();
+	if(ssError.str().size() > 0) LogError   << ssError.str() << ssFlInfo.str();
+	
+	return platform::askOkCancelCustomUserSystemPopupCommand(strTitle, ssPopupMsg.str(), strDetails, strFileToEdit, lineAtFileToEdit);
+}
+
+#pragma GCC push_options
+#pragma GCC optimize ("O0") //required to let the breakpoint work
+/* implementation suggestion:
+ >>FUNCCustomCmdsB4DbgBreakpoint { showvars GoSub FUNCDebugBreakpoint RETURN } >>FUNCDebugBreakpoint { RETURN }
+ * Call this inside the .asl script like: GoSub FUNCCustomCmdsB4DbgBreakpoint
+ * If using nemiver to debug, just Shift+Ctrl+B and paste DebugBreakpoint at function name field.
+ * This will be available also on release compilations as mod developers can use the system popup instead of a debugger! The system popup requires environment variables to be set, or it wont show up, what makes it ok also to players.
+*/
+static void DebugBreakpoint(std::string_view target, Context & context) {
+	if(boost::contains(target, "debugbreakpoint")) { // this must be on the script call target name
+		static int iDbgBrkPCount = 0;
+		iDbgBrkPCount++; // put breakpoint here if using a debugger
+		size_t callStackIndexFromLast = 1; // callStackIndexFromLast: n=0 (size-1(-n)=last) would return where FUNCDebugBreakpoint was called from. n=1 (size-1(-n)=last-1) would return where FUNCCustomCmdsB4DbgBreakpoint was called from.
+		askOkCancelCustomUserSystemPopupCommand(
+			"Debug",
+			"Script Debug BreakPoint",
+			context.getGoSubCallStack(
+				"Script GoSub CallStack (targed ID was called from that line,column):\n ",
+				"\n",
+				" -> \n ",
+				callStackIndexFromLast + 1), // +1 as getGoSubCallStack doesnt know about debugbreakpoint target
+			(context).getScript()->file,
+			"DebugMessage",
+			&context,
+			callStackIndexFromLast
+		);
+	}
+}
+#pragma GCC pop_options
+
 bool Context::jumpToLabel(std::string_view target, bool substack) {
 	
 	if(substack) {
-		m_stack.push_back(m_pos);
+		// push the position from where the target will be called
+		m_stackIdCalledFromPos.push_back(std::make_pair(m_pos, std::string() += target));
+		
+		static size_t iCountRecursiveCheck = 0;
+		if(m_stackIdCalledFromPos.size() > 100 && iCountRecursiveCheck%100 == 0) {
+			LogWarning << "infinite recursive loop? " << getGoSubCallStack("CallStack(called from line,column):\n ", "", " -> \n ");
+			iCountRecursiveCheck++;
+		}
 	}
 	
 	size_t targetpos = FindScriptPos(m_script, std::string(">>") += target);
@@ -350,18 +1152,22 @@ bool Context::jumpToLabel(std::string_view target, bool substack) {
 		return false;
 	}
 	
+	DebugBreakpoint(target, *this);
+	
 	m_pos = targetpos;
+	
 	return true;
 }
 
 bool Context::returnToCaller() {
 	
-	if(m_stack.empty()) {
+	if(m_stackIdCalledFromPos.empty()) {
 		return false;
 	}
 	
-	m_pos = m_stack.back();
-	m_stack.pop_back();
+	m_pos = m_stackIdCalledFromPos.back().first;
+	m_stackIdCalledFromPos.pop_back();
+	
 	return true;
 }
 
@@ -378,7 +1184,7 @@ void Context::skipBlock() {
 		while(brackets > 0) {
 			
 			skipWhitespace(true);
-			word = getWord(); // TODO should not evaluate ~var~
+			word = getWord(false);
 			if(m_pos == m_script->data.size()) {
 				ScriptParserWarning << "missing '}' before end of script";
 				return;

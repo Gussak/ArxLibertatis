@@ -167,6 +167,15 @@ struct PlayerAttribute {
 		constitution += other.constitution;
 		mind += other.mind;
 	}
+	
+	float sum() {
+		return strength +
+			mind +
+			dexterity +
+			constitution;
+	}
+	
+	unsigned char sumC() { return static_cast<unsigned char>(sum()); }
 };
 
 struct PlayerSkill {
@@ -207,6 +216,20 @@ struct PlayerSkill {
 		closeCombat += other.closeCombat;
 		defense += other.defense;
 	}
+	
+	float sum() {
+		return stealth +
+			mecanism +
+			intuition +
+			etheralLink +
+			objectKnowledge +
+			casting +
+			projectile +
+			closeCombat +
+			defense;
+	}
+	
+	unsigned char sumC() { return static_cast<unsigned char>(sum()); }
 };
 
 struct PlayerMisc {
@@ -310,7 +333,9 @@ struct ARXCHARACTER {
 	PlayerSkill m_skillOld;
 	
 	unsigned char Attribute_Redistribute;
+	unsigned char Attribute_TotalEarnt;
 	unsigned char Skill_Redistribute;
+	unsigned char Skill_TotalEarnt;
 	
 	short level;
 	
@@ -362,7 +387,9 @@ struct ARXCHARACTER {
 		, m_lifeMaxWithoutMods(0.f)
 		, m_manaMaxWithoutMods(0.f)
 		, Attribute_Redistribute(0)
+		, Attribute_TotalEarnt(0)
 		, Skill_Redistribute(0)
+		, Skill_TotalEarnt(0)
 		, level(0)
 		, xp(0)
 		, skin(0)
@@ -405,6 +432,13 @@ struct ARXCHARACTER {
 	
 };
 
+/*!
+ * \brief player.skin goes from 0 to NUMBER_OF_PLAYER_SKINS - 1
+ */
+constexpr short NUMBER_OF_PLAYER_SKINS = 10;
+constexpr short MAX_CHEAT_PLAYER_SKIN = NUMBER_OF_PLAYER_SKINS;
+constexpr short EXTRA_PLAYER_SKIN = MAX_CHEAT_PLAYER_SKIN + 1;
+
 extern float CURRENT_PLAYER_COLOR;
 
 extern ARXCHARACTER player;
@@ -433,6 +467,9 @@ Vec3f ARX_PLAYER_FrontPos();
 void ARX_PLAYER_ComputePlayerFullStats();
 void ARX_PLAYER_MakeFreshHero();
 void ARX_PLAYER_QuickGeneration();
+bool ARX_PLAYER_ResetAttributesAndSkills(int minAttrs, int minSkills);
+bool ARX_PLAYER_RandomizeVanilla(int maxAttribute, int maxSkill);
+bool ARX_PLAYER_RandomizeRoleplayClass(int maxAttribute, int maxSkill, std::string roleplayClassPreferedOrder);
 void ARX_PLAYER_MakeAverageHero();
 void ARX_PLAYER_Modify_XP(long val);
 void ARX_PLAYER_FrameCheck(PlatformDuration delta);

@@ -170,7 +170,7 @@ bool MAGICMODE = false;
 static PlatformInstant COMBAT_MODE_ON_START_TIME = 0;
 static long SPECIAL_DRAW_WEAPON = 0;
 bool bGCroucheToggle = false;
-
+bool bCombineItemsSingleKeyPressed = false;
 
 bool bInverseInventory = false;
 bool lOldTruePlayerMouseLook = TRUE_PLAYER_MOUSELOOK_ON;
@@ -886,6 +886,35 @@ void ArxGame::managePlayerControls() {
 		g_moveto = player.pos + tm;
 	}
 	
+	bCombineItemsSingleKeyPressed = false;
+	if(GInput->actionNowPressed(CONTROLS_CUST_COMBINE)) {
+		bCombineItemsSingleKeyPressed = true;
+	}
+	
+	ActionDoubleClick = false;
+	if(GInput->actionNowPressed(CONTROLS_CUST_ACTION2)) {
+		ActionDoubleClick = true;
+	}
+	
+	if(GInput->actionNowPressed(CONTROLS_CUST_TAKEALLITEMS) && g_secondaryInventoryHud.isOpen()) {
+		g_secondaryInventoryHud.takeAllItems();
+	}
+	
+	if(   GInput->actionNowPressed(CONTROLS_CUST_UNSTACK)
+		 && (player.Interface & INTER_INVENTORY || g_secondaryInventoryHud.isOpen())
+		 && FlyingOverIO && FlyingOverIO->owner() && FlyingOverIO->owner()->inventory
+		 && FlyingOverIO->_itemdata->count > 1
+	) {
+		Entity * unstackedEntity = CloneIOItem(FlyingOverIO);
+		unstackedEntity->scriptload = 1;
+		unstackedEntity->_itemdata->count = 1;
+		unstackedEntity->pos = FlyingOverIO->pos;
+		unstackedEntity->angle = FlyingOverIO->angle;
+		unstackedEntity->show = SHOW_FLAG_IN_SCENE;
+		FlyingOverIO->owner()->inventory->insertIntoNewSlot(unstackedEntity);
+		FlyingOverIO->_itemdata->count--;
+	}
+	
 	// Checks CROUCH Key Status.
 	if(GInput->actionNowPressed(CONTROLS_CUST_CROUCHTOGGLE)) {
 		bGCroucheToggle = !bGCroucheToggle;
@@ -1026,6 +1055,30 @@ void ArxGame::managePlayerControls() {
 	
 		if(GInput->actionNowPressed(CONTROLS_CUST_PRECAST3)) {
 			ARX_SPELLS_Precast_Launch(PrecastHandle(2));
+		}
+
+		if(GInput->actionNowPressed(CONTROLS_CUST_PRECAST4)) {
+			ARX_SPELLS_Precast_Launch(PrecastHandle(3));
+		}
+
+		if(GInput->actionNowPressed(CONTROLS_CUST_PRECAST5)) {
+			ARX_SPELLS_Precast_Launch(PrecastHandle(4));
+		}
+
+		if(GInput->actionNowPressed(CONTROLS_CUST_PRECAST6)) {
+			ARX_SPELLS_Precast_Launch(PrecastHandle(5));
+		}
+
+		if(GInput->actionNowPressed(CONTROLS_CUST_PRECAST7)) {
+			ARX_SPELLS_Precast_Launch(PrecastHandle(6));
+		}
+
+		if(GInput->actionNowPressed(CONTROLS_CUST_PRECAST8)) {
+			ARX_SPELLS_Precast_Launch(PrecastHandle(7));
+		}
+
+		if(GInput->actionNowPressed(CONTROLS_CUST_PRECAST9)) {
+			ARX_SPELLS_Precast_Launch(PrecastHandle(8));
 		}
 	}
 
@@ -1621,7 +1674,7 @@ void ArxGame::manageEntityDescription() {
 	std::stringstream ss;
 	
 	if(temp->ioflags & IO_GOLD) {
-		ss << temp->_itemdata->price << " ";
+		ss << temp->_itemdata->sellPrice << " / " << temp->_itemdata->buyPrice << " ";
 	}
 	
 	ss << getLocalised(temp->locname);
@@ -1767,7 +1820,8 @@ void ArxGame::manageEditorControls() {
 				COMBINE = nullptr;
 		}
 		
-		if(eeMouseDown1() && (COMBINE || COMBINEGOLD)) {
+		if((eeMouseDown1() || bCombineItemsSingleKeyPressed) && (COMBINE || COMBINEGOLD)) {
+			bCombineItemsSingleKeyPressed = false;
 			
 			updateCombineFlags(nullptr);
 			
@@ -1840,7 +1894,7 @@ void ArxGame::manageEditorControls() {
 		}
 		
 		// Double Clicked and not already combining.
-		if(eeMouseDoubleClick1() && !COMBINE && FlyingOverIO && (FlyingOverIO->ioflags & IO_ITEM)) {
+		if((eeMouseDoubleClick1() || bCombineItemsSingleKeyPressed) && !COMBINE && FlyingOverIO && (FlyingOverIO->ioflags & IO_ITEM)) {
 			
 			bool accept_combine = true;
 			Entity * container = locateInInventories(FlyingOverIO).container;

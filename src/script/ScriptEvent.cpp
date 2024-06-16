@@ -90,6 +90,7 @@ std::string_view ScriptEvent::name(ScriptMessage event) {
 		case SM_CHAT:                   return "on chat";
 		case SM_CINE_END:               return "on cine_end";
 		case SM_CLICKED:                return "on clicked";
+		case SM_CLONE:                  return "on clone";
 		case SM_COLLIDE_DOOR:           return "on collide_door";
 		case SM_COLLIDE_FIELD:          return "on collide_field";
 		case SM_COLLIDE_NPC:            return "on collide_npc";
@@ -106,6 +107,7 @@ std::string_view ScriptEvent::name(ScriptMessage event) {
 		case SM_DEAD:                   return "on dead";
 		case SM_DETECTPLAYER:           return "on detectplayer";
 		case SM_DIE:                    return "on die";
+		case SM_DURABILITY_LOSS:        return "on durability_loss";
 		case SM_ENTERZONE:              return "on enterzone";
 		case SM_EQUIPIN:                return "on equipin";
 		case SM_EQUIPOUT:               return "on equipout";
@@ -125,6 +127,7 @@ std::string_view ScriptEvent::name(ScriptMessage event) {
 		case SM_LOAD:                   return "on load";
 		case SM_LOSTTARGET:             return "on losttarget";
 		case SM_MAIN:                   return "on main";
+		case SM_MOVEMENTDETECTED:       return "on movementdetected";
 		case SM_OUCH:                   return "on ouch";
 		case SM_PATHEND:                return "on pathend";
 		case SM_PATHFINDER_FAILURE:     return "on pathfinder_failure";
@@ -155,9 +158,66 @@ std::string_view ScriptEvent::name(ScriptMessage event) {
 }
 
 void ARX_SCRIPT_ComputeShortcuts(EERIE_SCRIPT & es) {
+	LogDebug("file="<<es.file);
 	for(size_t i = 1; i < SM_MAXCMD; i++) {
 		es.shortcut[i] = FindScriptPos(&es, ScriptEvent::name(ScriptMessage(i)));
 	}
+	
+	// detect and cache GoTo and GoSub call target IDs and the position just after them.
+	size_t pos = 0;
+	size_t posEnd = 0;
+	size_t posComment = 0;
+	while(true) {
+		
+		if(pos == es.data.size() || pos == std::string::npos) {
+			break;
+		}
+		
+		pos = es.data.find(">>",pos);
+		if(pos == std::string::npos) {
+			break;
+		}
+		LogDebug("pos="<<pos<<",datasize="<<es.data.size());
+		
+		posComment = script::seekBackwardsForCommentToken(es.data, pos);
+		if(posComment != size_t(-1)) {
+			pos = posComment;
+			if(script::detectAndSkipComment(nullptr, es.data, pos, true)) {
+				continue; // to imediately seek for next call target after the comment and after the newline
+			}
+		}
+		
+		static std::string strValidCallIdChars = "0123456789abcdefghijklmnopqrstuvwxyz_";
+		posEnd = es.data.find_first_not_of(strValidCallIdChars, pos+2); //skip ">>"
+		if(posEnd == std::string::npos) {
+			posEnd = es.data.size();
+		}
+		const std::string id = es.data.substr(pos, posEnd-pos);
+		//LogDebug("shortcutCall:found: "<<"id="<<id<<", posAfterIt="<<posEnd<<"; posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
+		arx_assert_msg(!(id.size() < 3 || id.substr(0,2) != ">>" || id.find_first_not_of(strValidCallIdChars,2) != std::string::npos), "invalid id detected '%s' pos=%lu, posEnd=%lu, scriptSize=%lu idSize=%lu", std::string(id).c_str(), pos, posEnd, es.data.size(), id.size());
+		
+		auto it = es.shortcutCalls.find(id);
+		if(it == es.shortcutCalls.end()) {
+			es.shortcutCalls.emplace(id, posEnd);
+			LogDebug("shortcutCall:AddedNew: id="<<id<<", posAfterIt="<<posEnd<<"; posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
+		} else {
+			// an overrider call target was already found and will be kept. This new match will be ignored.
+			LogDebug("shortcutCall:IGNORED: id="<<id<<"("<< it->first <<"), posAfterIt="<<posEnd<<"(overridenBy="<< it->second <<"); posB4it="<<pos<<", vsize="<<es.shortcutCalls.size());
+		}
+		
+		if(posEnd == es.data.size()) {
+			break;
+		}
+		
+		pos = posEnd;
+	}
+	
+	#ifdef ARX_DEBUG
+	LogDebug("shortcutCallsForFile["<<es.shortcutCalls.size()<<"]:"<<es.file);
+	for(auto it : es.shortcutCalls) { // shows the ordered sorted map result!
+		LogDebug("shortcutCall: id="<< it.first <<", posAfterIt="<< it.second);
+	}
+	#endif
 }
 
 static bool checkInteractiveObject(Entity * io, ScriptMessage msg, ScriptResult & ret) {
@@ -239,9 +299,10 @@ static const char * toString(ScriptResult ret) {
 }
 #endif
 
+/* toggleCommentBlock: 1st is working, 2nd is experimental
 ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
                                ScriptEventName event, ScriptParameters parameters,
-                               size_t position) {
+                               size_t position, const SCR_TIMER * timer) {
 	
 	ScriptResult ret = ACCEPT;
 	
@@ -280,7 +341,7 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 	LogDebug("--> " << event << " params=\"" << parameters << "\"" << " entity=" << entity->idString()
 	         << (es == &entity->script ? " base" : " overriding") << " pos=" << pos);
 	
-	script::Context context(es, pos, sender, entity, event.getId(), std::move(parameters));
+	script::Context context(es, pos, sender, entity, event.getId(), std::move(parameters), timer);
 	
 	if(event != SM_EXECUTELINE) {
 		std::string word = context.getCommand();
@@ -375,17 +436,224 @@ ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity 
 				return ACCEPT;
 			}
 			
-			ScriptEventWarning << "<-- unknown command: " << word;
+			if(word == "&&" || word == "||" || word == ",") {
+				ScriptEventWarning << "<-- this word is expected only inside conditional logical operators: '" << word <<"'. Did you forget to surround the multi condition with and() or or() ?";
+			} else {
+				if(word.size() >= 2 && word[1] == '\xBB') {
+					ScriptEventWarning << "<-- unknown command: " << word << " (check if GoTo/GoSub is using the -p flag)";
+				} else {
+					ScriptEventWarning << "<-- unknown command: " << word;
+				}
+			}
 			
 			context.skipCommand();
 		}
 		
+		if(timer) {
+			context.clearCheckTimerIdVsGoToLabelOnce();
+		}
 	}
 	
 	LogDebug("<-- " << event << " finished: " << toString(ret));
 	
 	return ret;
 }
+/*/ // middle of toggleCommentBlock
+ScriptResult ScriptEvent::send(const EERIE_SCRIPT * es, Entity * sender, Entity * entity,
+                               ScriptEventName event, ScriptParameters parameters,
+                               size_t position, const SCR_TIMER * timer) {
+	
+	ScriptResult ret = ACCEPT;
+	
+	totalCount++;
+	
+	arx_assert(entity);
+	
+	if(checkInteractiveObject(entity, event.getId(), ret)) {
+		return ret;
+	}
+	
+	if(!es->valid) {
+		return ACCEPT;
+	}
+	
+	if(entity->m_disabledEvents & event.toDisabledEventsMask()) {
+		return REFUSE;
+	}
+	
+	// Finds script position to execute code...
+	size_t pos = position;
+	if(!event.getName().empty()) {
+		arx_assert(event.getId() == SM_NULL);
+		arx_assert_msg(ScriptEventName::parse(event.getName()).getId() == SM_NULL, "non-canonical event name");
+		pos = FindScriptPos(es, "on " + event.getName());
+	} else if(event != SM_EXECUTELINE) {
+		arx_assert(event.getId() < SM_MAXCMD);
+		pos = es->shortcut[event.getId()];
+		arx_assert(pos == size_t(-1) || pos <= es->data.size());
+	}
+
+	if(pos == size_t(-1)) {
+		return ACCEPT;
+	}
+	
+	LogDebug("--> " << event << " params=\"" << parameters << "\"" << " entity=" << entity->idString()
+	         << (es == &entity->script ? " base" : " overriding") << " pos=" << pos);
+	
+	script::Context context(es, pos, sender, entity, event.getId(), std::move(parameters), timer);
+	
+	if(event != SM_EXECUTELINE) {
+		std::string word = context.getCommand();
+		if(word != "{") {
+			ScriptEventWarning << "<-- missing bracket after event, got \"" << word << "\"";
+			return ACCEPT;
+		}
+	}
+	
+	size_t brackets = 1;
+	
+	std::string word;
+	
+	// must set defaults on every loop begin
+	bool bPrecDecompiledCmdExec;
+	script::Command * precCmdPointer;
+	size_t precPosBeforeCmd;
+	
+	for(;;) {
+		script::Context::PrecCompileQueueProcess(context);
+		
+		bPrecDecompiledCmdExec = false;
+		precCmdPointer = nullptr;
+		precPosBeforeCmd = size_t(-1);
+		
+		if(context.PrecDecompileCmd(&precCmdPointer)) {
+			bPrecDecompiledCmdExec = true;
+		} else {
+			precPosBeforeCmd = context.getPosition();
+			
+			word = context.getCommand(event != SM_EXECUTELINE);
+			if(word.empty()) {
+				if(event == SM_EXECUTELINE && context.getPosition() != es->data.size()) {
+					arx_assert(es->data[context.getPosition()] == '\n');
+					LogDebug("<-- line end");
+					return ACCEPT;
+				}
+				ScriptEventWarning << "<-- reached script end without accept / refuse / return";
+				return ACCEPT;
+			}
+			
+			// Remove all underscores from the command.
+			word.resize(std::remove(word.begin(), word.end(), '_') - word.begin());
+			
+			if(auto it = commands.find(word); it != commands.end()) {
+				precCmdPointer = it->second.get();
+			}
+		}
+		
+		if(precCmdPointer) {
+			
+			script::Command & command = *(precCmdPointer);
+			
+			script::Command::Result res;
+			bool bSkip = false;
+			if(bPrecDecompiledCmdExec) bSkip = true;
+			if(!bSkip) {
+				if(command.getEntityFlags()
+					 && (command.getEntityFlags() != script::Command::AnyEntity
+							 && !(command.getEntityFlags() & long(entity->ioflags)))) {
+					ScriptEventWarning << "Command " << command.getName() << " needs an entity of type "
+														 << command.getEntityFlags();
+					context.skipCommand();
+					res = script::Command::Failed;
+					bSkip = true;
+				}
+			}
+			if(!bSkip) {
+				if(context.getParameters().isPeekOnly()) {
+					res = command.peek(context);
+					bSkip = true;
+				}
+			}
+			if(!bSkip || bPrecDecompiledCmdExec) {
+				if(!bPrecDecompiledCmdExec) {
+					context.PrecCompile(script::PrecData(precPosBeforeCmd, 0, "",	&command, "", "")); // put before execute to capture current m_pos as posAfter
+				}
+				res = command.execute(context);
+				bSkip = true;
+			}
+			
+			if(res == script::Command::AbortAccept) {
+				ret = ACCEPT;
+				break;
+			} else if(res == script::Command::AbortRefuse) {
+				ret = REFUSE;
+				break;
+			} else if(res == script::Command::AbortError) {
+				ret = BIGERROR;
+				break;
+			} else if(res == script::Command::AbortDestructive) {
+				ret = DESTRUCTIVE;
+				break;
+			} else if(res == script::Command::Jumped) {
+				if(event == SM_EXECUTELINE) {
+					event = SM_DUMMY;
+				}
+				brackets = size_t(-1);
+			}
+			
+		} else if(!word.compare(0, 2, ">>", 2)) {
+			context.skipCommand(); // labels
+		} else if(!word.compare(0, 5, "timer", 5)) {
+			if(context.getParameters().isPeekOnly()) {
+				ret = DESTRUCTIVE;
+				break;
+			}
+			script::timerCommand(word.substr(5), context);
+		} else if(word == "{") {
+			if(brackets != size_t(-1)) {
+				brackets++;
+			}
+		} else if(word == "}") {
+			if(brackets != size_t(-1)) {
+				brackets--;
+				if(brackets == 0) {
+					if(isBlockEndSuprressed(context, word)) { // TODO(broken-scripts)
+						brackets++;
+					} else {
+						ScriptEventWarning << "<-- event block ended without accept or refuse!";
+						return ACCEPT;
+					}
+				}
+			}
+		} else {
+			
+			if(isBlockEndSuprressed(context, word)) { // TODO(broken-scripts)
+				return ACCEPT;
+			}
+			
+			if(word == "&&" || word == "||" || word == ",") {
+				ScriptEventWarning << "<-- this is expected only inside conditional logical operators: '" << word <<"'. Did you forget to surround the multi condition with and() or or() ?";
+			} else {
+				if(word.size() >= 2 && word[1] == '\xBB') { // see Context::autoVarNameForScope()
+					ScriptEventWarning << "<-- unknown command: " << word << " (check if GoTo/GoSub is using the -p flag)";
+				} else {
+					ScriptEventWarning << "<-- unknown command: " << word;
+				}
+			}
+			
+			context.skipCommand();
+		}
+		
+		if(timer) {
+			context.clearCheckTimerIdVsGoToLabelOnce();
+		}
+	}
+	
+	LogDebug("<-- " << event << " finished: " << toString(ret));
+	
+	return ret;
+}
+//*/ // end of toggleCommentBlock
 
 void ScriptEvent::registerCommand(std::unique_ptr<script::Command> command) {
 	std::string_view name = command->getName();

@@ -21,11 +21,13 @@
 
 #include <cstdlib>
 #include <cstring>
+//#include <ctime>
 #include <iostream>
 #include <sstream>
 #include <string_view>
 #include <vector>
 
+#include "io/log/Logger.h"
 #include "platform/Platform.h"
 
 #include "Configure.h"
@@ -39,10 +41,10 @@
 #endif
 
 #include "core/Version.h"
+#include "platform/Environment.h"
 #include "platform/Process.h"
 #include "platform/WindowsUtils.h"
 #include "util/String.h"
-
 
 namespace platform {
 
@@ -484,6 +486,86 @@ bool askYesNoWarning(const std::string & question, const std::string & title) {
 
 bool askOkCancel(const std::string & question, const std::string & title) {
 	return showDialog(DialogOkCancel, question, title);
+}
+
+/**
+ * This is more permissive (any command can be run) and flexible (any params can be used) alternative to platform::showInfoDialog and related functions.
+ * TODO but try to adapt it to platform::show... anyway ? (there is no yad support there)
+ * This means the user must be careful when setting the env vars for requested commands, or just copy the below examples:
+ * 
+ * 	For Linux:
+ * 		export ARX_ScriptErrorPopupCommand='yad --no-markup --selectable-labels --title="%{title}" --text="%{message}" --form --field="%{details}":LBL --scroll --on-top --center --button="Edit:0" --button="Ignore:1" --button="Ignore10s:2" --button="Ignore60s:3" --button="Ignore10m:4" --button="Ignore1h:5"'
+ * 		export ARX_ScriptCodeEditorCommand='geany "%{file}":%{line}'
+ * 	For Windows:
+ * 		TODO
+ * 	For Mac:
+ * 		TODO
+ */
+bool askOkCancelCustomUserSystemPopupCommand(const std::string strTitle, const std::string strCustomMessage, const std::string strDetails, const std::string strFileToEdit, size_t lineAtFileToEdit) {
+	static platform::EnvVarHandler * systemPopupCmd = evh_Create("ARX_ScriptErrorPopupCommand", "Attention: custom user command!", "");
+	
+	static time_t ignoreTo = time(0);time_t now = time(0); // TODO? static PlatformInstant ignoreTo = platform::getTime();PlatformInstant now = platform::getTime(); // See LOD code about PlatformDuration(1s * float)
+	if(systemPopupCmd->getS().size() && now >= ignoreTo) {
+		std::string strSysPopupCmd = systemPopupCmd->getS();
+		
+		std::string strTitleOk = "ArxLibertatis: " + strTitle;
+		util::applyTokenAt(strSysPopupCmd, "%{title}", util::escapeString(strTitleOk));
+		
+		std::stringstream ssMsg;
+		
+		ssMsg << strCustomMessage << "\n";
+		
+		if(strFileToEdit.size() > 0) {
+			ssMsg << " [FileToEdit] '" << strFileToEdit << ":" << lineAtFileToEdit << "'\n";
+		}
+		
+		static platform::EnvVarHandler * codeEditorCmd = evh_Create("ARX_ScriptCodeEditorCommand", "Attention: custom user command!", "");
+		if(codeEditorCmd->getS().size() > 0) {
+			ssMsg << "Click OK to open the code editor."; // set a string var named DebugMessage in the script and it will show up on the popup!
+		}
+		
+		static std::string strEscapeChars = "\\ \"'!@#$%^&*<>()[]{}";
+		util::applyTokenAt(strSysPopupCmd, "%{message}", util::escapeString(ssMsg.str(), strEscapeChars));
+		util::applyTokenAt(strSysPopupCmd, "%{details}", std::string() + " [DETAILS] \n" + util::escapeString(strDetails, strEscapeChars));
+		
+		int retPopupCmd = platform::runUserCommand(strSysPopupCmd.c_str());
+		if(retPopupCmd == 0 && codeEditorCmd->getS().size() > 0 && strFileToEdit.size() > 0) { // clicked ok
+			std::string strCodeEditorCmd = codeEditorCmd->getS();
+			
+			util::applyTokenAt(strCodeEditorCmd, "%{file}", strFileToEdit);
+			
+			util::applyTokenAt(strCodeEditorCmd, "%{line}", std::to_string(lineAtFileToEdit));
+			
+			platform::runUserCommand(strCodeEditorCmd.c_str()); // even if the editor fails, it may be opened externally by the user, wont affect return value
+		}
+		
+		if(retPopupCmd == 0) {
+			return true;
+		}
+		
+		// retPopupCmd == 1 is ignore once
+		
+		if(retPopupCmd == 2 || retPopupCmd == 2*256) { // TODO explain how 2 returned from yad becomes 512 ...
+			//ignoreTo = platform::getTime() + 10*1000000 ;
+			ignoreTo = time(0) + 10;
+			//ignoreTimes += 10;
+		}
+		if(retPopupCmd == 3 || retPopupCmd == 3*256) {
+			//ignoreTo = platform::getTime() + 60*1000000 ;
+			ignoreTo = time(0) + 60;
+			//ignoreTimes += 100;
+		}
+		if(retPopupCmd == 4 || retPopupCmd == 4*256) {
+			//ignoreTo = platform::getTime() + 600*1000000 ;
+			ignoreTo = time(0) + 600;
+		}
+		if(retPopupCmd == 5 || retPopupCmd == 5*256) {
+			//ignoreTo = platform::getTime() + 3600*1000000 ;
+			ignoreTo = time(0) + 3600;
+		}
+	}
+	
+	return false;
 }
 
 } // namespace platform

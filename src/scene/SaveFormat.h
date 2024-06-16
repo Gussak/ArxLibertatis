@@ -290,7 +290,7 @@ struct SavedMiniMap {
 	
 };
 
-const size_t SAVED_MAX_PRECAST = 3;
+const size_t SAVED_MAX_PRECAST = 9;
 
 struct SavedPrecast {
 	
@@ -368,7 +368,9 @@ struct ARX_CHANGELEVEL_PLAYER {
 	f32 maxmana;
 	s32 level;
 	s16 Attribute_Redistribute;
+	s16 Attribute_TotalEarnt;
 	s16 Skill_Redistribute;
+	s16 Skill_TotalEarnt;
 	
 	f32 armor_class; // TODO remove
 	f32 resist_magic; // TODO remove
@@ -421,7 +423,6 @@ struct ARX_CHANGELEVEL_PLAYER {
 	SavedVec3 LAST_VALID_POS;
 	char draggedEntity[SIZE_ID];
 	s32 padding[237];
-	
 };
 
 struct ARX_CHANGELEVEL_INVENTORY_DATA_SAVE {
@@ -891,7 +892,8 @@ struct SavedEquipItem {
 };
 
 struct ARX_CHANGELEVEL_ITEM_IO_SAVE {
-	s32 price;
+	s32 buyPrice;
+	s32 sellPrice;
 	s16 maxcount;
 	s16 count;
 	char food_value;

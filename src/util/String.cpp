@@ -19,6 +19,8 @@
 
 #include "util/String.h"
 
+#include "io/log/Logger.h"
+
 #include <utility>
 
 #include <boost/date_time.hpp>
@@ -61,27 +63,60 @@ std::string escapeString(std::string text, std::string_view escapeChars) {
 	return escapedStr;
 }
 
-std::string getDateTimeString() {
+std::string getDateTimeString(std::string strFormat) {
 	
 	boost::posix_time::ptime localTime = boost::posix_time::second_clock::local_time();
 	boost::gregorian::date::ymd_type ymd = localTime.date().year_month_day();
 	boost::posix_time::time_duration hms = localTime.time_of_day();
 	
 	std::stringstream localTimeString;
-	localTimeString << std::setfill('0')
-	                << ymd.year << "."
-	                << std::setw(2)
-	                << ymd.month.as_number() << "."
-	                << std::setw(2)
-	                << ymd.day.as_number() << "-"
-	                << std::setw(2)
-	                << hms.hours() << "."
-	                << std::setw(2)
-	                << hms.minutes() << "."
-	                << std::setw(2)
-	                << hms.seconds();
+	localTimeString << std::setfill('0');
+	for(size_t i = 0; i < strFormat.size(); i++) {
+		switch(strFormat[i]) {
+			case 'Y': localTimeString << ymd.year; break;
+			case 'M': localTimeString << ymd.month.as_number(); break;
+			case 'D': localTimeString << ymd.day.as_number(); break;
+			case 'h': localTimeString << hms.hours(); break;
+			case 'm': localTimeString << hms.minutes(); break;
+			case 's': localTimeString << hms.seconds(); break;
+			default:  localTimeString << strFormat[i] << std::setw(2); break;
+		}
+	}
 	
 	return localTimeString.str();
+}
+
+void applyTokenAt(std::string & strAt, const std::string strToken, const std::string strText) {
+	strAt.replace(strAt.find(strToken), strToken.size(), strText);
+}
+
+std::regex * prepareRegex(std::regex * re, std::string strRegex, bool allowLog) {
+	std::regex * reNew = nullptr;
+	try {
+		reNew = new std::regex(strRegex.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
+		
+		if(re) {
+			*re = *reNew; // copy
+			delete reNew;
+			return re;
+		} else {
+			return reNew;
+		}
+	} catch (const std::regex_error& e) {
+		if(allowLog) {
+			LogError << "regex_error caught: " << e.what();
+		} else {
+			RawDebug(" [E] ERROR: regex_error caught: " << e.what()); 
+		}
+		
+		if(reNew) {
+			delete reNew;
+		}
+		
+		return nullptr;
+	}
+	
+	return nullptr;
 }
 
 } // namespace util

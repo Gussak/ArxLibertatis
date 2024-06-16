@@ -21,6 +21,7 @@
 
 #include <algorithm>
 
+#include "io/log/Logger.h"
 #include "platform/Platform.h"
 #include "util/String.h"
 
@@ -170,6 +171,20 @@ path & path::set_ext(std::string_view ext) {
 	if(extpos == std::string::npos || pathstr[extpos] != ext_sep) {
 		return (((ext.empty() || ext[0] != ext_sep) ? (pathstr += ext_sep) : pathstr).append(ext), *this);
 	} else {
+		if(pathstr.size() > extpos + 1) {
+			std::string extExisting = pathstr.substr(extpos);
+			if(extExisting != std::string(ext)) {
+				if( ! (
+						(ext == "jpeg" && extExisting == "jpe") ||
+						(ext == "jpeg" && extExisting == "jpg")
+				) ) {
+					// these above can be ignored as they are compatible
+				} else {
+					LogWarning << "requested extension '" << ext << "' differs from existing '" << extExisting << "' at '" << pathstr << "'";
+				}
+			}
+		}
+		
 		if(ext.empty() || ext[0] != ext_sep) {
 			pathstr.resize(extpos + 1 + ext.size());
 			std::copy(ext.begin(), ext.end(), pathstr.begin() + extpos + 1);

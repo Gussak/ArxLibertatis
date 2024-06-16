@@ -41,6 +41,7 @@ extern Vec2f g_draggedIconOffset;
 
 void setDraggedEntity(Entity * entity);
 
+float calcAimAndVelocity(Vec3f * direction, float fPrecision = 0.2f);
 void updateDraggedEntity();
 
 struct EntityDragResult {
